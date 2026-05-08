@@ -24,6 +24,7 @@ There are several detailed pieces of documentation about OpenPiton in the docs f
 - [OpenPiton FPGA Prototype Manual](http://parallel.princeton.edu/openpiton/docs/fpga_man.pdf)
 - [OpenPiton Synthesis and Back-end Manual](http://parallel.princeton.edu/openpiton/docs/synbck_man.pdf)
 - [AX7023/AX7203 Linux Bring-Up Reproduction Notes](docs/ax7023_reproduction.md)
+- [AX7023/AX7203 Linux 启动复现说明](docs/ax7023_reproduction_zh.md)
 
 We also host GitHub repositories for other parts of the project, including:
 
