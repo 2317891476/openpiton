@@ -104,7 +104,6 @@ piton/design/chipset/rv64_platform/bootrom/*/devices.xml
 
 # Ignore Claude/Codex AI config
 .claude/
-CLAUDE.md
 .codex
 .codex/
 
