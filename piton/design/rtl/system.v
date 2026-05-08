@@ -180,6 +180,7 @@ module system(
 `ifndef VCU118_BOARD
 `ifndef NEXYSVIDEO_BOARD
 `ifndef XUPP3R_BOARD
+`ifndef A7203X_BOARD
 `ifndef F1_BOARD
   input                                         tck_i,
   input                                         tms_i,
@@ -187,6 +188,7 @@ module system(
   input                                         td_i,
   output                                        td_o,
 `endif//F1_BOARD
+`endif//A7203X_BOARD
 `endif//XUPP3R_BOARD
 `endif //NEXYSVIDEO_BOARD
 `endif //VCU118_BOARD
@@ -315,7 +317,9 @@ module system(
     `ifndef VC707_BOARD
     input                                       sd_cd,
     `ifndef VCU118_BOARD
+    `ifndef A7203X_BOARD
     output                                      sd_reset,
+    `endif
     `endif
     `endif
     output                                      sd_clk_out,
@@ -386,12 +390,16 @@ module system(
     input  [3:0]                                sw,
 `elsif XUPP3R_BOARD
     // no switches :(
+`elsif A7203X_BOARD
+    // no switches on AX7203 manifest
 `else
     input  [7:0]                                sw,
 `endif
 
 `ifdef XUPP3R_BOARD
     output [3:0]                                leds
+`elsif A7203X_BOARD
+    output [4:0]                                leds
 `else 
     output [7:0]                                leds
 `endif
@@ -616,6 +624,13 @@ assign passthru_pll_rst_n = 1'b1;
 
 `ifdef PITON_RV64_DEBUGUNIT
 `ifndef PITON_FPGA_SYNTH
+    wire tck_i, tms_i, trst_ni, td_i, td_o;
+    assign tck_i   = 1'b0;
+    assign tms_i   = 1'b0;
+    assign trst_ni = 1'b0;
+    assign td_i    = 1'b0;
+`endif
+`ifdef A7203X_BOARD
     wire tck_i, tms_i, trst_ni, td_i, td_o;
     assign tck_i   = 1'b0;
     assign tms_i   = 1'b0;
@@ -1150,7 +1165,9 @@ chipset chipset(
     `ifndef VC707_BOARD
     .sd_cd(sd_cd),
     `ifndef VCU118_BOARD
+    `ifndef A7203X_BOARD
     .sd_reset(sd_reset),
+    `endif
     `endif
     `endif
     .sd_clk_out(sd_clk_out),
@@ -1204,7 +1221,9 @@ chipset chipset(
 `endif
 
 `ifndef XUPP3R_BOARD
+`ifndef A7203X_BOARD
     .sw(sw),
+`endif
 `endif
     .leds(leds)
 

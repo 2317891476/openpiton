@@ -533,7 +533,7 @@ set CHIP_RTL_IMPL_FILES [list \
     "${DV_ROOT}/design/chip/tile/ariane/core/fpu/src/fpnew_rounding.sv"                              \
     "${DV_ROOT}/design/chip/tile/ariane/core/fpu/src/fpnew_top.sv" \
     "${DV_ROOT}/design/chip/tile/ariane/core/pmp/src/pmp.sv" \
-    "${DV_ROOT}/design/chip/tile/ariane/core/pmp/src/pmp_entry.sv" \                                \
+    "${DV_ROOT}/design/chip/tile/ariane/core/pmp/src/pmp_entry.sv" \
     "${DV_ROOT}/design/chip/tile/ariane/core/cvxif_example/cvxif_example_coprocessor.sv" \
     "${DV_ROOT}/design/chip/tile/ariane/core/cvxif_example/instr_decoder.sv" \
     "${DV_ROOT}/design/chip/tile/ariane/common/submodules/common_cells/src/counter.sv" \

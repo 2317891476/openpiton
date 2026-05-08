@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Princeton University
+# Copyright (c) 2016 Princeton University
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -22,12 +22,22 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# Format:
-# BoardID           ToolID
-genesys2            vivado
-a7203x              vivado
-vc707               vivado
-nexysVideo          vivado
-f1                  vivado
-vcu118              vivado
-xupp3r              vivado
+
+#
+# ALINX AX7203 / A7203x board specific variables
+# Not intended to be run standalone
+#
+
+set BOARD_PART ""
+set FPGA_PART "xc7a200tfbg484-2"
+set VIVADO_FLOW_PERF_OPT 0
+set BOARD_DEFAULT_VERILOG_MACROS "A7203X_BOARD"
+
+# Reuse existing common Vivado IPs until board-local regenerated IPs are added.
+# The DDR3 MIG is board-local and is not taken from this fallback.
+set BOARD_IP_FALLBACK "genesys2"
+
+# AX7203 manifest reserves SD and has no board Ethernet resource in this target.
+set BOARD_DISABLED_IP_PATTERNS [list \
+    "*mac_eth_axi_lite*" \
+]

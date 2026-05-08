@@ -334,7 +334,11 @@ module chipset(
     `ifdef PITONSYS_SPI
         `ifndef VC707_BOARD
         input                                       sd_cd,
+        `ifndef VCU118_BOARD
+        `ifndef A7203X_BOARD
         output                                      sd_reset,
+        `endif
+        `endif
         `endif
         output                                      sd_clk_out,
         inout                                       sd_cmd,
@@ -464,12 +468,16 @@ module chipset(
         input  [3:0]                                        sw,
     `elsif XUPP3R_BOARD
         // no switches :(
+    `elsif A7203X_BOARD
+        // no switches on AX7203 manifest
     `else         
         input  [7:0]                                        sw,
     `endif
 
     `ifdef XUPP3R_BOARD
      output [3:0]                                           leds
+    `elsif A7203X_BOARD
+     output [4:0]                                           leds
     `else 
      output [7:0]                                           leds
      `endif
@@ -667,6 +675,22 @@ wire            sd_clk_out_internal;
 // the packet filter to peripherals flags invalid accesses
 wire            invalid_access;
 
+`ifdef A7203X_BOARD
+localparam [24:0] A7203X_LED_HALF_PERIOD = 25'd24999999;
+localparam [22:0] A7203X_UART_TX_HOLD_CYCLES = 23'd5000000;
+
+reg             a7203x_led_heartbeat;
+reg [24:0]      a7203x_led_heartbeat_cnt;
+reg [22:0]      a7203x_uart_tx_hold_cnt;
+
+`ifdef PITONSYS_UART
+wire            a7203x_uart_tx_level = uart_tx;
+`else
+wire            a7203x_uart_tx_level = 1'b1;
+`endif
+wire            a7203x_uart_tx_activity = |a7203x_uart_tx_hold_cnt;
+`endif
+
 
 //////////////////////
 // Sequential Logic //
@@ -677,6 +701,39 @@ begin
     chipset_rst_n_f <= chipset_rst_n;
     chipset_rst_n_ff <= chipset_rst_n_f;
 end
+
+`ifdef A7203X_BOARD
+always @ (posedge chipset_clk)
+begin
+    if (~rst_n_rect)
+    begin
+        a7203x_led_heartbeat <= 1'b0;
+        a7203x_led_heartbeat_cnt <= 25'd0;
+        a7203x_uart_tx_hold_cnt <= 23'd0;
+    end
+    else
+    begin
+        if (a7203x_led_heartbeat_cnt == A7203X_LED_HALF_PERIOD)
+        begin
+            a7203x_led_heartbeat <= ~a7203x_led_heartbeat;
+            a7203x_led_heartbeat_cnt <= 25'd0;
+        end
+        else
+        begin
+            a7203x_led_heartbeat_cnt <= a7203x_led_heartbeat_cnt + 25'd1;
+        end
+
+        if (~a7203x_uart_tx_level)
+        begin
+            a7203x_uart_tx_hold_cnt <= A7203X_UART_TX_HOLD_CYCLES;
+        end
+        else if (a7203x_uart_tx_hold_cnt != 23'd0)
+        begin
+            a7203x_uart_tx_hold_cnt <= a7203x_uart_tx_hold_cnt - 23'd1;
+        end
+    end
+end
+`endif
 
 `ifdef PITON_BOARD
     always @(posedge core_ref_clk_inter) begin
@@ -758,6 +815,13 @@ end
             `elsif XUPP3R_BOARD
                 assign uart_boot_en    = 1'b1;
                 assign uart_timeout_en = 1'b0;
+            `elsif A7203X_BOARD
+                `ifdef PITON_FPGA_SD_BOOT
+                assign uart_boot_en    = 1'b0;
+                `else
+                assign uart_boot_en    = 1'b1;
+                `endif
+                assign uart_timeout_en = 1'b0;
             `else 
                 assign uart_boot_en    = sw[7];
                 assign uart_timeout_en = sw[6];
@@ -771,6 +835,9 @@ end
         // only two switches available...
         assign noc_power_test_hop_count = {2'b0, sw[3:2]};
     `elsif XUPP3R_BOARD
+        // no switches :(
+        assign noc_power_test_hop_count = 4'b0;
+    `elsif A7203X_BOARD
         // no switches :(
         assign noc_power_test_hop_count = 4'b0;
     `else 
@@ -813,6 +880,12 @@ end
     assign leds[1] = init_calib_complete;
     assign leds[2] = processor_offchip_noc2_valid;
     assign leds[3] = offchip_processor_noc3_valid;
+`elsif A7203X_BOARD
+    assign leds[0] = 1'b1;
+    assign leds[1] = clk_locked;
+    assign leds[2] = a7203x_led_heartbeat;
+    assign leds[3] = init_calib_complete;
+    assign leds[4] = chipset_rst_n_ff;
 `else   // PITON_BOARD
     assign leds[0] = clk_locked;
     assign leds[1] = ~piton_ready_n;
@@ -1392,7 +1465,11 @@ chipset_impl_noc_power_test  chipset_impl (
             .sd_clk(sd_sys_clk),
             `ifndef VC707_BOARD
             .sd_cd(sd_cd),
+            `ifndef A7203X_BOARD
             .sd_reset(sd_reset),
+            `else
+            .sd_reset(),
+            `endif
             `else
             .sd_cd(0),
             .sd_reset(),

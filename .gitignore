@@ -90,6 +90,23 @@ piton/verif/diag/assembly/princeton/dmbr_assembly.s
 .Xil/*
 vivado*.log
 vivado*.str
+vivado*.jou
+vivado*.backup.*
+clockInfo.txt
+
+# Ignore UART debug logs
+uart_piton*.log
+
+# Ignore generated bootrom binaries and Vivado artifacts in bootrom dirs
+piton/design/chipset/rv64_platform/bootrom/*/*.bin
+piton/design/chipset/rv64_platform/bootrom/*/vivado*
+piton/design/chipset/rv64_platform/bootrom/*/devices.xml
+
+# Ignore Claude/Codex AI config
+.claude/
+CLAUDE.md
+.codex
+.codex/
 
 # Ignore sims logs
 flist

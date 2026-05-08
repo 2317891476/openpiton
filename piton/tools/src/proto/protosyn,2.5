@@ -186,11 +186,53 @@ def slurm_launch(cmd, log, tpn, mem_mb, time_str, jname, dep_list) :
         print_error("Error submitting batch job")
         return None
 
+def preprocess_pyhp_sources():
+    design_root = os.path.join(DV_ROOT, "design")
+    pyhp_script = os.path.join(DV_ROOT, "tools/bin/pyhp.py")
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    failures = list()
+    generated = 0
+
+    for root, dirs, files in os.walk(design_root):
+        for fname in files:
+            if not fname.endswith(".pyv"):
+                continue
+            pyv_file = os.path.join(root, fname)
+            rtl_file = os.path.splitext(pyv_file)[0]
+            rtl_root, rtl_ext = os.path.splitext(rtl_file)
+            tmp_file = rtl_root + ".tmp" + rtl_ext
+            new_tmp_file = tmp_file + ".new"
+            try:
+                with open(new_tmp_file, "w") as fout:
+                    ret_val = subprocess.call([sys.executable, pyhp_script, pyv_file],
+                                              stdout=fout, stderr=subprocess.DEVNULL,
+                                              env=env)
+                if ret_val == 0:
+                    os.replace(new_tmp_file, tmp_file)
+                    generated += 1
+                else:
+                    failures.append(pyv_file)
+                    if os.path.exists(new_tmp_file):
+                        os.remove(new_tmp_file)
+            except Exception as err:
+                failures.append("%s (%s)" % (pyv_file, err))
+                if os.path.exists(new_tmp_file):
+                    os.remove(new_tmp_file)
+
+    print_info("Generated %d PyHP temporary RTL files" % generated)
+    if failures:
+        print_warning("PyHP preprocessing failed for %d file(s); existing tmp files will be used if present" % len(failures))
+        for failure in failures:
+            print_warning("  %s" % failure)
+
 def run_vivado(log, script, design_dir, board, slurm, tpn, mem_mb, time_str, jname, dep_list):
     # Variables passed to TCL scripts
     os.environ['PROTOSYN_RUNTIME_DESIGN_PATH'] = design_dir
     os.environ['PROTOSYN_RUNTIME_BOARD'] = board
 
+    preprocess_pyhp_sources()
 
     # use custom vivado version if provided
     if(os.environ.get('VIVADO_BIN')) is not None:
@@ -277,7 +319,7 @@ def runImplF1(board, design_data, src_dir, work_dir, log_dir, def_list, slurm, d
     return jid
 
 
-def makeProject(board, design_data, work_dir, log_dir, slurm, dep_list):
+def makeProject(board, design_data, work_dir, log_dir, def_list, slurm, dep_list):
     prev_dir = os.getcwd()
 
     os.chdir(work_dir)
@@ -287,6 +329,9 @@ def makeProject(board, design_data, work_dir, log_dir, slurm, dep_list):
     #os.system('cp -r $DV_ROOT/tools/src/proto/%s/* .' % board)
     #os.system('cp -r -n $DV_ROOT/tools/src/proto/common/* .')
     print_info("Building a project for design '%s' on board '%s'" % (design_data["ID"],board))
+    f = open("additional_defines.tcl", "w")
+    print("set PROTOSYN_RUNTIME_DEFINES \"%s\"" % ' '.join(def_list), file=f)
+    f.close()
     proj_script = os.path.join(DV_ROOT, "tools/src/proto/" + tool + "/gen_project.tcl")
     proj_log = os.path.join(log_dir, PROJECT_BUILD_LOG)
     jname = "protosyn_mkproj_%s_%s" % (board, design_data["ID"])
@@ -474,7 +519,7 @@ def setParserOptions(parser):
     parser.add_option("--define", dest="define", action="store", default=None)
     parser.add_option("--linux_bootrom", dest="linux_bootrom", action="store", default="zsbl")
     parser.add_option("--oled", dest="oled", action="store")
-    parser.add_option("-j", "--jobs", dest="jobs", action="store", default=1)
+    parser.add_option("-j", "--jobs", dest="jobs", action="store", default=8)
     parser.add_option("-h", "--help", dest="help", action="store_true", default=False)
     parser.add_option("--gen-test-bram", dest="gen_test_bram", action="store_true", default=False)  # depricated ?
     parser.add_option("--make-mem-map", dest="make_mem_map", action="store_true", default=False)
@@ -502,6 +547,7 @@ def makeDefList(options):
     # --no-ddr option
     if (options.no_ddr == True) or (options.board == "piton_board"):
         defines.append("PITONSYS_NO_MC")
+        os.environ['PITONSYS_NO_MC'] = '1'
     else:   # default option
         defines.append("PITON_FPGA_MC_DDR3")
 
@@ -900,7 +946,7 @@ def main():
     dep_list = []
 
     if run_make_project:
-        jid = makeProject(options.board, design_data, rc_dir.work, rc_dir.log, options.slurm, None)
+        jid = makeProject(options.board, design_data, rc_dir.work, rc_dir.log, defines, options.slurm, None)
         if jid != None:
             dep_list.append(jid)
 

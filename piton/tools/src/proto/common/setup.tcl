@@ -28,10 +28,37 @@
 # Not intended to be run standalone
 #
 
-set MODEL_DIR $::env(MODEL_DIR)
-set DESIGN_DIR $::env(PROTOSYN_RUNTIME_DESIGN_PATH)
+if {[llength [info commands proto_normalize_path]] == 0} {
+    proc proto_normalize_path {path} {
+        if {[string equal ${path} ""]} {
+            return ${path}
+        }
+        set normalized [string map {\\ /} ${path}]
+        if {[regexp {^[A-Za-z]:/} ${normalized}]} {
+            return ${normalized}
+        }
+        return [file normalize ${normalized}]
+    }
+}
+
+if {[llength [info commands proto_normalize_path_list]] == 0} {
+    proc proto_normalize_path_list {paths} {
+        set normalized [list]
+        foreach path ${paths} {
+            lappend normalized [proto_normalize_path ${path}]
+        }
+        return ${normalized}
+    }
+}
+
+set DV_ROOT [proto_normalize_path $::env(DV_ROOT)]
+set ::env(DV_ROOT) ${DV_ROOT}
+set MODEL_DIR [proto_normalize_path $::env(MODEL_DIR)]
+set ::env(MODEL_DIR) ${MODEL_DIR}
+set DESIGN_DIR [proto_normalize_path $::env(PROTOSYN_RUNTIME_DESIGN_PATH)]
+set ::env(PROTOSYN_RUNTIME_DESIGN_PATH) ${DESIGN_DIR}
 set BOARD $::env(PROTOSYN_RUNTIME_BOARD)
-set BOARD_DIR "${DESIGN_DIR}/$BOARD"
+set BOARD_DIR [proto_normalize_path "${DESIGN_DIR}/$BOARD"]
 
 set VIVADO_VERSION [ string range [ version -short ] 0 3 ]
 source $DV_ROOT/tools/src/proto/common/rtl_setup.tcl
@@ -39,32 +66,90 @@ source $DESIGN_DIR/design.tcl
 source $DV_ROOT/tools/src/proto/${BOARD}/board.tcl
 
 set PROJECT_NAME "${BOARD}_${DESIGN_NAME}"
-set PROJECT_DIR [file normalize ./${PROJECT_NAME}]
+if {[info exists ::env(PROJECT_DIR)]} {
+    set PROJECT_DIR [proto_normalize_path $::env(PROJECT_DIR)]
+} else {
+    set PROJECT_DIR [proto_normalize_path ./${PROJECT_NAME}]
+}
+set ::env(PROJECT_DIR) ${PROJECT_DIR}
 set VIVADO_PROJECT_FILE "${PROJECT_DIR}/${PROJECT_NAME}.xpr"
 set ISE_PROJECT_FILE "${PROJECT_DIR}/${PROJECT_NAME}.xise"
 
 # Combined variables from global, design, and board
-set ALL_INCLUDE_DIRS [concat ${GLOBAL_INCLUDE_DIRS} ${DESIGN_INCLUDE_DIRS}]
+set ALL_INCLUDE_DIRS [proto_normalize_path_list [concat ${GLOBAL_INCLUDE_DIRS} ${DESIGN_INCLUDE_DIRS}]]
 
-set ALL_RTL_IMPL_FILES [concat ${DESIGN_RTL_IMPL_FILES}]
+set ALL_RTL_IMPL_FILES [proto_normalize_path_list [concat ${DESIGN_RTL_IMPL_FILES}]]
 
-set ALL_INCLUDE_FILES [concat ${GLOBAL_INCLUDE_FILES} ${DESIGN_INCLUDE_FILES}]
+set ALL_INCLUDE_FILES [proto_normalize_path_list [concat ${GLOBAL_INCLUDE_FILES} ${DESIGN_INCLUDE_FILES}]]
 
-set ALL_IP_FILE_PREFIXES [concat ${DESIGN_IP_FILE_PREFIXES}]
+set ALL_IP_FILE_PREFIXES [proto_normalize_path_list [concat ${DESIGN_IP_FILE_PREFIXES}]]
+if {[info exists BOARD_IP_FALLBACK] && ![string equal ${BOARD_IP_FALLBACK} ""]} {
+    set _ip_prefixes [list]
+    foreach ip_file ${ALL_IP_FILE_PREFIXES} {
+        set fallback_file [string map [list "/xilinx/${BOARD}/" "/xilinx/${BOARD_IP_FALLBACK}/"] ${ip_file}]
+        set local_mig_prj [file join [file dirname ${ip_file}] "mig_a.prj"]
+        if {[file isfile "${ip_file}.xci"] || [file isfile ${local_mig_prj}] || [string equal ${fallback_file} ${ip_file}]} {
+            lappend _ip_prefixes ${ip_file}
+        } elseif {[file isfile "${fallback_file}.xci"]} {
+            puts "INFO: Using ${BOARD_IP_FALLBACK} IP fallback for missing ${ip_file}.xci"
+            lappend _ip_prefixes ${fallback_file}
+        } else {
+            lappend _ip_prefixes ${ip_file}
+        }
+    }
+    set ALL_IP_FILE_PREFIXES ${_ip_prefixes}
+}
+if {[info exists BOARD_DISABLED_IP_PATTERNS]} {
+    set _ip_prefixes [list]
+    foreach ip_file ${ALL_IP_FILE_PREFIXES} {
+        set disabled_ip 0
+        foreach disabled_pattern ${BOARD_DISABLED_IP_PATTERNS} {
+            if {[string match ${disabled_pattern} ${ip_file}]} {
+                set disabled_ip 1
+            }
+        }
+        if {${disabled_ip}} {
+            puts "INFO: Skipping disabled board IP ${ip_file}"
+        } else {
+            lappend _ip_prefixes ${ip_file}
+        }
+    }
+    set ALL_IP_FILE_PREFIXES ${_ip_prefixes}
+}
 
 set ALL_XCI_IP_FILES [list ]
 foreach ip_file ${ALL_IP_FILE_PREFIXES} {
+    # Skip MIG/DDR IPs when not using DDR (PITONSYS_NO_MC)
+    if {[info exists ::env(PITONSYS_NO_MC)]} {
+        if {[string match "*mig_7series*" $ip_file] || [string match "*ddr4*" $ip_file] || [string match "*axi_interconnect*" $ip_file]} {
+            continue
+        }
+    }
     lappend ALL_XCI_IP_FILES "${ip_file}.xci"
 }
 
 set ALL_XCO_IP_FILES [list ]
 foreach ip_file ${ALL_IP_FILE_PREFIXES} {
-        lappend ALL_XCO_IP_FILES "${ip_file}.xco"
+    if {[info exists ::env(PITONSYS_NO_MC)]} {
+        if {[string match "*mig_7series*" $ip_file] || [string match "*ddr4*" $ip_file] || [string match "*axi_interconnect*" $ip_file]} {
+            continue
+        }
+    }
+    lappend ALL_XCO_IP_FILES "${ip_file}.xco"
 }
 
-set ALL_COE_FILES [concat ${DESIGN_COE_IP_FILES}]
+set ALL_COE_FILES [proto_normalize_path_list [concat ${DESIGN_COE_IP_FILES}]]
 
-set ALL_PRJ_IP_FILES [concat ${DESIGN_PRJ_IP_FILES}]
+set ALL_PRJ_IP_FILES [proto_normalize_path_list [concat ${DESIGN_PRJ_IP_FILES}]]
+if {[info exists ::env(PITONSYS_NO_MC)]} {
+    set _tmp_prj [list ]
+    foreach prj ${ALL_PRJ_IP_FILES} {
+        if {![string match "*mig_7series*" $prj] && ![string match "*ddr4*" $prj] && ![string match "*axi_interconnect*" $prj]} {
+            lappend _tmp_prj $prj
+        }
+    }
+    set ALL_PRJ_IP_FILES ${_tmp_prj}
+}
 
 # get pyhp globals
 # note that this may override some evironment vars!
@@ -122,15 +207,19 @@ set ALL_INCLUDE_FILES [pyhp_preprocess ${ALL_INCLUDE_FILES}]
 
 if  {[info exists ::env(PITON_ARIANE)]} {
   puts "INFO: compiling DTS and bootroms for Ariane (MAX_HARTS=$::env(PITON_NUM_TILES), UART_FREQ=$env(CONFIG_SYS_FREQ))..."
-  
-  
-  # credit goes to https://github.com/PrincetonUniversity/openpiton/issues/50 
+
+  if {[info exists ::env(PITON_SKIP_ARIANE_FW_BUILD)]} {
+    puts "INFO: skipping Ariane firmware build because PITON_SKIP_ARIANE_FW_BUILD is set"
+  } else {
+
+
+  # credit goes to https://github.com/PrincetonUniversity/openpiton/issues/50
   # and https://www.xilinx.com/support/answers/72570.html
   set tmp_PYTHONPATH $::env(PYTHONPATH)
   set tmp_PYTHONHOME $::env(PYTHONHOME)
   unset ::env(PYTHONPATH)
   unset ::env(PYTHONHOME)
-  
+
   set TMP [pwd]
   cd $::env(DV_ROOT)/design/chipset/rv64_platform/bootrom/baremetal
   # Note: dd dumps info to stderr that we do not want to interpret
@@ -181,5 +270,5 @@ if  {[info exists ::env(PITON_ARIANE)]} {
   puts "INFO: done"
   set ::env(PYTHONPATH) $tmp_PYTHONPATH
   set ::env(PYTHONHOME) $tmp_PYTHONHOME
+  }
 }
-

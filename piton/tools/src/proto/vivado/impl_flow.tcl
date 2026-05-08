@@ -29,11 +29,12 @@
 #
 
 # Boiler plate startup
-set DV_ROOT $::env(DV_ROOT)
+set DV_ROOT [string map {\\ /} $::env(DV_ROOT)]
+set ::env(DV_ROOT) ${DV_ROOT}
 source $DV_ROOT/tools/src/proto/vivado/setup.tcl
 
 # Get additional protosyn runtime defines
-source additional_defines.tcl
+source ${PROJECT_DIR}/additional_defines.tcl
 set ALL_VERILOG_MACROS [concat $ALL_DEFAULT_VERILOG_MACROS $PROTOSYN_RUNTIME_DEFINES]
 
 puts "INFO: Using the following Verilog defines: ${ALL_VERILOG_MACROS}"
@@ -57,9 +58,19 @@ upgrade_ip [get_ips -all]
 close_project
 open_project ${VIVADO_PROJECT_FILE}
 auto_detect_xpm
+
+set impl_run [get_runs impl_1]
+set impl_status [get_property STATUS $impl_run]
+if {$impl_status ne "Not started"} {
+    puts "INFO: Resetting impl_1 before launch; previous status was '${impl_status}'"
+    reset_run impl_1
+}
+
 # Launch implementation
+set_param general.maxThreads 8
+set_param synth.maxThreads 8
 launch_run impl_1 -to_step write_bitstream -jobs $::env(NUM_VIVADO_JOBS)
-puts "INFO: Implementation launched for project '${PROJECT_NAME}'"
+puts "INFO: Implementation launched for project '${PROJECT_NAME}' with maxThreads=8"
 
 # Wait for run to finish
 wait_on_run impl_1

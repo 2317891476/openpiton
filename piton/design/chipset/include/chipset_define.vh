@@ -84,6 +84,9 @@
 `elsif GENESYS2_BOARD       // 32-bit PHY
     `define ADDR_TRANS_PHYS_WIDTH_ALIGN     5
     `define ADDR_TRANS_SECTION_MULT         2
+`elsif A7203X_BOARD         // 32-bit PHY
+    `define ADDR_TRANS_PHYS_WIDTH_ALIGN     5
+    `define ADDR_TRANS_SECTION_MULT         2
 `else   // 64-bit interface by default
     `define ADDR_TRANS_PHYS_WIDTH_ALIGN     6
     `define ADDR_TRANS_SECTION_MULT         1

@@ -141,6 +141,24 @@
     `define DDR3_CKE_WIDTH          1
     `define DDR3_CS_WIDTH           1
     `define DDR3_ODT_WIDTH          1
+`elsif A7203X_BOARD
+    `define BOARD_MEM_SIZE_MB       1024
+    `define WORDS_PER_BURST         8
+    `define WORD_SIZE               4
+    `define MIG_APP_ADDR_WIDTH      29
+    `define MIG_APP_CMD_WIDTH       3
+    `define MIG_APP_DATA_WIDTH      256
+    `define MIG_APP_MASK_WIDTH      32
+
+    `define DDR3_DQ_WIDTH           32
+    `define DDR3_DQS_WIDTH          4
+    `define DDR3_ADDR_WIDTH         15
+    `define DDR3_BA_WIDTH           3
+    `define DDR3_DM_WIDTH           4
+    `define DDR3_CK_WIDTH           1
+    `define DDR3_CKE_WIDTH          1
+    `define DDR3_CS_WIDTH           1
+    `define DDR3_ODT_WIDTH          1
 `elsif NEXYSVIDEO_BOARD
     `define BOARD_MEM_SIZE_MB       512
     `define WORDS_PER_BURST         8
@@ -178,4 +196,3 @@
     `define DDR3_CS_WIDTH           1
     `define DDR3_ODT_WIDTH          1
 `endif
-

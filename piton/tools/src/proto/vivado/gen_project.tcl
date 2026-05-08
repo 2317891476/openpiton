@@ -29,15 +29,88 @@
 #
 
 # Boiler plate startup
-set DV_ROOT $::env(DV_ROOT)
+set DV_ROOT [string map {\\ /} $::env(DV_ROOT)]
+set ::env(DV_ROOT) ${DV_ROOT}
 source $DV_ROOT/tools/src/proto/vivado/setup.tcl
 
+set ALL_VERILOG_MACROS ${ALL_DEFAULT_VERILOG_MACROS}
+set additional_defines_file [file join ${PROJECT_DIR} "additional_defines.tcl"]
+if {[file isfile ${additional_defines_file}]} {
+    source ${additional_defines_file}
+    set ALL_VERILOG_MACROS [concat ${ALL_DEFAULT_VERILOG_MACROS} ${PROTOSYN_RUNTIME_DEFINES}]
+}
+
+proc proto_find_mig_prj {xci_file} {
+    set ip_dir [file dirname ${xci_file}]
+    foreach prj_name [list "mig_a.prj" "mig_b.prj"] {
+        set prj_file [file join ${ip_dir} ${prj_name}]
+        if {[file isfile ${prj_file}]} {
+            return [proto_normalize_path ${prj_file}]
+        }
+    }
+    return ""
+}
+
+proc proto_create_missing_mig_ips {} {
+    global ALL_XCI_IP_FILES PROJECT_DIR PROJECT_NAME
+
+    set updated_xci_files [list]
+    foreach xci_file ${ALL_XCI_IP_FILES} {
+        set xci_file [proto_normalize_path ${xci_file}]
+        if {[file isfile ${xci_file}] || ![string match "*mig_7series*" ${xci_file}]} {
+            lappend updated_xci_files ${xci_file}
+            continue
+        }
+
+        set prj_file [proto_find_mig_prj ${xci_file}]
+        if {[string equal ${prj_file} ""]} {
+            lappend updated_xci_files ${xci_file}
+            continue
+        }
+
+        set ip_name [file rootname [file tail ${xci_file}]]
+        set ip_dir [file join ${PROJECT_DIR} "${PROJECT_NAME}.srcs" "sources_1" "ip" ${ip_name}]
+        set generated_xci [proto_normalize_path [file join ${ip_dir} "${ip_name}.xci"]]
+
+        puts "INFO: Creating missing MIG IP ${ip_name} from ${prj_file}"
+        if {[string equal [get_ips -quiet ${ip_name}] ""]} {
+            create_ip -name mig_7series -vendor xilinx.com -library ip -module_name ${ip_name}
+        }
+        file mkdir ${ip_dir}
+        file copy -force ${prj_file} [file join ${ip_dir} [file tail ${prj_file}]]
+        if {[info exists ::env(TEMP)]} {
+            set import_dir [proto_normalize_path [file join $::env(TEMP) "openpiton_${PROJECT_NAME}_${ip_name}"]]
+        } else {
+            set import_dir ${ip_dir}
+        }
+        file mkdir ${import_dir}
+        set import_prj [proto_normalize_path [file join ${import_dir} [file tail ${prj_file}]]]
+        file copy -force ${prj_file} ${import_prj}
+        set_property -dict [list \
+            CONFIG.XML_INPUT_FILE [file nativename ${import_prj}] \
+            CONFIG.RESET_BOARD_INTERFACE {Custom} \
+            CONFIG.MIG_DONT_TOUCH_PARAM {Custom} \
+            CONFIG.BOARD_MIG_PARAM {Custom} \
+        ] [get_ips ${ip_name}]
+        set generated_file_obj [get_files -quiet ${generated_xci}]
+        if {[llength ${generated_file_obj}] != 0} {
+            generate_target {instantiation_template} ${generated_file_obj}
+        }
+        lappend updated_xci_files ${generated_xci}
+    }
+    set ALL_XCI_IP_FILES ${updated_xci_files}
+}
+
 # Create project
+set_param general.maxThreads 8
+set_param synth.maxThreads 8
 create_project -force ${PROJECT_NAME} ${PROJECT_DIR}
 
 # Set project properties
 set proj [get_projects ${PROJECT_NAME}]
-set_property "board_part" "${BOARD_PART}" $proj
+if {[string equal ${BOARD_PART} ""] == 0} {
+    set_property "board_part" "${BOARD_PART}" $proj
+}
 set_property "compxlib.activehdl_compiled_library_dir" "${PROJECT_DIR}/${PROJECT_NAME}.cache/compile_simlib/activehdl" $proj
 set_property "compxlib.funcsim" "1" $proj
 set_property "compxlib.ies_compiled_library_dir" "${PROJECT_DIR}/${PROJECT_NAME}.cache/compile_simlib/ies" $proj
@@ -60,7 +133,16 @@ set_property "sim.ip.auto_export_scripts" "1" $proj
 set_property "simulator_language" "Mixed" $proj
 set_property "source_mgmt_mode" "All" $proj
 set_property "target_language" "Verilog" $proj
-set_property "target_simulator" "VCS" $proj
+set_property "target_simulator" "XSim" $proj
+
+proto_create_missing_mig_ips
+set ALL_FILES [concat \
+    $ALL_INCLUDE_FILES \
+    $ALL_RTL_IMPL_FILES \
+    $ALL_COE_FILES \
+    $ALL_PRJ_IP_FILES \
+    $ALL_XCI_IP_FILES \
+]
 
 # Create 'sources_1' fileset (if not found)
 if {[string equal [get_filesets -quiet sources_1] ""]} {
@@ -70,16 +152,33 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 # Add files
 set fileset_obj [get_filesets sources_1]
 set files_to_add [list ]
+set missing_files [list ]
 foreach prj_file ${ALL_FILES} {
-    if {[file exists $prj_file]} {
-        lappend files_to_add $prj_file
+    set prj_file [proto_normalize_path ${prj_file}]
+    if {[file isfile ${prj_file}]} {
+        set existing_file [get_files -quiet -of_objects $fileset_obj [list ${prj_file}]]
+        if {[llength ${existing_file}] == 0 && [lsearch -exact ${files_to_add} ${prj_file}] < 0} {
+            lappend files_to_add ${prj_file}
+        }
+    } else {
+        lappend missing_files ${prj_file}
     }
 }
-add_files -norecurse -fileset $fileset_obj $files_to_add
+puts "INFO: files_to_add count: [llength ${files_to_add}]"
+puts "INFO: missing_files count: [llength ${missing_files}]"
+puts "INFO: files_to_add begin"
+foreach added_file ${files_to_add} {
+    puts "INFO: files_to_add ${added_file}"
+}
+puts "INFO: files_to_add end"
+if {[llength ${files_to_add}] == 0} {
+    error "No source files were found to add to sources_1"
+}
+add_files -norecurse -fileset $fileset_obj ${files_to_add}
 
 # Set 'sources_1' fileset file properties for local files
 foreach inc_file $ALL_INCLUDE_FILES {
-    if {[file exists $inc_file]} {
+    if {[file isfile $inc_file]} {
         set file_obj [get_files -of_objects $fileset_obj [list "$inc_file"]]
         set_property "file_type" "Verilog Header" $file_obj
         set_property "is_enabled" "1" $file_obj
@@ -92,7 +191,7 @@ foreach inc_file $ALL_INCLUDE_FILES {
     }
 }
 foreach impl_file $ALL_RTL_IMPL_FILES {
-    if {[file exists $impl_file]} {
+    if {[file isfile $impl_file]} {
         set file_obj [get_files -of_objects $fileset_obj [list "$impl_file"]]
         if {[file extension $impl_file] == ".sv"} {
           set_property "file_type" "SystemVerilog" $file_obj
@@ -110,7 +209,7 @@ foreach impl_file $ALL_RTL_IMPL_FILES {
     }
 }
 foreach coe_file $ALL_COE_FILES {
-    if {[file exists $coe_file]} {
+    if {[file isfile $coe_file]} {
         set file_obj [get_files -of_objects $fileset_obj [list "$coe_file"]]
         set_property "is_enabled" "1" $file_obj
         set_property "is_global_include" "0" $file_obj
@@ -124,7 +223,7 @@ foreach coe_file $ALL_COE_FILES {
     }
 }
 foreach prj_file $ALL_PRJ_IP_FILES {
-    if {[file exists $prj_file]} {
+    if {[file isfile $prj_file]} {
         set file_obj [get_files -of_objects $fileset_obj [list "$prj_file"]]
         set_property "is_enabled" "1" $file_obj
         set_property "is_global_include" "0" $file_obj
@@ -137,7 +236,7 @@ foreach prj_file $ALL_PRJ_IP_FILES {
     }
 }
 foreach xci_file $ALL_XCI_IP_FILES {
-    if {[file exists $xci_file]} {
+    if {[file isfile $xci_file]} {
         set file_obj [get_files -of_objects $fileset_obj [list "$xci_file"]]
         if { ![get_property "is_locked" $file_obj] } {
           set_property "generate_synth_checkpoint" "1" $file_obj
@@ -164,7 +263,7 @@ set_property "lib_map_file" "" $fileset_obj
 set_property "loop_count" "1000" $fileset_obj
 set_property "name" "sources_1" $fileset_obj
 set_property "top" "${DESIGN_NAME}" $fileset_obj
-set_property "verilog_define" "${ALL_DEFAULT_VERILOG_MACROS}" $fileset_obj
+set_property "verilog_define" "${ALL_VERILOG_MACROS}" $fileset_obj
 set_property "verilog_uppercase" "0" $fileset_obj
 
 # Create 'constrs_1' fileset (if not found)
@@ -219,16 +318,8 @@ set_property "runtime" "" $fileset_obj
 set_property "source_set" "sources_1" $fileset_obj
 set_property "top" "${DESIGN_NAME}" $fileset_obj
 set_property "unit_under_test" "" $fileset_obj
-set_property "vcs.compile.load_glbl" "1" $fileset_obj
-set_property "vcs.compile.vhdlan.more_options" "" $fileset_obj
-set_property "vcs.compile.vlogan.more_options" -value "-v2005" -object $fileset_obj
-set_property "vcs.elaborate.debug_pp" "1" $fileset_obj
-set_property "vcs.elaborate.vcs.more_options" "" $fileset_obj
-set_property "vcs.simulate.runtime" "1000ns" $fileset_obj
-set_property "vcs.simulate.saif" "" $fileset_obj
-set_property "vcs.simulate.uut" "" $fileset_obj
-set_property "vcs.simulate.vcs.more_options" "" $fileset_obj
-set_property "verilog_define" "${ALL_DEFAULT_VERILOG_MACROS}" $fileset_obj
+# VCS-specific simulation properties removed — using XSim
+set_property "verilog_define" "${ALL_VERILOG_MACROS}" $fileset_obj
 set_property "verilog_uppercase" "0" $fileset_obj
 
 # Create 'synth_1' run (if not found)
@@ -326,8 +417,13 @@ if {$VIVADO_FLOW_PERF_OPT} {
 }
 set_property -name {steps.place_design.args.more options} -value {} -objects $fileset_obj
 
-set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
-set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore [get_runs impl_1]
+if {$VIVADO_FLOW_PERF_OPT} {
+  set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
+  set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore [get_runs impl_1]
+} else {
+  set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED false [get_runs impl_1]
+  set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE Default [get_runs impl_1]
+}
 
 set_property "steps.route_design.tcl.pre" "" $fileset_obj
 set_property "steps.route_design.tcl.post" "" $fileset_obj
@@ -366,5 +462,3 @@ set_property -name {steps.write_bitstream.args.more options} -value {} -objects 
 current_run -implementation $fileset_obj
 
 puts "INFO: Project created:${PROJECT_NAME}"
-
-

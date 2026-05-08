@@ -51,6 +51,7 @@ STORAGE_BLOCK_BIT_WIDTH         =   {   "ddr":  {   "vc707":512,
                                                     "xupp3r":512,
                                                     "nexys4ddr":128,
                                                     "genesys2":256,
+                                                    "a7203x":256,
                                                     "nexysVideo":128,
                                                     "f1":512
                                                 },
@@ -59,6 +60,7 @@ STORAGE_BLOCK_BIT_WIDTH         =   {   "ddr":  {   "vc707":512,
                                                     "xupp3r":512,
                                                     "nexys4ddr":512,
                                                     "genesys2":512,
+                                                    "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
                                                     "f1":512
@@ -68,6 +70,7 @@ STORAGE_BLOCK_BIT_WIDTH         =   {   "ddr":  {   "vc707":512,
                                                     "xupp3r":512,
                                                     "nexys4ddr":512,
                                                     "genesys2":512,
+                                                    "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
                                                     "f1":512
@@ -79,6 +82,7 @@ STORAGE_ADDRESSABLE_BIT_WIDTH   =   {   "ddr":  {   "vc707":64,
                                                     "xupp3r":64,
                                                     "nexys4ddr":16,
                                                     "genesys2":32,
+                                                    "a7203x":32,
                                                     "nexysVideo":16,
                                                     "f1":64
                                                 },
@@ -87,6 +91,7 @@ STORAGE_ADDRESSABLE_BIT_WIDTH   =   {   "ddr":  {   "vc707":64,
                                                     "xupp3r":512,
                                                     "nexys4ddr":512,
                                                     "genesys2":512,
+                                                    "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
                                                     "f1":512
@@ -96,6 +101,7 @@ STORAGE_ADDRESSABLE_BIT_WIDTH   =   {   "ddr":  {   "vc707":64,
                                                     "xupp3r":512,
                                                     "nexys4ddr":512,
                                                     "genesys2":512,
+                                                    "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
                                                     "f1":512
@@ -107,6 +113,7 @@ STORAGE_BIT_SIZE                =   {   "ddr":  {   "vc707":8*2**30,
                                                     "xupp3r":32*8*2**30,
                                                     "nexys4ddr":8*128*2**20,
                                                     "genesys2":8*2**30,
+                                                    "a7203x":8*2**30,
                                                     "nexysVideo":8*512*2**20,
                                                     "f1":8*4*2**30
                                                 },
@@ -115,6 +122,7 @@ STORAGE_BIT_SIZE                =   {   "ddr":  {   "vc707":8*2**30,
                                                     "xupp3r":16384*512,
                                                     "nexys4ddr":16384*512,
                                                     "genesys2":16384*512,
+                                                    "a7203x":16384*512,
                                                     "nexysVideo":16384*512,
                                                     "piton_board":256*512,
                                                     "f1":256*512
@@ -124,6 +132,7 @@ STORAGE_BIT_SIZE                =   {   "ddr":  {   "vc707":8*2**30,
                                                     "xupp3r":32*8*2**30,
                                                     "nexys4ddr":8*128*2**20,
                                                     "genesys2":8*2**30,
+                                                    "a7203x":8*2**30,
                                                     "nexysVideo":8*512*2**20,
                                                     "f1":8*4*2**30
                                                 }
@@ -148,7 +157,7 @@ class ProtoDir:
         self.work = os.path.join(self.board, design_data["ID"])
         self.log = os.path.join(self.work, "protosyn_logs")
         proj_name = board + "_" + design
-        self.run = os.path.join(self.work, proj_name, proj_name + ".runs")
+        self.run = os.path.join(self.work, proj_name + ".runs")
 
 def find_design_block(design_block):
     fp = open(DESIGN_BLOCK_LIST, 'r')

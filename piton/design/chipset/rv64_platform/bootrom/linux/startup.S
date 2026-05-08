@@ -13,7 +13,14 @@ _prog_start:
   call main
   smp_resume(s1, s2)
   csrr a0, mhartid
-  la a1, _dtb
+  # Use lla (PC-relative) instead of la (may use GOT) to get DTB address
+  # This is critical because bootrom is linked at 0x10000 but runs at 0xFFF1010000
+  .option push
+  .option norelax
+  1: auipc a1, %pcrel_hi(_dtb)
+  addi a1, a1, %pcrel_lo(1b)
+  .option pop
+  fence.i
   li s1, DRAM_BASE
   jr s1
 
