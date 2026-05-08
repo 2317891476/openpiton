@@ -23,6 +23,7 @@ There are several detailed pieces of documentation about OpenPiton in the docs f
 - [OpenPiton Microarchitecture Specification](http://parallel.princeton.edu/openpiton/docs/micro_arch.pdf)
 - [OpenPiton FPGA Prototype Manual](http://parallel.princeton.edu/openpiton/docs/fpga_man.pdf)
 - [OpenPiton Synthesis and Back-end Manual](http://parallel.princeton.edu/openpiton/docs/synbck_man.pdf)
+- [AX7023/AX7203 Linux Bring-Up Reproduction Notes](docs/ax7023_reproduction.md)
 
 We also host GitHub repositories for other parts of the project, including:
 
@@ -504,4 +505,3 @@ The command will tell print the afi and agfi of your image. You can track the sy
 ```
 
 8. After the synthesis is done - you can go load it in your F1 instance!
-
