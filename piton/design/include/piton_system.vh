@@ -124,6 +124,8 @@
     `define PITON_CHIPSET_DIFF_CLK
 `elsif A7203X_BOARD
     `define PITON_CHIPSET_DIFF_CLK
+`elsif HUAPROP3_BOARD
+    `define PITON_CHIPSET_DIFF_CLK
 `elsif PITON_BOARD
     `define PITON_CHIPSET_DIFF_CLK
     `define PITON_CHIPSET_DIFF_CLK_POLARITY_CAPS
@@ -161,4 +163,12 @@
     `define PITONSYS_DDR4
 `elsif XUPP3R_BOARD
     `define PITONSYS_DDR4
+`elsif HUAPROP3_BOARD
+    `define PITONSYS_DDR4
+`endif
+
+`ifdef HUAPROP3_BOARD
+    `define PITONSYS_AXI4_MEM
+    `undef PITON_CHIPSET_CLKS_GEN
+    `undef PITONSYS_DDR4
 `endif

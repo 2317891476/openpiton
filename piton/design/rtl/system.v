@@ -181,6 +181,7 @@ module system(
 `ifndef NEXYSVIDEO_BOARD
 `ifndef XUPP3R_BOARD
 `ifndef A7203X_BOARD
+`ifndef HUAPROP3_BOARD
 `ifndef F1_BOARD
   input                                         tck_i,
   input                                         tms_i,
@@ -188,6 +189,7 @@ module system(
   input                                         td_i,
   output                                        td_o,
 `endif//F1_BOARD
+`endif//HUAPROP3_BOARD
 `endif//A7203X_BOARD
 `endif//XUPP3R_BOARD
 `endif //NEXYSVIDEO_BOARD
@@ -207,7 +209,7 @@ module system(
     // DRAM and I/O interfaces
 `ifndef PITONSYS_NO_MC
 `ifdef PITON_FPGA_MC_DDR3
-`ifndef F1_BOARD
+`ifndef PITONSYS_AXI4_MEM
     // Generalized interface for any FPGA board we support.
     // Not all signals will be used for all FPGA boards (see constraints)
     `ifdef PITONSYS_DDR4
@@ -241,8 +243,10 @@ module system(
     output [`DDR3_DM_WIDTH-1:0]                 ddr_dm,
     `endif // PITONSYS_DDR4
     output [`DDR3_ODT_WIDTH-1:0]                ddr_odt,
-`else //ifndef F1_BOARD 
+`else // PITONSYS_AXI4_MEM
+`ifdef PITON_CHIPSET_CLKS_GEN
     input                                        mc_clk,
+`endif
     // AXI Write Address Channel Signals
     output wire [`AXI4_ID_WIDTH     -1:0]    m_axi_awid,
     output wire [`AXI4_ADDR_WIDTH   -1:0]    m_axi_awaddr,
@@ -299,7 +303,7 @@ module system(
     output wire                                   m_axi_bready,
 
     input  wire                                   ddr_ready,
-`endif // endif F1_BOARD
+`endif // PITONSYS_AXI4_MEM
 `endif // endif PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
@@ -318,8 +322,15 @@ module system(
     input                                       sd_cd,
     `ifndef VCU118_BOARD
     `ifndef A7203X_BOARD
+    `ifndef HUAPROP3_BOARD
     output                                      sd_reset,
     `endif
+    `endif
+    `endif
+    `ifdef HUAPROP3_BOARD
+    output                                      sd_vsd_en,
+    output                                      sd_sel,
+    output                                      sd_resetn,
     `endif
     `endif
     output                                      sd_clk_out,
@@ -392,6 +403,8 @@ module system(
     // no switches :(
 `elsif A7203X_BOARD
     // no switches on AX7203 manifest
+`elsif HUAPROP3_BOARD
+    // no switches on P3 daughter card
 `else
     input  [7:0]                                sw,
 `endif
@@ -400,7 +413,9 @@ module system(
     output [3:0]                                leds
 `elsif A7203X_BOARD
     output [4:0]                                leds
-`else 
+`elsif HUAPROP3_BOARD
+    output [1:0]                                leds
+`else
     output [7:0]                                leds
 `endif
 );
@@ -964,7 +979,9 @@ chipset chipset(
     .chipset_clk(chipset_clk),
 `ifndef PITONSYS_NO_MC
 `ifdef PITON_FPGA_MC_DDR3
+`ifndef PITONSYS_AXI4_MEM
     .mc_clk(mc_clk),
+`endif // endif PITONSYS_AXI4_MEM
 `endif // endif PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 `ifdef PITONSYS_SPI
@@ -1060,7 +1077,7 @@ chipset chipset(
     // DRAM and I/O interfaces
 `ifndef PITONSYS_NO_MC
 `ifdef PITON_FPGA_MC_DDR3
-`ifndef F1_BOARD
+`ifndef PITONSYS_AXI4_MEM
 `ifdef PITONSYS_DDR4
     .ddr_act_n(ddr_act_n),
     .ddr_bg(ddr_bg),
@@ -1087,7 +1104,7 @@ chipset chipset(
     .ddr_dm(ddr_dm),
 `endif
     .ddr_odt(ddr_odt),
-`else //ifndef F1_BOARD
+`else // PITONSYS_AXI4_MEM
     .mc_clk(mc_clk),
     // AXI Write Address Channel Signals
     .m_axi_awid(m_axi_awid),
@@ -1145,7 +1162,7 @@ chipset chipset(
     .m_axi_bready(m_axi_bready),
 
     .ddr_ready(ddr_ready),
-`endif // ifndef F1_BOARD
+`endif // PITONSYS_AXI4_MEM
 `endif // PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
@@ -1166,8 +1183,15 @@ chipset chipset(
     .sd_cd(sd_cd),
     `ifndef VCU118_BOARD
     `ifndef A7203X_BOARD
+    `ifndef HUAPROP3_BOARD
     .sd_reset(sd_reset),
     `endif
+    `endif
+    `endif
+    `ifdef HUAPROP3_BOARD
+    .sd_vsd_en(sd_vsd_en),
+    .sd_sel(sd_sel),
+    .sd_resetn(sd_resetn),
     `endif
     `endif
     .sd_clk_out(sd_clk_out),
@@ -1222,7 +1246,9 @@ chipset chipset(
 
 `ifndef XUPP3R_BOARD
 `ifndef A7203X_BOARD
+`ifndef HUAPROP3_BOARD
     .sw(sw),
+`endif
 `endif
 `endif
     .leds(leds)

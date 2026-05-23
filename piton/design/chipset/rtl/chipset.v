@@ -222,7 +222,7 @@ module chipset(
 `ifdef PITON_FPGA_MC_DDR3
     // Generalized interface for any FPGA board we support.
     // Not all signals will be used for all FPGA boards (see constraints)
-`ifndef F1_BOARD
+`ifndef PITONSYS_AXI4_MEM
 `ifdef PITONSYS_DDR4
     output                                      ddr_act_n,
     output [`DDR3_BG_WIDTH-1:0]                 ddr_bg,
@@ -253,8 +253,10 @@ module chipset(
     output [`DDR3_DM_WIDTH-1:0]                 ddr_dm,
 `endif // PITONSYS_DDR4
     output [`DDR3_ODT_WIDTH-1:0]                ddr_odt,
-`else // F1_BOARD
+`else // PITONSYS_AXI4_MEM
+    `ifdef PITON_CHIPSET_CLKS_GEN
     input                                        mc_clk,
+    `endif // mc_clk already declared in ifndef PITON_CHIPSET_CLKS_GEN path above
     // AXI Write Address Channel Signals
     output wire [`AXI4_ID_WIDTH     -1:0]    m_axi_awid,
     output wire [`AXI4_ADDR_WIDTH   -1:0]    m_axi_awaddr,
@@ -311,7 +313,7 @@ module chipset(
     output wire                                   m_axi_bready,
 
     input  wire                                   ddr_ready,
-`endif // ifndef F1_BOARD
+`endif // PITONSYS_AXI4_MEM
 `endif //`ifdef PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
@@ -336,8 +338,15 @@ module chipset(
         input                                       sd_cd,
         `ifndef VCU118_BOARD
         `ifndef A7203X_BOARD
+        `ifndef HUAPROP3_BOARD
         output                                      sd_reset,
         `endif
+        `endif
+        `endif
+        `ifdef HUAPROP3_BOARD
+        output                                      sd_vsd_en,
+        output                                      sd_sel,
+        output                                      sd_resetn,
         `endif
         `endif
         output                                      sd_clk_out,
@@ -470,6 +479,8 @@ module chipset(
         // no switches :(
     `elsif A7203X_BOARD
         // no switches on AX7203 manifest
+    `elsif HUAPROP3_BOARD
+        // no switches on P3 daughter card
     `else         
         input  [7:0]                                        sw,
     `endif
@@ -478,7 +489,9 @@ module chipset(
      output [3:0]                                           leds
     `elsif A7203X_BOARD
      output [4:0]                                           leds
-    `else 
+    `elsif HUAPROP3_BOARD
+     output [1:0]                                           leds
+    `else
      output [7:0]                                           leds
      `endif
 
@@ -648,6 +661,9 @@ wire  [2:0]                                     chip_intf_credit_back;
 
 // Chipset DRAM initialization/calibration complete
 wire                                            init_calib_complete;
+`ifndef PITON_FPGA_MC_DDR3
+assign init_calib_complete = 1'b1;
+`endif
 
 wire                                        test_start;
 
@@ -822,6 +838,13 @@ end
                 assign uart_boot_en    = 1'b1;
                 `endif
                 assign uart_timeout_en = 1'b0;
+            `elsif HUAPROP3_BOARD
+                `ifdef PITON_FPGA_SD_BOOT
+                assign uart_boot_en    = 1'b0;
+                `else
+                assign uart_boot_en    = 1'b1;
+                `endif
+                assign uart_timeout_en = 1'b0;
             `else 
                 assign uart_boot_en    = sw[7];
                 assign uart_timeout_en = sw[6];
@@ -839,6 +862,8 @@ end
         assign noc_power_test_hop_count = 4'b0;
     `elsif A7203X_BOARD
         // no switches :(
+        assign noc_power_test_hop_count = 4'b0;
+    `elsif HUAPROP3_BOARD
         assign noc_power_test_hop_count = 4'b0;
     `else 
         assign noc_power_test_hop_count = sw[3:0];
@@ -880,6 +905,9 @@ end
     assign leds[1] = init_calib_complete;
     assign leds[2] = processor_offchip_noc2_valid;
     assign leds[3] = offchip_processor_noc3_valid;
+`elsif HUAPROP3_BOARD
+    assign leds[0] = init_calib_complete;
+    assign leds[1] = chipset_rst_n_ff;
 `elsif A7203X_BOARD
     assign leds[0] = 1'b1;
     assign leds[1] = clk_locked;
@@ -1319,15 +1347,15 @@ chipset_impl_noc_power_test  chipset_impl (
 
     `ifndef PITONSYS_NO_MC
     `ifdef PITON_FPGA_MC_DDR3
-    `ifndef F1_BOARD
+    `ifndef PITONSYS_AXI4_MEM
         // Memory controller clock
         `ifdef PITONSYS_DDR4
             .mc_clk_p(mc_clk_p),
             .mc_clk_n(mc_clk_n),
-        `else  // PITONSYS_DDR4                               
+        `else  // PITONSYS_DDR4
             .mc_clk(mc_clk),
-        `endif  // PITONSYS_DDR4                               
-    `endif // ifndef F1_BOARD
+        `endif  // PITONSYS_DDR4
+    `endif // ifndef PITONSYS_AXI4_MEM
     `endif // endif PITON_FPGA_MC_DDR3
     `endif // endif PITONSYS_NO_MC
 
@@ -1356,10 +1384,10 @@ chipset_impl_noc_power_test  chipset_impl (
         `ifdef PITON_FPGA_MC_DDR3 
             ,
             .init_calib_complete(init_calib_complete),
-            `ifndef F1_BOARD
+            `ifndef PITONSYS_AXI4_MEM
                 `ifdef PITONSYS_DDR4
-                    .ddr_act_n(ddr_act_n),                    
-                    .ddr_bg(ddr_bg), 
+                    .ddr_act_n(ddr_act_n),
+                    .ddr_bg(ddr_bg),
                 `else // PITONSYS_DDR4
                     .ddr_cas_n(ddr_cas_n),
                     .ddr_ras_n(ddr_ras_n),
@@ -1379,14 +1407,14 @@ chipset_impl_noc_power_test  chipset_impl (
                 `ifndef NEXYSVIDEO_BOARD
                     .ddr_cs_n(ddr_cs_n),
                 `endif // endif NEXYSVIDEO_BOARD
-            
+
                 `ifdef XUPP3R_BOARD
                     .ddr_parity(ddr_parity),
                 `else
                     .ddr_dm(ddr_dm),
                 `endif // XUPP3R_BOARD
                 .ddr_odt(ddr_odt)
-            `else // ifndef F1_BOARD
+            `else // PITONSYS_AXI4_MEM
                 .mc_clk(mc_clk),
                 // AXI Write Address Channel Signals
                 .m_axi_awid(m_axi_awid),
@@ -1441,10 +1469,10 @@ chipset_impl_noc_power_test  chipset_impl (
                 .m_axi_bresp(m_axi_bresp),
                 .m_axi_buser(m_axi_buser),
                 .m_axi_bvalid(m_axi_bvalid),
-                .m_axi_bready(m_axi_bready), 
+                .m_axi_bready(m_axi_bready),
 
                 .ddr_ready(ddr_ready)
-            `endif //ifndef F1_BOARD
+            `endif // PITONSYS_AXI4_MEM
         `endif // endif PITON_FPGA_MC_DDR3
     `endif // endif PITONSYS_NO_MC
 
@@ -1466,7 +1494,11 @@ chipset_impl_noc_power_test  chipset_impl (
             `ifndef VC707_BOARD
             .sd_cd(sd_cd),
             `ifndef A7203X_BOARD
+            `ifndef HUAPROP3_BOARD
             .sd_reset(sd_reset),
+            `else
+            .sd_reset(),
+            `endif
             `else
             .sd_reset(),
             `endif
@@ -1657,7 +1689,9 @@ chipset_impl_noc_power_test  chipset_impl (
     //-------------------------------------------------------
 
     `ifdef PITONSYS_SPI
-    `ifdef VCU118_BOARD
+    `ifdef HUAPROP3_BOARD
+        assign sd_clk_out = sd_clk_out_internal;
+    `elsif VCU118_BOARD
         ODDRE1 sd_clk_oddr (
             .Q(sd_clk_out),
             .C(sd_clk_out_internal),
@@ -1665,7 +1699,7 @@ chipset_impl_noc_power_test  chipset_impl (
             .D2(0),
             .SR(0)
             );
-    `else 
+    `else
         ODDR sd_clk_oddr (
             .Q(sd_clk_out),
             .C(sd_clk_out_internal),
@@ -1676,6 +1710,12 @@ chipset_impl_noc_power_test  chipset_impl (
             .S(0)
             );
     `endif
+    `endif
+
+    `ifdef HUAPROP3_BOARD
+    assign sd_vsd_en  = 1'b1;
+    assign sd_sel     = 1'b0;
+    assign sd_resetn  = 1'b1;
     `endif
 
 `endif  // PITONSYS_IOCTRL
