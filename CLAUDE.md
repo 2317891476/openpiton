@@ -2,6 +2,90 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Goal
+
+**Run Quicksilver on a 1000-core OpenPiton manycore and measure parallel speedup.**
+
+Deployment path: validate single-core first, then incrementally scale up.
+
+| Phase | Config | Milestone |
+|-------|--------|-----------|
+| P0 | 1x1 (1 core) | Linux boots, Quicksilver runs correctly on single core |
+| P1 | 2x2 (4 cores) | Multi-core cache coherence validated |
+| P2 | 4x4 (16 cores) | Speedup measurement baseline |
+| P3 | 8x8 (64 cores) | Large-FPGA or multi-FPGA prototype |
+| P4 | 32x32 (1024 cores) | Kilo-core target, final speedup measurement |
+
+## Wiki
+
+A project wiki is maintained at `wiki/` in the repository root. See `wiki/INDEX.md` for the full index.
+
+```
+wiki/
+├── INDEX.md                    ← project homepage + quick reference + timeline
+├── concepts/                   ← 11 core concept articles
+│   ├── architecture-evolution.md
+│   ├── timing-closure.md
+│   ├── routing-congestion.md
+│   ├── resource-estimation.md
+│   ├── ram-mapping-tradeoff.md
+│   ├── slr-layout.md
+│   ├── simulation.md
+│   ├── rtl-coding-rules.md
+│   ├── vivado-tooling.md
+│   ├── asic-extrapolation.md
+│   ├── rtl-asic-port.md
+│   └── p3-migration-guide.md
+├── devlog/                     ← monthly dev logs, append-only, newest first
+└── *.canvas                    ← Obsidian Canvas topology diagrams
+```
+
+## R1: Mandatory Wiki Sync Rule
+
+**Every code change MUST include corresponding wiki updates. No exceptions. No "sync later".**
+
+### R1-A: Devlog DAILY Rule (ABSOLUTE — never break this)
+
+**CRITICAL: The devlog is a running journal, not a post-hoc report. You MUST write a devlog entry EVERY calendar day that ANY debugging, synthesis, implementation, or programming work occurs. This is NOT optional.**
+
+1. **Before starting a new build** — check if today already has a devlog entry. If not, write one summarizing what was achieved yesterday/today before launching.
+2. **After every synthesis failure or implementation error** — immediately append a devlog entry describing the error and the fix attempted. Do NOT wait for the next build to finish.
+3. **After every successful programming** — note the build number, PDI path, device status (DONE bit, ILA data, serial output).
+4. **Before ending a conversation session** — confirm the devlog is up to date through the current calendar day. If the conversation spans midnight, there MUST be an entry for each day.
+5. **Root cause discoveries** — the moment a non-obvious root cause is identified (especially via ILA or other HW debug tools), write it to the devlog immediately. These are the most valuable entries.
+
+**Anti-pattern that triggers this rule being strengthened**: Building 15+ FPGA images across 3 calendar days without a single devlog entry. This must never happen again.
+
+### R1-B: Trigger Conditions (when wiki sync is REQUIRED)
+
+1. **RTL change** -- update the relevant `concepts/` article (resource estimates, timing notes, coding rules, etc.)
+2. **New board / platform port** -- update `architecture-evolution.md`, `resource-estimation.md`, and add devlog entry
+3. **Build flow / tooling change** -- update `vivado-tooling.md` or `simulation.md`
+4. **Scaling milestone reached** -- update `INDEX.md` timeline, add devlog entry
+5. **Bug fix that revealed a non-obvious root cause** -- add to the relevant concept article's "Pitfalls" or "Lessons" section, AND add devlog entry
+6. **New FPGA synthesis results** -- update `resource-estimation.md` and/or `timing-closure.md` with actual numbers
+7. **Device tree / address map change** -- this is already covered by CLAUDE.md's address consistency rule, but also update wiki if it affects scaling design
+8. **Any decision that affects the P0-P4 roadmap** -- update `INDEX.md` timeline
+
+### R1-C: Anti-Patterns (NEVER do these)
+
+- **"I'll update the wiki in a follow-up"** -- No. Wiki sync is part of the change, not a separate task.
+- **"I'll write the devlog after this build finishes"** -- No. Write it NOW. The build runs in the background.
+- **Wiki article with only a title and "TBD"** -- Every article must have at least a one-paragraph summary of current understanding. Stub sections within an article are OK if labeled `(TBD)`.
+- **Devlog entries without dates** -- Every devlog entry must have an ISO date heading.
+- **Updating code numbers without updating wiki numbers** -- If you change resource usage, clock frequencies, timing results, or core counts in code/constraints, the wiki MUST reflect the new values in the same commit.
+- **Orphan wiki articles** -- Every article must be linked from `INDEX.md`.
+- **Deleting wiki content without replacement** -- If information is outdated, update it; don't delete it. Mark superseded info with `~~strikethrough~~` and add the replacement.
+- **Crossing a calendar day boundary without a devlog entry** -- If any FPGA work occurred that day, there MUST be a devlog entry.
+
+### R1-D: Devlog Rules
+
+- File naming: `devlog/YYYY-MM.md` (one file per month)
+- Entries are append-only, newest first within each file
+- Each entry: `## YYYY-MM-DD -- <short title>` followed by bullet points
+- Never edit past entries (append corrections as new entries)
+- Entries should include build numbers, error codes, root cause analysis, and PDI file paths
+
 ## Environment Setup
 
 ```bash
@@ -29,7 +113,7 @@ The current prototyping target is **AX7203** (ALINX, Artix-7 `XC7A200T-2FBG484I`
 
 ### FPGA Build (WSL + Windows Vivado)
 
-Vivado runs on Windows, invoked from WSL via wrapper `/home/illya/bin/vivado`. The standard `protosyn` flow works but requires:
+Vivado 2024.2 runs on Windows (`D:\Xilinx\Vivado\2024.2`), invoked from WSL via wrapper `/home/illya/bin/vivado`. The standard `protosyn` flow works but requires:
 
 ```bash
 source $PITON_ROOT/piton/piton_settings.bash
@@ -214,11 +298,53 @@ The PowerShell script at `/tmp/read_uart.ps1` reads COM5 at 115200 8N1 for 180 s
 
 ## FPGA Programming (from WSL)
 
+### AX7203 (local, localhost:3121)
+
 ```bash
 vivado -mode batch -source /tmp/program_fpga.tcl
 ```
 
 Where the TCL script opens hw_manager, connects to localhost:3121, programs the device with `system.bit`.
+
+### P3 / Versal VP1902 (remote hw_server)
+
+The P3 board is connected to a remote machine (100.93.77.36). hw_server runs at **100.93.77.36:3121**, XVC debug bridge at **202.197.4.99:2540**.
+
+Build scripts under `scripts/`:
+
+```bash
+# Build + ILA + PDI (synthesis → ILA insertion → implementation → device image)
+vivado -mode batch -source scripts/p3_build19_rst_fix2.tcl
+
+# Program FPGA (upload PDI to P3 via remote hw_server + XVC)
+vivado -mode batch -source scripts/p3_program.tcl
+
+# Debug session (connect ILA, program debug PDI, load probes, interactive capture)
+vivado -mode tcl -source scripts/p3_debug.tcl
+
+# ILA immediate capture (non-interactive: connect → capture → CSV → exit)
+vivado -mode batch -source scripts/p3_ila_capture.tcl
+```
+
+PDI output: `huaprop3_openpiton/huaprop3_openpiton.runs/impl_1/p3_top.pdi`
+Debug PDI: `huaprop3_openpiton/debug_build/p3_top_debug.pdi`
+ILA probes: `huaprop3_openpiton/debug_build/p3_top_debug.ltx`
+
+### P3 Serial Debug (remote via SSH)
+
+The P3 UART is connected to the remote machine (100.93.77.36) via FTDI dual RS232:
+- **ttyUSB0**: P3 UART (115200 8N1)
+- **ttyUSB1**: XVC JTAG debug bridge (for hw_server)
+
+```bash
+# Capture UART output for 15 seconds
+python3 scripts/p3_serial.py --capture 15
+
+# Interactive serial console (Ctrl-A Ctrl-Q to exit)
+python3 scripts/p3_serial.py
+```
+
+Requires: `python3` with `pexpect` (`pip install pexpect`). SSH password auth to remote machine (illya@100.93.77.36).
 
 ## Porting OpenPiton+Ariane to a New FPGA Board
 

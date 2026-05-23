@@ -25,3 +25,48 @@ Recent history uses short imperative subjects, often scoped by subsystem, plus G
 
 ## Security & Configuration Tips
 Do not commit generated build directories, local tool installs, simulator licenses, or machine-specific paths. Keep `VCS_HOME`, RISCV toolchain paths, Vivado settings, and license configuration in the local shell unless a documented default is intentionally changed.
+
+## R1: Mandatory Wiki Sync Rule
+
+**Every code change MUST include corresponding wiki updates. No exceptions. No "sync later".**
+
+The project wiki lives at `wiki/` in the repository root. See `wiki/INDEX.md` for the full structure.
+
+### Trigger Conditions (when wiki sync is REQUIRED)
+
+1. **RTL change** -- update the relevant `wiki/concepts/` article (resource estimates, timing notes, coding rules, etc.)
+2. **New board / platform port** -- update `architecture-evolution.md`, `resource-estimation.md`, and add devlog entry
+3. **Build flow / tooling change** -- update `vivado-tooling.md` or `simulation.md`
+4. **Scaling milestone reached** -- update `wiki/INDEX.md` timeline, add devlog entry
+5. **Bug fix that revealed a non-obvious root cause** -- add to the relevant concept article's "Pitfalls" or "Lessons" section
+6. **New FPGA synthesis results** -- update `resource-estimation.md` and/or `timing-closure.md` with actual numbers
+7. **Device tree / address map change** -- update wiki if it affects scaling design
+8. **Any decision that affects the P0-P4 roadmap** -- update `wiki/INDEX.md` timeline
+
+### Anti-Patterns (NEVER do these)
+
+- **"I'll update the wiki in a follow-up"** -- No. Wiki sync is part of the change, not a separate task.
+- **Wiki article with only a title and "TBD"** -- Every article must have at least a one-paragraph summary. Stub sections within an article are OK if labeled `(TBD)`.
+- **Devlog entries without dates** -- Every devlog entry must have an ISO date heading (`## YYYY-MM-DD -- <title>`).
+- **Updating code numbers without updating wiki numbers** -- If you change resource usage, clock frequencies, timing results, or core counts in code/constraints, the wiki MUST reflect the new values in the same commit.
+- **Orphan wiki articles** -- Every article must be linked from `wiki/INDEX.md`.
+- **Deleting wiki content without replacement** -- If information is outdated, update it; don't delete it.
+
+### Devlog Rules
+
+- File naming: `wiki/devlog/YYYY-MM.md` (one file per month)
+- Entries are append-only, newest first within each file
+- Each entry: `## YYYY-MM-DD -- <short title>` followed by bullet points
+- Never edit past entries (append corrections as new entries)
+
+### Git Commit Requirement (ABSOLUTE)
+
+**Every wiki update MUST be committed to git and pushed to GitHub immediately. No exceptions. No queuing for later.**
+
+- After writing ANY wiki file (devlog, concept article, INDEX.md), immediately run `git add <file>` and `git commit` with a descriptive message.
+- Wiki commits should use the prefix `wiki:` (e.g., `wiki: add May 23 devlog — Build 19 reset fix verified`).
+- After committing, push to the remote: `git push origin openpiton`.
+- **Anti-pattern**: accumulating multiple wiki changes without committing. Each logical update gets its own commit.
+- **Anti-pattern**: "I'll commit after this build finishes." No — commit the wiki changes NOW. The build proceeds independently.
+- If a build or debug session spans hours, commit wiki updates incrementally — don't wait until the end of the session.
+- CLAUDE.md and AGENTS.md changes follow the same rule: commit and push immediately.
