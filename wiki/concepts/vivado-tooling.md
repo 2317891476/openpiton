@@ -90,6 +90,8 @@ The debug buses are intentionally coarse and sticky-event oriented. They answer 
 
 Implementation note: when adding the ILA after `open_run synth_1`, do not connect clocks or probes with a broad hierarchical pattern if the signal name is common. Build 24 uses a helper that requires exactly one resolved net before calling `connect_debug_port`; this avoids the failure where `get_nets -hier chipset_clk` matched hundreds of same-named nets and Vivado tried to connect them all to the single ILA clock port.
 
+Implementation note: Ariane/CVA6 instantiates the `unread` helper from `common_cells` in frontend logic (`bht`, `btb`, and `instr_queue`). If this source is missing from the Vivado project, synthesis can still finish but `opt_design` fails DRC `INBB-3` with `unread` black boxes. Build 24 explicitly adds `piton/design/chip/tile/ariane/common/submodules/common_cells/src/unread.sv` to prevent that late implementation failure.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
