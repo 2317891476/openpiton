@@ -79,6 +79,9 @@ vivado -mode batch -source scripts/p3_ila_capture_rtl_debug.tcl
 
 # If synth_1 already completed and only implementation needs rerun:
 vivado -mode batch -source scripts/p3_build24_impl_resume.tcl
+
+# Fallback if launch_runs/open_checkpoint stalls on the VP1902 checkpoint:
+vivado -mode batch -source scripts/p3_build24_direct_flow.tcl
 ```
 
 The expected outputs are:
@@ -96,6 +99,8 @@ Implementation note: Build 24 now generates the debug-core XDC directly from the
 Implementation note: Ariane/CVA6 instantiates the `unread` helper from `common_cells` in frontend logic (`bht`, `btb`, and `instr_queue`). The upstream helper is intentionally an input-only empty module. In the P3 Vivado flow, adding that source is not sufficient: clean synthesis still preserves seven `unread` leaves as black boxes, and `opt_design` can later fail DRC `INBB-3`. Build 24 therefore uses `piton/design/xilinx/huaprop3/unread_vivado_impl.sv`, a tiny LUT sink implementation of `unread`, instead of the empty common_cells source.
 
 Implementation note: after adding `unread.sv`, check `synth_1/runme.log` for the incremental synthesis summary. If Vivado reports 100% reuse and `Report BlackBoxes` still lists `unread`, the project is reusing a stale `utils_1/imports/synth_1/p3_top.dcp`. Build 24 disables `synth_1` incremental checkpoint properties and removes that imported DCP from the project before launching synthesis so the added Ariane source is actually elaborated into the output checkpoint. Use numeric `0`, not Tcl string `false`, for Vivado's `AUTO_INCREMENTAL_CHECKPOINT` run property.
+
+Implementation note: on 2026-05-26, both the WSL project and a `save_project_as` copy under Windows `%TEMP%` stalled inside `launch_runs impl_1 -scripts_only` before creating `impl_1/runme.*`. Direct `open_checkpoint` of the completed 99 MB `p3_top.dcp` also went idle after loading `xcvp1902-vsva6865-1MP-e-S`. `scripts/p3_build24_direct_flow.tcl` is the fallback for this case: it sources the generated `synth_1/p3_top.tcl` so synthesis remains in the same Vivado process, inserts the RTL debug ILA, reads the OOC IP DCPs into their black-box cells, and then runs `opt_design` through `write_device_image` without run manager or DCP reopen.
 
 ## Key Reports
 
