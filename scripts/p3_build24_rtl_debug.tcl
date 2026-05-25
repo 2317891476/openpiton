@@ -167,7 +167,9 @@ proc p3_write_debug_probe {fh port width label base} {
     puts $fh "connect_debug_port u_ila_0/${port} \[get_nets \[list [p3_debug_net_list $base $width] \]\]"
 }
 
-set debug_xdc "${tmp_dir}/p3_top_rtl_debug.xdc"
+set debug_xdc_dir "${project_dir}/${project_name}.srcs/constrs_1/imports"
+file mkdir $debug_xdc_dir
+set debug_xdc "${debug_xdc_dir}/p3_top_rtl_debug.xdc"
 puts "Writing RTL debug XDC: $debug_xdc"
 set fh [open $debug_xdc w]
 puts $fh "########################################################################"

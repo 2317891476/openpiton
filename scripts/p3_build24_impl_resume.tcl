@@ -5,7 +5,8 @@ set project_dir [file normalize "/home/illya/openpiton/huaprop3_openpiton"]
 set project_name "huaprop3_openpiton"
 set tmp_dir "Z:/tmp"
 set output_dir "${project_dir}/debug_build"
-set debug_xdc "${tmp_dir}/p3_top_rtl_debug.xdc"
+set debug_xdc_dir "${project_dir}/${project_name}.srcs/constrs_1/imports"
+set debug_xdc "${debug_xdc_dir}/p3_top_rtl_debug.xdc"
 
 puts "=========================================="
 puts " Build 24: resume implementation"
@@ -13,6 +14,7 @@ puts "=========================================="
 
 file mkdir $tmp_dir
 file mkdir $output_dir
+file mkdir $debug_xdc_dir
 
 open_project "${project_dir}/${project_name}.xpr"
 
