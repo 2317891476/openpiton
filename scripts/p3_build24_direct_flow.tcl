@@ -15,14 +15,34 @@ set output_dir "${project_dir}/debug_build"
 set direct_dir "${project_dir}/debug_build/build24_direct"
 set synth_tcl "${project_dir}/${project_name}.runs/synth_1/p3_top.tcl"
 set synth_dont_touch "${project_dir}/${project_name}.runs/synth_1/dont_touch.xdc"
+set synth_dcp "${direct_dir}/p3_top.dcp"
+
+set reuse_synth_dcp 0
+foreach arg $argv {
+    switch -- $arg {
+        -reuse_synth {
+            set reuse_synth_dcp 1
+        }
+        default {
+            puts "ERROR: unknown argument: $arg"
+            puts "Usage: vivado -mode batch -source scripts/p3_build24_direct_flow.tcl ?-tclargs -reuse_synth?"
+            exit 1
+        }
+    }
+}
 
 puts "=========================================="
 puts " Build 24: direct synth/impl fallback"
 puts "=========================================="
+if {$reuse_synth_dcp} {
+    puts "Mode: reuse existing synthesis checkpoint"
+}
 
 file mkdir $tmp_dir
 file mkdir $output_dir
-file delete -force $direct_dir
+if {!$reuse_synth_dcp} {
+    file delete -force $direct_dir
+}
 file mkdir $direct_dir
 
 foreach {src dst} [list \
@@ -100,6 +120,34 @@ proc p3_read_ip_dcp {cell dcp} {
     read_checkpoint -cell $cell $dcp
 }
 
+proc p3_find_blackbox_by_ref {ref_name} {
+    set matches [get_cells -hier -quiet -filter "REF_NAME == $ref_name"]
+    if {[llength $matches] != 1} {
+        puts "ERROR: expected one black-box cell with REF_NAME=${ref_name}, got [llength $matches]"
+        if {[llength $matches] > 0} {
+            foreach cell $matches { puts "  $cell" }
+        } else {
+            puts "Current black-box cells:"
+            foreach cell [get_cells -hier -quiet -filter {IS_BLACKBOX}] {
+                set ref [get_property REF_NAME $cell]
+                puts "  $cell (REF_NAME=$ref)"
+            }
+        }
+        exit 1
+    }
+    return [lindex $matches 0]
+}
+
+proc p3_read_ip_dcp_by_ref {ref_name dcp} {
+    if {![file exists $dcp]} {
+        puts "ERROR: missing IP DCP for ${ref_name}: $dcp"
+        exit 1
+    }
+    set cell [p3_find_blackbox_by_ref $ref_name]
+    puts "Reading IP DCP into ${cell} (REF_NAME=${ref_name}): $dcp"
+    read_checkpoint -cell $cell $dcp
+}
+
 set debug_xdc "${direct_dir}/p3_top_rtl_debug.xdc"
 puts "Writing RTL debug XDC: $debug_xdc"
 set fh [open $debug_xdc w]
@@ -119,6 +167,9 @@ puts $fh "set_property C_MEMORY_TYPE 0 \[get_debug_cores u_ila_0\]"
 puts $fh "set_property C_NUM_OF_PROBES 5 \[get_debug_cores u_ila_0\]"
 puts $fh "set_property C_TRIGIN_EN false \[get_debug_cores u_ila_0\]"
 puts $fh "set_property C_TRIGOUT_EN false \[get_debug_cores u_ila_0\]"
+puts $fh "if {\[catch {connect_debug_port dbg_hub/clk \[get_nets \[list {chipset_clk} \]\]} p3_dbg_hub_clk_err\]} {"
+puts $fh "    catch {connect_debug_port dbg_hub/aclk \[get_nets \[list {chipset_clk} \]\]} p3_dbg_hub_aclk_err"
+puts $fh "}"
 puts $fh "connect_debug_port u_ila_0/clk \[get_nets \[list {chipset_clk} \]\]"
 p3_write_debug_probe $fh probe0 128 "p3_debug_bus" p3_debug_bus
 p3_write_debug_probe $fh probe1 32  "p3_debug_seen" p3_debug_seen
@@ -130,26 +181,40 @@ close $fh
 file copy -force $synth_dont_touch "${direct_dir}/dont_touch.xdc"
 cd $direct_dir
 
-puts "Running generated synthesis Tcl in-process: $synth_tcl"
 set t0 [clock seconds]
-if {[catch {source $synth_tcl} err opts]} {
-    puts "ERROR: in-process synthesis failed: $err"
-    puts [dict get $opts -errorinfo]
-    exit 1
+if {$reuse_synth_dcp} {
+    if {![file exists $synth_dcp]} {
+        puts "ERROR: missing synthesis checkpoint for -reuse_synth: $synth_dcp"
+        exit 1
+    }
+    puts "Opening existing synthesis checkpoint: $synth_dcp"
+    if {[catch {open_checkpoint $synth_dcp} err opts]} {
+        puts "ERROR: opening synthesis checkpoint failed: $err"
+        puts [dict get $opts -errorinfo]
+        exit 1
+    }
+    puts "Synthesis checkpoint open complete in [expr {[clock seconds] - $t0}]s"
+} else {
+    puts "Running generated synthesis Tcl in-process: $synth_tcl"
+    if {[catch {source $synth_tcl} err opts]} {
+        puts "ERROR: in-process synthesis failed: $err"
+        puts [dict get $opts -errorinfo]
+        exit 1
+    }
+    puts "In-process synthesis complete in [expr {[clock seconds] - $t0}]s"
 }
-puts "In-process synthesis complete in [expr {[clock seconds] - $t0}]s"
 
 puts "Applying implementation constraints and RTL debug core..."
 read_xdc $xdc_file
 source $debug_xdc
 
-p3_read_ip_dcp "u_bd/openpiton_top_i/axi_noc_0" \
+p3_read_ip_dcp_by_ref "openpiton_top_axi_noc_0_0" \
     "${project_dir}/${project_name}.runs/openpiton_top_axi_noc_0_0_synth_1/openpiton_top_axi_noc_0_0.dcp"
-p3_read_ip_dcp "u_bd/openpiton_top_i/clk_wizard_0" \
+p3_read_ip_dcp_by_ref "openpiton_top_clk_wizard_0_0" \
     "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_clk_wizard_0_0/openpiton_top_clk_wizard_0_0.dcp"
-p3_read_ip_dcp "u_bd/openpiton_top_i/proc_sys_reset_0" \
+p3_read_ip_dcp_by_ref "openpiton_top_proc_sys_reset_0_0" \
     "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_proc_sys_reset_0_0/openpiton_top_proc_sys_reset_0_0.dcp"
-p3_read_ip_dcp "u_openpiton/system_inst/chipset/chipset_impl/uart_top/uart_16550" \
+p3_read_ip_dcp_by_ref "uart_16550" \
     "${project_dir}/${project_name}.runs/uart_16550_synth_1/uart_16550.dcp"
 
 set blackboxes {}
