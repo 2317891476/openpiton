@@ -60,6 +60,32 @@ Current build status:
 | 2026-05-25 | Direct `uart_tx/uart_rx` | Serial verified | `DIRECT` observed after programming `huaprop3_uart_direct/p3_uart_direct.runs/impl_1/p3_uart_direct_top.pdi`, WNS 7.242 ns, 0 routing errors |
 | 2026-05-25 | BD `uart_txd/uart_rxd` | Serial verified | `BDPATH` observed after programming `huaprop3_uart_bd/p3_uart_bd.runs/impl_1/p3_uart_bd_wrapper.pdi`, WNS 7.603 ns, 0 routing errors |
 
+### P3 Build 24 RTL Debug Flow
+
+Build 24 adds `P3_RTL_DEBUG`, which exports deterministic RTL debug buses to the P3 top level before synthesis. This replaces the Build 23 strategy of probing internal post-synthesis net names such as `chip_rst_n`, which proved unreliable after optimization and hierarchy changes.
+
+```bash
+# First regenerate PyHP RTL with the HUAPROP3 Ariane environment.
+pyhp.py piton/design/chip/rtl/chip.v.pyv > piton/design/chip/rtl/chip.tmp.v
+pyhp.py piton/design/chip/tile/rtl/tile.v.pyv > piton/design/chip/tile/rtl/tile.tmp.v
+pyhp.py piton/design/chipset/rtl/chipset_impl.v.pyv > piton/design/chipset/rtl/chipset_impl.tmp.v
+
+# Then build and capture.
+vivado -mode batch -source scripts/p3_build24_rtl_debug.tcl
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpiton/debug_build/p3_top_rtl_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_rtl_debug.tcl
+```
+
+The expected outputs are:
+
+| File | Purpose |
+|------|---------|
+| `huaprop3_openpiton/debug_build/p3_top_rtl_debug.pdi` | Program image |
+| `huaprop3_openpiton/debug_build/p3_top_rtl_debug.ltx` | ILA probe map |
+| `huaprop3_openpiton/debug_build/ila_capture_rtl_debug.csv` | Captured reset/fetch/bootrom/UART/DDR debug data |
+
+The debug buses are intentionally coarse and sticky-event oriented. They answer the first-order bring-up questions: whether chip/tile/Ariane reset is released, whether Ariane emits L15 requests, whether those requests reach the chipset/bootrom path, whether bootrom responds, whether UART MMIO writes happen, and whether DDR AXI requests appear.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
