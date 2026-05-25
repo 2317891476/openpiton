@@ -42,10 +42,10 @@ Two isolated UART smoke tests compare the current OpenPiton top-level style with
 
 | Script | UART route | Expected serial text |
 |--------|------------|----------------------|
-| `p3_uart_direct_build.tcl` | Top-level `uart_tx/uart_rx` outside the BD | `DIRECT` |
-| `p3_uart_bd_build.tcl` | BD external ports `uart_txd/uart_rxd` | `BDPATH` |
+| `p3_uart_direct_build.tcl` | Pure RTL top-level `uart_tx/uart_rx` outside any BD | `DIRECT` |
+| `p3_uart_bd_build.tcl` | Minimal BD wrapper with external ports `uart_txd/uart_rxd` | `BDPATH` |
 
-Both use the same physical pins (TX=CW58, RX=CW59) and a small 30 MHz clock/reset BD so DDR, SD, and OpenPiton are not part of the test. Program either result with:
+Both use the same physical pins (TX=CW58, RX=CW59) and the P3 100 MHz differential system clock (CE6/CF6) through a small RTL `IBUFDS` helper. The BD-path smoke test intentionally avoids Clock Wizard/proc_sys_reset IP so Vivado OOC IP synthesis cannot obscure the UART-routing result. DDR, SD, and OpenPiton are not part of either test. Program either result with:
 
 ```bash
 vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs <path-to-pdi>
