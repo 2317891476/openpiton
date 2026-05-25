@@ -49,6 +49,30 @@ if {![file exists $ariane_unread_src]} {
 
 open_project "${project_dir}/${project_name}.xpr"
 
+proc set_run_property_if_present {run prop value} {
+    if {[lsearch -exact [list_property $run] $prop] >= 0} {
+        set_property $prop $value $run
+        puts "  $prop = [get_property $prop $run]"
+    }
+}
+
+proc disable_synth_incremental {run_name project_dir project_name} {
+    set synth_run [get_runs $run_name]
+    puts "Disabling stale incremental synthesis for ${run_name}..."
+    set_run_property_if_present $synth_run AUTO_INCREMENTAL_CHECKPOINT false
+    set_run_property_if_present $synth_run INCREMENTAL_CHECKPOINT ""
+    set_run_property_if_present $synth_run AUTO_INCREMENTAL_DIR ""
+
+    set imported_dcp [file normalize "${project_dir}/${project_name}.srcs/utils_1/imports/${run_name}/p3_top.dcp"]
+    set imported_dcp_file [get_files -quiet $imported_dcp]
+    if {$imported_dcp_file ne ""} {
+        puts "  removing imported incremental checkpoint from project: $imported_dcp"
+        remove_files $imported_dcp_file
+    }
+}
+
+disable_synth_incremental synth_1 $project_dir $project_name
+
 set defs [get_property verilog_define [current_fileset]]
 foreach required_define [list \
     P3_RTL_DEBUG \
@@ -106,6 +130,7 @@ update_compile_order -fileset sources_1
 
 catch {reset_run impl_1}
 catch {reset_run synth_1}
+disable_synth_incremental synth_1 $project_dir $project_name
 
 puts "Launching synthesis..."
 launch_runs synth_1 -jobs 8
