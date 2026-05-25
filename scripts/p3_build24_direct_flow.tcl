@@ -148,6 +148,15 @@ proc p3_read_ip_dcp_by_ref {ref_name dcp} {
     read_checkpoint -cell $cell $dcp
 }
 
+proc p3_blackbox_ref_allowed {ref_name allowed_patterns} {
+    foreach pattern $allowed_patterns {
+        if {[string match $pattern $ref_name]} {
+            return 1
+        }
+    }
+    return 0
+}
+
 set debug_xdc "${direct_dir}/p3_top_rtl_debug.xdc"
 puts "Writing RTL debug XDC: $debug_xdc"
 set fh [open $debug_xdc w]
@@ -223,14 +232,19 @@ foreach cell [get_cells -hier -quiet *] {
         lappend blackboxes $cell
     }
 }
-set allowed_blackbox_refs [list axi_dbg_hub axi_noc ila proc_sys_reset]
+set allowed_blackbox_ref_patterns [list \
+    axi_dbg_hub axi_dbg_hub_CV \
+    axi_noc axi_noc_CV \
+    ila ila_CV u_ila_*_CV \
+    proc_sys_reset proc_sys_reset_CV \
+]
 set unexpected_blackboxes {}
 if {[llength $blackboxes] != 0} {
     puts "Black boxes after IP/debug stitching:"
     foreach cell $blackboxes {
         set ref [get_property REF_NAME $cell]
         puts "  $cell (REF_NAME=$ref)"
-        if {[lsearch -exact $allowed_blackbox_refs $ref] < 0} {
+        if {![p3_blackbox_ref_allowed $ref $allowed_blackbox_ref_patterns]} {
             lappend unexpected_blackboxes $cell
         }
     }
