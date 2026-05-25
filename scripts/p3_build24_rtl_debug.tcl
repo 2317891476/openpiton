@@ -41,9 +41,9 @@ foreach generated [list \
     }
 }
 
-set ariane_unread_src "${repo_root}/piton/design/chip/tile/ariane/common/submodules/common_cells/src/unread.sv"
-if {![file exists $ariane_unread_src]} {
-    puts "ERROR: missing Ariane common_cells source: $ariane_unread_src"
+set ariane_unread_impl_src "${repo_root}/piton/design/xilinx/huaprop3/unread_vivado_impl.sv"
+if {![file exists $ariane_unread_impl_src]} {
+    puts "ERROR: missing Vivado unread implementation shim: $ariane_unread_impl_src"
     exit 1
 }
 
@@ -121,13 +121,16 @@ add_files -fileset sources_1 -norecurse "${tmp_dir}/piton_system.vh"
 set_property file_type "Verilog Header" [get_files "${tmp_dir}/piton_system.vh"]
 set_property is_global_include true [get_files "${tmp_dir}/piton_system.vh"]
 
-# Vivado can otherwise synthesize Ariane's unread instances as black boxes and
-# fail later at opt_design with DRC INBB-3.
-set old_unread [get_files -quiet *common_cells/src/unread.sv]
-if {$old_unread eq ""} {
-    add_files -fileset sources_1 -norecurse $ariane_unread_src
+# Vivado treats Ariane/common_cells' intentionally empty unread module as a
+# black box in this project. Use a tiny real LUT sink for implementation.
+foreach old_unread [get_files -quiet *common_cells/src/unread.sv] {
+    remove_files $old_unread
 }
-set_property file_type "SystemVerilog" [get_files $ariane_unread_src]
+foreach old_unread_impl [get_files -quiet *unread_vivado_impl.sv] {
+    remove_files $old_unread_impl
+}
+add_files -fileset sources_1 -norecurse $ariane_unread_impl_src
+set_property file_type "SystemVerilog" [get_files $ariane_unread_impl_src]
 
 update_compile_order -fileset sources_1
 
