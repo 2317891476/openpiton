@@ -223,9 +223,24 @@ foreach cell [get_cells -hier -quiet *] {
         lappend blackboxes $cell
     }
 }
+set allowed_blackbox_refs [list axi_dbg_hub axi_noc ila proc_sys_reset]
+set unexpected_blackboxes {}
 if {[llength $blackboxes] != 0} {
-    puts "ERROR: unresolved black boxes remain:"
-    foreach cell $blackboxes { puts "  $cell" }
+    puts "Black boxes after IP/debug stitching:"
+    foreach cell $blackboxes {
+        set ref [get_property REF_NAME $cell]
+        puts "  $cell (REF_NAME=$ref)"
+        if {[lsearch -exact $allowed_blackbox_refs $ref] < 0} {
+            lappend unexpected_blackboxes $cell
+        }
+    }
+}
+if {[llength $unexpected_blackboxes] != 0} {
+    puts "ERROR: unexpected unresolved black boxes remain:"
+    foreach cell $unexpected_blackboxes {
+        set ref [get_property REF_NAME $cell]
+        puts "  $cell (REF_NAME=$ref)"
+    }
     exit 1
 }
 
