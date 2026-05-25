@@ -92,7 +92,7 @@ Implementation note: when adding the ILA after `open_run synth_1`, do not connec
 
 Implementation note: Ariane/CVA6 instantiates the `unread` helper from `common_cells` in frontend logic (`bht`, `btb`, and `instr_queue`). If this source is missing from the Vivado project, synthesis can still finish but `opt_design` fails DRC `INBB-3` with `unread` black boxes. Build 24 explicitly adds `piton/design/chip/tile/ariane/common/submodules/common_cells/src/unread.sv` to prevent that late implementation failure.
 
-Implementation note: after adding `unread.sv`, check `synth_1/runme.log` for the incremental synthesis summary. If Vivado reports 100% reuse and `Report BlackBoxes` still lists `unread`, the project is reusing a stale `utils_1/imports/synth_1/p3_top.dcp`. Build 24 disables `synth_1` incremental checkpoint properties and removes that imported DCP from the project before launching synthesis so the added Ariane source is actually elaborated into the output checkpoint.
+Implementation note: after adding `unread.sv`, check `synth_1/runme.log` for the incremental synthesis summary. If Vivado reports 100% reuse and `Report BlackBoxes` still lists `unread`, the project is reusing a stale `utils_1/imports/synth_1/p3_top.dcp`. Build 24 disables `synth_1` incremental checkpoint properties and removes that imported DCP from the project before launching synthesis so the added Ariane source is actually elaborated into the output checkpoint. Use numeric `0`, not Tcl string `false`, for Vivado's `AUTO_INCREMENTAL_CHECKPOINT` run property.
 
 ## Key Reports
 

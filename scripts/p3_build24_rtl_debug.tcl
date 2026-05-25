@@ -51,7 +51,10 @@ open_project "${project_dir}/${project_name}.xpr"
 
 proc set_run_property_if_present {run prop value} {
     if {[lsearch -exact [list_property $run] $prop] >= 0} {
-        set_property $prop $value $run
+        if {[catch {set_property $prop $value $run} err]} {
+            puts "ERROR: could not set $prop on $run to '$value': $err"
+            exit 1
+        }
         puts "  $prop = [get_property $prop $run]"
     }
 }
@@ -59,7 +62,7 @@ proc set_run_property_if_present {run prop value} {
 proc disable_synth_incremental {run_name project_dir project_name} {
     set synth_run [get_runs $run_name]
     puts "Disabling stale incremental synthesis for ${run_name}..."
-    set_run_property_if_present $synth_run AUTO_INCREMENTAL_CHECKPOINT false
+    set_run_property_if_present $synth_run AUTO_INCREMENTAL_CHECKPOINT 0
     set_run_property_if_present $synth_run INCREMENTAL_CHECKPOINT ""
     set_run_property_if_present $synth_run AUTO_INCREMENTAL_DIR ""
 
