@@ -51,7 +51,7 @@ Both use the same physical pins (TX=CW58, RX=CW59) and the P3 100 MHz differenti
 vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs <path-to-pdi>
 ```
 
-The smoke-test build scripts use a single-process Vivado flow instead of `launch_runs`. This avoids the Windows/WSL `rundef.js` run-launcher path failure observed during the direct UART implementation run, while still writing PDIs under each project's `.runs/impl_1/` directory.
+The smoke-test build scripts create the Vivado project under Windows `%TEMP%` and then copy the generated PDI back into the repository output directory. This keeps the standard `launch_runs ... -to_step write_device_image` Versal flow, but avoids running Vivado's generated `rundef.js` launcher from a WSL network-mounted `.runs` directory.
 
 ## Key Reports
 
