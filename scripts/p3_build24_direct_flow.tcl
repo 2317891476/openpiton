@@ -189,6 +189,40 @@ proc p3_write_ddr_io_xdc {path} {
     close $fh
 }
 
+proc p3_force_launch_runs_jobs {jobs} {
+    set ::p3_launch_runs_jobs $jobs
+    if {[llength [info commands ::p3_real_launch_runs]] != 0} {
+        return
+    }
+    if {[llength [info commands ::launch_runs]] == 0} {
+        puts "WARNING: launch_runs command is unavailable; cannot force -jobs $jobs"
+        return
+    }
+
+    rename ::launch_runs ::p3_real_launch_runs
+    proc ::launch_runs {args} {
+        set filtered_args {}
+        set skip_next 0
+        foreach arg $args {
+            if {$skip_next} {
+                set skip_next 0
+                continue
+            }
+            if {$arg eq "-jobs"} {
+                set skip_next 1
+                continue
+            }
+            lappend filtered_args $arg
+        }
+
+        if {$::p3_launch_runs_jobs > 0} {
+            lappend filtered_args -jobs $::p3_launch_runs_jobs
+            puts "P3 direct flow forcing launch_runs -jobs $::p3_launch_runs_jobs: [join $filtered_args { }]"
+        }
+        return [uplevel 1 [list ::p3_real_launch_runs {*}$filtered_args]]
+    }
+}
+
 set ddr_io_xdc "${direct_dir}/p3_top_ddr_io.xdc"
 p3_write_ddr_io_xdc $ddr_io_xdc
 
@@ -300,6 +334,8 @@ if {[llength $unexpected_blackboxes] != 0} {
 set route_dcp "${direct_dir}/p3_top_route.dcp"
 set pdi_file "${output_dir}/p3_top_rtl_debug.pdi"
 set ltx_file "${output_dir}/p3_top_rtl_debug.ltx"
+
+p3_force_launch_runs_jobs 1
 
 p3_run_step "opt_design" {opt_design} "${direct_dir}/p3_top_opt.dcp"
 p3_run_step "power_opt_design" {power_opt_design} "${direct_dir}/p3_top_power_opt.dcp"
