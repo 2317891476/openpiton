@@ -88,6 +88,8 @@ The expected outputs are:
 
 The debug buses are intentionally coarse and sticky-event oriented. They answer the first-order bring-up questions: whether chip/tile/Ariane reset is released, whether Ariane emits L15 requests, whether those requests reach the chipset/bootrom path, whether bootrom responds, whether UART MMIO writes happen, and whether DDR AXI requests appear.
 
+Implementation note: when adding the ILA after `open_run synth_1`, do not connect clocks or probes with a broad hierarchical pattern if the signal name is common. Build 24 uses a helper that requires exactly one resolved net before calling `connect_debug_port`; this avoids the failure where `get_nets -hier chipset_clk` matched hundreds of same-named nets and Vivado tried to connect them all to the single ILA clock port.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
