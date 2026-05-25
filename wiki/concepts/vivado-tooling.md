@@ -53,6 +53,13 @@ vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs <path-to-pdi>
 
 The smoke-test build scripts create the Vivado project under Windows `%TEMP%` and then copy the generated PDI back into the repository output directory. This keeps the standard `launch_runs ... -to_step write_device_image` Versal flow, but avoids running Vivado's generated `rundef.js` launcher from a WSL network-mounted `.runs` directory.
 
+Current build status:
+
+| Date | Route | Result | Notes |
+|------|-------|--------|-------|
+| 2026-05-25 | Direct `uart_tx/uart_rx` | PDI generated | `huaprop3_uart_direct/p3_uart_direct.runs/impl_1/p3_uart_direct_top.pdi`, WNS 7.242 ns, 0 routing errors |
+| 2026-05-25 | BD `uart_txd/uart_rxd` | Pending | Same RTL printer through a minimal BD module reference |
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
