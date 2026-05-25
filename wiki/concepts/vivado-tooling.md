@@ -110,6 +110,8 @@ Implementation note: the direct fallback should locate OOC/IP cells by synthesiz
 
 Implementation note: after the OOC/IP DCPs are stitched, Vivado may still report implementation-time black boxes for debug and Versal hard-IP wrappers such as `axi_dbg_hub`, `u_ila_0`, `axi_noc`, and `proc_sys_reset`. In 2024.2 these can appear as concrete `_CV` `REF_NAME` values, for example `axi_dbg_hub_CV`, `u_ila_0_CV`, `axi_noc_CV`, and `proc_sys_reset_CV`. These are expected at this point in the direct flow and should be logged, not treated like unresolved RTL modules. The direct script fails only if any other black-box `REF_NAME` remains.
 
+Implementation note: the direct fallback also generates `debug_build/build24_direct/p3_top_ddr_io.xdc` and applies it before and after OOC DCP stitching. The project-mode flow normally carries DDRMC I/O standards through AXI NoC/IP constraints named on the internal `ch0_ddr4_*` interface, but the direct checkpoint flow exposes top-level `ddr4_rtl_0_*` ports and can otherwise reach `opt_design` with `IOSTANDARD=UNDEFINED` on DDR4 pins. The generated XDC maps those top-level ports to the DDRMC-required standards (`SSTL12`, `DIFF_SSTL12`, `POD12`, `DIFF_POD12`, and `LVCMOS12` for reset).
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
