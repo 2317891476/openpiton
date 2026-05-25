@@ -76,6 +76,9 @@ pyhp.py piton/design/chipset/rtl/chipset_impl.v.pyv > piton/design/chipset/rtl/c
 vivado -mode batch -source scripts/p3_build24_rtl_debug.tcl
 vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpiton/debug_build/p3_top_rtl_debug.pdi
 vivado -mode batch -source scripts/p3_ila_capture_rtl_debug.tcl
+
+# If synth_1 already completed and only implementation needs rerun:
+vivado -mode batch -source scripts/p3_build24_impl_resume.tcl
 ```
 
 The expected outputs are:
@@ -88,7 +91,7 @@ The expected outputs are:
 
 The debug buses are intentionally coarse and sticky-event oriented. They answer the first-order bring-up questions: whether chip/tile/Ariane reset is released, whether Ariane emits L15 requests, whether those requests reach the chipset/bootrom path, whether bootrom responds, whether UART MMIO writes happen, and whether DDR AXI requests appear.
 
-Implementation note: when adding the ILA after `open_run synth_1`, do not connect clocks or probes with a broad hierarchical pattern if the signal name is common. Build 24 uses a helper that requires exactly one resolved net before calling `connect_debug_port`; this avoids the failure where `get_nets -hier chipset_clk` matched hundreds of same-named nets and Vivado tried to connect them all to the single ILA clock port.
+Implementation note: Build 24 now generates the debug-core XDC directly from the explicit top-level RTL debug buses, instead of opening the synthesized design with `open_run synth_1`. This keeps implementation in project run mode while avoiding a Vivado hang observed when the top Tcl process tried to reopen the large synthesized VP1902 checkpoint after clean synthesis. Because these probes are top-level `keep`/`mark_debug` nets (`p3_debug_bus`, `p3_debug_seen`, `p3_top_status`, `dbg_m_axi_araddr`, and `dbg_m_axi_awaddr`), the XDC can name them deterministically and implementation will fail naturally if any net disappears.
 
 Implementation note: Ariane/CVA6 instantiates the `unread` helper from `common_cells` in frontend logic (`bht`, `btb`, and `instr_queue`). The upstream helper is intentionally an input-only empty module. In the P3 Vivado flow, adding that source is not sufficient: clean synthesis still preserves seven `unread` leaves as black boxes, and `opt_design` can later fail DRC `INBB-3`. Build 24 therefore uses `piton/design/xilinx/huaprop3/unread_vivado_impl.sv`, a tiny LUT sink implementation of `unread`, instead of the empty common_cells source.
 
