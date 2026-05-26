@@ -126,6 +126,8 @@ The Build 25 recovery flow keeps the ILA intentionally tiny. It probes only boar
 
 Implementation note: Build 25 uses `scripts/p3_build25_minimal_debug.tcl`, which delegates to the direct Build 24 flow with `-build25_minimal_debug` and writes separate outputs named `p3_top_build25_minimal_debug.pdi/.ltx`. The `P3_RTL_DEBUG` top level now exposes `p3_min_dbg_status[31:0]` and `p3_min_dbg_heartbeat[31:0]`; the heartbeat increments directly on `chipset_clk` and is not gated by `peripheral_aresetn`, so a capture can distinguish a dead debug/clock path from a held-reset OpenPiton core. Use `scripts/p3_ila_capture_build25_minimal.tcl` to capture and `scripts/p3_check_build25_ila_csv.py` to verify heartbeat movement.
 
+Implementation note: Build 25 synthesis can succeed while `opt_design` later fails in a generated child Vivado process for `xilinx.com:ip:noc_mc_ddr4_phy:1.0`. The failure mode is `cacheID` empty followed by missing synthesis output products and `HRTInvokeSpec : No Verilog or VHDL sources specified`. The direct flow now seeds the known-good DDR PHY debug IP cache entry `be79b17307062196` into the build-local `.cache/ip` directory and sets the active project's `ip_output_repo` there before `opt_design`. This keeps the large NoC DDR4 PHY child IP on the same cached path that Build 24 already verified, instead of letting the implementation step regenerate it from an incomplete temporary IP project.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
