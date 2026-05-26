@@ -128,6 +128,8 @@ Implementation note: Build 25 uses `scripts/p3_build25_minimal_debug.tcl`, which
 
 Implementation note: Build 25 synthesis can succeed while `opt_design` later fails in a generated child Vivado process for `xilinx.com:ip:noc_mc_ddr4_phy:1.0`. The failure mode is `cacheID` empty followed by missing synthesis output products and `HRTInvokeSpec : No Verilog or VHDL sources specified`. The direct flow now seeds the known-good DDR PHY debug IP cache entry `be79b17307062196` into the build-local `.cache/ip` directory and sets the active project's `ip_output_repo` there before `opt_design`. This keeps the large NoC DDR4 PHY child IP on the same cached path that Build 24 already verified, instead of letting the implementation step regenerate it from an incomplete temporary IP project.
 
+Implementation note: the DDR PHY cache workaround can still leave Build 25 inside Vivado's generated Chipscope debug-IP flow. On 2026-05-26, `opt_design` generated `debug_ip_core.tcl` with `set jobs 4`, then launched four OOC child Vivado processes for `axi_dbg_hub`, debug AXI NoC, `proc_sys_reset`, and `u_ila_0`; all four stopped making progress after loading the VP1902 part. The direct flow now also forces `synth.maxThreads` and `synth.maxClusterJobsRunCount` to `1` before `opt_design`, in addition to wrapping `launch_runs -jobs 1`, so generated debug/IP synthesis is serialized at the Vivado parameter level.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

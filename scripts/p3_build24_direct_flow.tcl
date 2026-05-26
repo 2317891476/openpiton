@@ -323,6 +323,19 @@ proc p3_force_launch_runs_jobs {jobs} {
     }
 }
 
+proc p3_force_debug_ip_synth_jobs {jobs} {
+    foreach param [list synth.maxThreads synth.maxClusterJobsRunCount] {
+        if {[catch {get_param $param} old_value] == 0} {
+            puts "P3 direct flow setting ${param} from ${old_value} to ${jobs}"
+            if {[catch {set_param $param $jobs} err]} {
+                puts "WARNING: failed to set ${param}=${jobs}: $err"
+            }
+        } else {
+            puts "WARNING: Vivado parameter ${param} is unavailable; cannot force it to ${jobs}"
+        }
+    }
+}
+
 proc p3_dir_has_ddr_phy_cache {dir cache_id} {
     return [expr {
         [file exists "${dir}/bd_c5b9_MC0_ddrc_0_phy.dcp"] &&
@@ -513,6 +526,7 @@ set ltx_file "${output_dir}/${pdi_basename}.ltx"
 
 p3_seed_ddr_phy_debug_ip_cache $project_dir $project_name $direct_dir
 p3_force_launch_runs_jobs 1
+p3_force_debug_ip_synth_jobs 1
 
 p3_run_step "opt_design" {opt_design} "${direct_dir}/p3_top_opt.dcp"
 p3_run_step "power_opt_design" {power_opt_design} "${direct_dir}/p3_top_power_opt.dcp"
