@@ -130,6 +130,8 @@ Implementation note: Build 25 synthesis can succeed while `opt_design` later fai
 
 Implementation note: the DDR PHY cache workaround can still leave Build 25 inside Vivado's generated Chipscope debug-IP flow. On 2026-05-26, `opt_design` generated `debug_ip_core.tcl` with `set jobs 4`, then launched four OOC child Vivado processes for `axi_dbg_hub`, debug AXI NoC, `proc_sys_reset`, and `u_ila_0`; all four stopped making progress after loading the VP1902 part. The direct flow now also forces `synth.maxThreads` and `synth.maxClusterJobsRunCount` to `1` before `opt_design`, in addition to wrapping `launch_runs -jobs 1`, so generated debug/IP synthesis is serialized at the Vivado parameter level.
 
+Implementation note: parameter-level serialization alone did not rewrite Vivado's generated `debug_ip_core.tcl`, which still used `set jobs 4` in a later Build 25 retry. The direct flow therefore also seeds the known-good implementation child IP cache entries for the AXI debug hub (`63238c300d84dd3e`), debug AXI NoC (`26f047544d6aa94f`), and debug `proc_sys_reset` (`297bb7bb4c294321`) alongside the DDR PHY cache. Do not seed an old `u_ila_0` cache unless its `get_cs_ip.tcl` parameters match the active Build 25 ILA configuration; the available Build 24-era ILA caches have different probe/storage settings.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

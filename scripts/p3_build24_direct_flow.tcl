@@ -336,62 +336,92 @@ proc p3_force_debug_ip_synth_jobs {jobs} {
     }
 }
 
-proc p3_dir_has_ddr_phy_cache {dir cache_id} {
-    return [expr {
-        [file exists "${dir}/bd_c5b9_MC0_ddrc_0_phy.dcp"] &&
-        [file exists "${dir}/${cache_id}.xci"]
-    }]
+proc p3_dir_has_files {dir required_files} {
+    foreach required_file $required_files {
+        if {![file exists "${dir}/${required_file}"]} {
+            return 0
+        }
+    }
+    return 1
 }
 
-proc p3_seed_ddr_phy_debug_ip_cache {project_dir project_name direct_dir} {
-    set cache_id "be79b17307062196"
-    set cache_rel "2024.2.2/b/e/${cache_id}"
-    set local_cache_dir "${direct_dir}/.cache/ip/${cache_rel}"
+proc p3_unique_dir_append {var_name dir} {
+    upvar 1 $var_name dirs
+    if {$dir eq ""} {
+        return
+    }
+    if {[lsearch -exact $dirs $dir] < 0} {
+        lappend dirs $dir
+    }
+}
 
-    set candidate_dirs [list \
-        $local_cache_dir \
-        "${project_dir}/${project_name}.cache/ip/${cache_rel}" \
-        "C:/Users/23178/AppData/Local/Temp/42632/.cache/ip/${cache_rel}" \
-        "C:/Users/23178/AppData/Local/Temp/7156/.cache/ip/${cache_rel}" \
-        "C:/Users/23178/AppData/Local/Temp/76152/.cache/ip/${cache_rel}" \
-    ]
-    foreach dir [glob -nocomplain "C:/Users/23178/AppData/Local/Temp/*/.cache/ip/${cache_rel}"] {
-        if {[lsearch -exact $candidate_dirs $dir] < 0} {
-            lappend candidate_dirs $dir
+proc p3_seed_one_ip_cache {label project_dir project_name direct_dir cache_rel required_files} {
+    set local_cache_dir "${direct_dir}/.cache/ip/${cache_rel}"
+    set candidate_dirs {}
+
+    p3_unique_dir_append candidate_dirs $local_cache_dir
+    p3_unique_dir_append candidate_dirs "${project_dir}/${project_name}.cache/ip/${cache_rel}"
+    foreach temp_root [list \
+        "C:/Users/23178/AppData/Local/Temp" \
+        "Z:/tmp" \
+        "/tmp" \
+    ] {
+        foreach dir [glob -nocomplain "${temp_root}/*/.cache/ip/${cache_rel}"] {
+            p3_unique_dir_append candidate_dirs $dir
         }
     }
 
     set source_cache_dir ""
     foreach dir $candidate_dirs {
-        if {[p3_dir_has_ddr_phy_cache $dir $cache_id]} {
+        if {[p3_dir_has_files $dir $required_files]} {
             set source_cache_dir $dir
             break
         }
     }
 
     if {$source_cache_dir eq ""} {
-        puts "WARNING: DDR PHY debug IP cache ${cache_id} not found; opt_design may try to regenerate noc_mc_ddr4_phy."
-        puts "         Expected a cache directory containing bd_c5b9_MC0_ddrc_0_phy.dcp and ${cache_id}.xci."
-        return
+        puts "WARNING: ${label} IP cache ${cache_rel} not found; opt_design may regenerate this child IP."
+        puts "         Expected cache files:"
+        foreach required_file $required_files {
+            puts "           ${required_file}"
+        }
+        return 0
     }
 
     if {$source_cache_dir ne $local_cache_dir} {
-        puts "Seeding DDR PHY debug IP cache:"
+        puts "Seeding ${label} IP cache:"
         puts "  source: $source_cache_dir"
         puts "  target: $local_cache_dir"
         file mkdir [file dirname $local_cache_dir]
         file delete -force $local_cache_dir
         file copy -force $source_cache_dir $local_cache_dir
     } else {
-        puts "DDR PHY debug IP cache already present: $local_cache_dir"
+        puts "${label} IP cache already present: $local_cache_dir"
     }
+
+    return 1
+}
+
+proc p3_seed_debug_ip_cache {project_dir project_name direct_dir} {
+    p3_seed_one_ip_cache "DDR PHY" $project_dir $project_name $direct_dir \
+        "2024.2.2/b/e/be79b17307062196" \
+        [list bd_c5b9_MC0_ddrc_0_phy.dcp be79b17307062196.xci]
+    p3_seed_one_ip_cache "AXI debug hub" $project_dir $project_name $direct_dir \
+        "2024.2.2/6/3/63238c300d84dd3e" \
+        [list axi_dbg_hub_axi_dbg_hub_0.dcp 63238c300d84dd3e.xci]
+    p3_seed_one_ip_cache "debug AXI NoC" $project_dir $project_name $direct_dir \
+        "2024.2.2/2/6/26f047544d6aa94f" \
+        [list design_axi_noc_axi_noc_0.dcp 26f047544d6aa94f.xci]
+    p3_seed_one_ip_cache "debug proc_sys_reset" $project_dir $project_name $direct_dir \
+        "2024.2.2/2/9/297bb7bb4c294321" \
+        [list proc_sys_reset_proc_sys_reset_0.dcp 297bb7bb4c294321.xci]
 
     if {[catch {current_project} current_project_name] == 0 && $current_project_name ne ""} {
         set local_ip_repo "${direct_dir}/.cache/ip"
-        puts "Using local IP output repo for debug child IP cache: $local_ip_repo"
+        puts "Using local IP output repo for implementation child IP cache: $local_ip_repo"
         set_property ip_output_repo $local_ip_repo [current_project]
     } else {
-        puts "WARNING: no current_project is active; cannot set ip_output_repo to local DDR PHY cache."
+        puts "WARNING: no current_project is active; cannot set ip_output_repo to local implementation child IP cache."
     }
 }
 
@@ -524,7 +554,7 @@ set route_dcp "${direct_dir}/p3_top_route.dcp"
 set pdi_file "${output_dir}/${pdi_basename}.pdi"
 set ltx_file "${output_dir}/${pdi_basename}.ltx"
 
-p3_seed_ddr_phy_debug_ip_cache $project_dir $project_name $direct_dir
+p3_seed_debug_ip_cache $project_dir $project_name $direct_dir
 p3_force_launch_runs_jobs 1
 p3_force_debug_ip_synth_jobs 1
 
