@@ -136,6 +136,8 @@ Implementation note: cache seeding can still be too late for the generated debug
 
 Implementation note: on 2026-05-27 the seed-only ILA path closed implementation successfully. The Build 25 minimal image completed through `route_design` and `write_device_image`, producing `p3_top_build25_minimal_debug.pdi` plus `p3_top_build25_minimal_debug.ltx`. The route report had 0 failed nets, 0 unrouted nets, and 0 overlaps; the estimated post-route timing was WNS about 8.965 ns and WHS about 0.009 ns. The remaining validation is runtime-only: program the board, confirm the debug hub refreshes, trigger/upload the tiny ILA, and verify that the heartbeat bits move in the exported CSV.
 
+Implementation note: the Build 25 image programmed cleanly, but the runtime debug path still failed. The generated LTX exposed `axi_dbg_hub` at `0x44a00000` with no `available_addresses`/`ADDRESS_LIST` master path, and hardware refresh timed out. Manually patching the LTX to use the reference address `0x3ffc0000000` and `u_bd/openpiton_top_i/ps_wizard_0/PMC_AXI_NOC0` changed the failing address but still timed out. This confirms the fault is not just a probes-file address label; the post-synthesis debug hub/NoC insertion path is not producing a hub reachable through the P3 PMC debug route. The next minimal debug build should instantiate or connect the ILA through the BD-owned debug infrastructure, matching the reference design where `axis_ila_1` is inside the block design and the routed DCP has `ADDRESS_LIST=MASTER0 .../ps_wizard_0/PMC_AXI_NOC0`.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
