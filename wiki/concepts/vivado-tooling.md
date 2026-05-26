@@ -134,6 +134,8 @@ Implementation note: parameter-level serialization alone did not rewrite Vivado'
 
 Implementation note: cache seeding can still be too late for the generated debug AXI NoC path. A Build 25 retry confirmed cache hits for `axi_dbg_hub` and debug `proc_sys_reset`, but the child Vivado stalled while creating `design_axi_noc.bd` and loading the VP1902 part before reaching the debug AXI NoC cache check. Build 25 now bypasses that path by reading the cached DCPs directly into `axi_dbg_hub_CV`, `axi_noc_CV`, and `proc_sys_reset_CV` before `opt_design`; only `u_ila_0` is left for Vivado's debug-IP flow to resolve from the seeded matching ILA cache.
 
+Implementation note: on 2026-05-27 the seed-only ILA path closed implementation successfully. The Build 25 minimal image completed through `route_design` and `write_device_image`, producing `p3_top_build25_minimal_debug.pdi` plus `p3_top_build25_minimal_debug.ltx`. The route report had 0 failed nets, 0 unrouted nets, and 0 overlaps; the estimated post-route timing was WNS about 8.965 ns and WHS about 0.009 ns. The remaining validation is runtime-only: program the board, confirm the debug hub refreshes, trigger/upload the tiny ILA, and verify that the heartbeat bits move in the exported CSV.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
