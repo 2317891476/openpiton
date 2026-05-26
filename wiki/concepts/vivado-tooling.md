@@ -118,6 +118,12 @@ Implementation note: the RTL debug ILA clock must be resolved from the final sti
 
 Implementation note: a later Build 24 direct run passed `place_design` with the fixed ILA clock, but failed `route_design` on the SD data tristate enable net `sd_dat_oe_o`. The SD data host marked the scalar `DAT_oe_o` output register as `iob=true`; Vivado packed that enable into one Versal XPIOLOGIC TFF, then could not route the local TFF output to multiple `sd_dat[*]` IOBUF `T` pins. Keep shared SDIO output-enable registers in fabric (`iob=false`) on P3/Versal, while allowing per-bit data registers to remain IOB-packed.
 
+### P3 Build 25 Minimal Debug Hub Recovery
+
+Build 25 narrows the debug objective to the Versal runtime debug path itself. The reference `huaprop3onecore` image and `huaprop3top_wrapper.ltx` were programmed and verified on the same P3 board: Vivado reached `AXI_DEBUG_HUB_V1` at `0x3ffc0000000` through `huaprop3top_i/ps_wizard_0/PMC_AXI_NOC0`, enumerated `hw_ila_1`, triggered it immediately, uploaded samples, and wrote CSV data. Therefore the board-level XVC/JTAG/PMC debug infrastructure is good; Build 24's `Failed to communicate with debug hub address(es): 0x3ffc0000000` points at the OpenPiton design's inserted `axi_dbg_hub` runtime clock/reset/connectivity, not at hw_server, XVC, JTAG, PDI, LTX, or UUID mismatch.
+
+The Build 25 recovery flow keeps the ILA intentionally tiny. It probes only board/top-level reset state, LEDs, SD reset, and a top-level clock heartbeat generated directly from `chipset_clk`. Ariane reset/fetch/NoC probes must not be added until this minimal ILA passes `refresh_hw_device`, `get_hw_ilas`, `run_hw_ila -trigger_now`, `upload_hw_ila_data`, and CSV export on hardware. The debug-clock strategy should be compared against the reference routed DCP and then fixed to the same stable BD clock style instead of relying on broad post-synthesis net-name discovery.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
