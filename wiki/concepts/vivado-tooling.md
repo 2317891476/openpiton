@@ -132,6 +132,8 @@ Implementation note: the DDR PHY cache workaround can still leave Build 25 insid
 
 Implementation note: parameter-level serialization alone did not rewrite Vivado's generated `debug_ip_core.tcl`, which still used `set jobs 4` in a later Build 25 retry. The direct flow therefore also seeds the known-good implementation child IP cache entries for the AXI debug hub (`63238c300d84dd3e`), debug AXI NoC (`26f047544d6aa94f`), and debug `proc_sys_reset` (`297bb7bb4c294321`) alongside the DDR PHY cache. Do not seed an old `u_ila_0` cache unless its `get_cs_ip.tcl` parameters match the active Build 25 ILA configuration; the available Build 24-era ILA caches have different probe/storage settings.
 
+Implementation note: cache seeding can still be too late for the generated debug AXI NoC path. A Build 25 retry confirmed cache hits for `axi_dbg_hub` and debug `proc_sys_reset`, but the child Vivado stalled while creating `design_axi_noc.bd` and loading the VP1902 part before reaching the debug AXI NoC cache check. Build 25 now attempts to bypass that path by reading the cached DCPs directly into `axi_dbg_hub_CV`, `axi_noc_CV`, and `proc_sys_reset_CV` before `opt_design`, leaving only the tiny two-probe `u_ila_0_CV` for Vivado to generate.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

@@ -425,6 +425,38 @@ proc p3_seed_debug_ip_cache {project_dir project_name direct_dir} {
     }
 }
 
+proc p3_read_cached_debug_dcp_by_ref {ref_name label dcp} {
+    if {![file exists $dcp]} {
+        puts "ERROR: missing cached ${label} debug IP DCP: $dcp"
+        exit 1
+    }
+
+    set matches [get_cells -hier -quiet -filter "REF_NAME == $ref_name"]
+    if {[llength $matches] == 0} {
+        puts "${label} debug IP cell with REF_NAME=${ref_name} is already resolved or absent."
+        return
+    }
+    if {[llength $matches] != 1} {
+        puts "ERROR: expected one ${label} debug IP cell with REF_NAME=${ref_name}, got [llength $matches]"
+        foreach cell $matches { puts "  $cell" }
+        exit 1
+    }
+
+    set cell [lindex $matches 0]
+    puts "Reading cached ${label} debug IP DCP into ${cell} (REF_NAME=${ref_name}): $dcp"
+    read_checkpoint -cell $cell $dcp
+}
+
+proc p3_stitch_build25_cached_debug_ip {direct_dir} {
+    set cache_root "${direct_dir}/.cache/ip"
+    p3_read_cached_debug_dcp_by_ref "axi_dbg_hub_CV" "AXI debug hub" \
+        "${cache_root}/2024.2.2/6/3/63238c300d84dd3e/axi_dbg_hub_axi_dbg_hub_0.dcp"
+    p3_read_cached_debug_dcp_by_ref "axi_noc_CV" "debug AXI NoC" \
+        "${cache_root}/2024.2.2/2/6/26f047544d6aa94f/design_axi_noc_axi_noc_0.dcp"
+    p3_read_cached_debug_dcp_by_ref "proc_sys_reset_CV" "debug proc_sys_reset" \
+        "${cache_root}/2024.2.2/2/9/297bb7bb4c294321/proc_sys_reset_proc_sys_reset_0.dcp"
+}
+
 set ddr_io_xdc "${direct_dir}/p3_top_ddr_io.xdc"
 p3_write_ddr_io_xdc $ddr_io_xdc
 
@@ -555,6 +587,9 @@ set pdi_file "${output_dir}/${pdi_basename}.pdi"
 set ltx_file "${output_dir}/${pdi_basename}.ltx"
 
 p3_seed_debug_ip_cache $project_dir $project_name $direct_dir
+if {$build25_minimal_debug} {
+    p3_stitch_build25_cached_debug_ip $direct_dir
+}
 p3_force_launch_runs_jobs 1
 p3_force_debug_ip_synth_jobs 1
 
