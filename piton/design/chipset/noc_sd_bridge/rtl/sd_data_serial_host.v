@@ -58,7 +58,7 @@ module sd_data_serial_host(
            output reg [31:0] data_out,
            output reg we,
            //tristate data
-           (* iob="true" *) output reg DAT_oe_o,
+           (* iob="false" *) output reg DAT_oe_o,
            (* iob="true" *) output reg[3:0] DAT_dat_o,
            input [3:0] DAT_dat_i,
            //Controll signals
@@ -408,7 +408,6 @@ begin: FSM_OUT
 end
 
 endmodule
-
 
 
 
