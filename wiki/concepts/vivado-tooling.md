@@ -114,6 +114,8 @@ Implementation note: the direct fallback also generates `debug_build/build24_dir
 
 Implementation note: during `opt_design`, Vivado may synthesize inserted Versal debug/IP cores through internal `launch_runs` calls. On 2026-05-26, launching the AXI Debug Hub, AXI NoC, proc_sys_reset, and ILA OOC runs in parallel caused four child Vivado processes to stall while loading the VP1902 part. The direct script wraps `launch_runs` before `opt_design` and forces `-jobs 1`, so these generated debug/IP runs load the large device serially.
 
+Implementation note: the RTL debug ILA clock must be resolved from the final stitched netlist, not from a bare top-level net name before OOC DCP stitching. A 2026-05-26 direct run passed DDR PHY generation and `opt_design`, then failed `place_design` DRC `NDRV-1` because `u_ila_0/inst/clk` was driverless. The Build 24 scripts now generate debug XDC that resolves exactly one driven clock net from the BD/RTL clock path (`clk_wizard_0/chipset_clk`, NoC `aclk0`, proc_sys_reset `slowest_sync_clk`, or OpenPiton `chipset_clk`) and connects both the ILA and debug hub to that net. The direct fallback also applies the debug XDC after reading the AXI NoC, Clock Wizard, proc_sys_reset, and `uart_16550` DCPs, so later `read_checkpoint -cell` calls cannot invalidate the debug clock connection.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
