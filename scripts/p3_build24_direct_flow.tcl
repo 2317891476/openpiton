@@ -99,6 +99,14 @@ proc p3_debug_net_list {base width} {
     return [join $names " "]
 }
 
+proc p3_debug_net_list_from_list {nets} {
+    set names {}
+    foreach net $nets {
+        lappend names "{${net}}"
+    }
+    return [join $names " "]
+}
+
 proc p3_write_debug_probe {fh port width label base} {
     puts "  ${port}: ${label} (${base}\\[${width}-1:0\\])"
     if {$port ne "probe0"} {
@@ -107,6 +115,16 @@ proc p3_write_debug_probe {fh port width label base} {
     puts $fh "set_property port_width $width \[get_debug_ports u_ila_0/${port}\]"
     puts $fh "set_property PROBE_TYPE DATA_AND_TRIGGER \[get_debug_ports u_ila_0/${port}\]"
     puts $fh "connect_debug_port u_ila_0/${port} \[get_nets \[list [p3_debug_net_list $base $width] \]\]"
+}
+
+proc p3_write_debug_probe_nets {fh port width label nets} {
+    puts "  ${port}: ${label} ([join $nets { }])"
+    if {$port ne "probe0"} {
+        puts $fh "create_debug_port u_ila_0 probe"
+    }
+    puts $fh "set_property port_width $width \[get_debug_ports u_ila_0/${port}\]"
+    puts $fh "set_property PROBE_TYPE DATA_AND_TRIGGER \[get_debug_ports u_ila_0/${port}\]"
+    puts $fh "connect_debug_port u_ila_0/${port} \[get_nets \[list [p3_debug_net_list_from_list $nets] \]\]"
 }
 
 proc p3_write_debug_clock {fh} {
@@ -415,6 +433,9 @@ proc p3_seed_debug_ip_cache {project_dir project_name direct_dir} {
     p3_seed_one_ip_cache "debug proc_sys_reset" $project_dir $project_name $direct_dir \
         "2024.2.2/2/9/297bb7bb4c294321" \
         [list proc_sys_reset_proc_sys_reset_0.dcp 297bb7bb4c294321.xci]
+    p3_seed_one_ip_cache "Build 25 minimal ILA" $project_dir $project_name $direct_dir \
+        "2024.2.2/3/f/3fd143ca8c7451ee" \
+        [list u_ila_0_u_ila_0_0.dcp 3fd143ca8c7451ee.xci]
 
     if {[catch {current_project} current_project_name] == 0 && $current_project_name ne ""} {
         set local_ip_repo "${direct_dir}/.cache/ip"
@@ -455,6 +476,8 @@ proc p3_stitch_build25_cached_debug_ip {direct_dir} {
         "${cache_root}/2024.2.2/2/6/26f047544d6aa94f/design_axi_noc_axi_noc_0.dcp"
     p3_read_cached_debug_dcp_by_ref "proc_sys_reset_CV" "debug proc_sys_reset" \
         "${cache_root}/2024.2.2/2/9/297bb7bb4c294321/proc_sys_reset_proc_sys_reset_0.dcp"
+    p3_read_cached_debug_dcp_by_ref "u_ila_0_CV" "Build 25 minimal ILA" \
+        "${cache_root}/2024.2.2/3/f/3fd143ca8c7451ee/u_ila_0_u_ila_0_0.dcp"
 }
 
 set ddr_io_xdc "${direct_dir}/p3_top_ddr_io.xdc"
@@ -477,8 +500,8 @@ puts $fh "set_property ALL_PROBE_SAME_MU true \[get_debug_cores u_ila_0\]"
 puts $fh "set_property ALL_PROBE_SAME_MU_CNT 2 \[get_debug_cores u_ila_0\]"
 puts $fh "set_property C_ADV_TRIGGER false \[get_debug_cores u_ila_0\]"
 if {$build25_minimal_debug} {
-    puts $fh "set_property C_DATA_DEPTH 2048 \[get_debug_cores u_ila_0\]"
-    puts $fh "set_property C_EN_STRG_QUAL false \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property C_DATA_DEPTH 4096 \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_0\]"
 } else {
     puts $fh "set_property C_DATA_DEPTH 4096 \[get_debug_cores u_ila_0\]"
     puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_0\]"
@@ -486,7 +509,7 @@ if {$build25_minimal_debug} {
 puts $fh "set_property C_INPUT_PIPE_STAGES 0 \[get_debug_cores u_ila_0\]"
 puts $fh "set_property C_MEMORY_TYPE 0 \[get_debug_cores u_ila_0\]"
 if {$build25_minimal_debug} {
-    puts $fh "set_property C_NUM_OF_PROBES 2 \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property C_NUM_OF_PROBES 12 \[get_debug_cores u_ila_0\]"
 } else {
     puts $fh "set_property C_NUM_OF_PROBES 5 \[get_debug_cores u_ila_0\]"
 }
@@ -494,8 +517,18 @@ puts $fh "set_property C_TRIGIN_EN false \[get_debug_cores u_ila_0\]"
 puts $fh "set_property C_TRIGOUT_EN false \[get_debug_cores u_ila_0\]"
 p3_write_debug_clock $fh
 if {$build25_minimal_debug} {
-    p3_write_debug_probe $fh probe0 32 "p3_min_dbg_status" p3_min_dbg_status
-    p3_write_debug_probe $fh probe1 32 "p3_min_dbg_heartbeat" p3_min_dbg_heartbeat
+    p3_write_debug_probe_nets $fh probe0 1 "heartbeat bit 0" [list {p3_min_dbg_heartbeat[0]}]
+    p3_write_debug_probe_nets $fh probe1 1 "heartbeat bit 8" [list {p3_min_dbg_heartbeat[8]}]
+    p3_write_debug_probe_nets $fh probe2 1 "heartbeat bit 16" [list {p3_min_dbg_heartbeat[16]}]
+    p3_write_debug_probe_nets $fh probe3 1 "heartbeat bit 24" [list {p3_min_dbg_heartbeat[24]}]
+    p3_write_debug_probe_nets $fh probe4 1 "top reset" [list {p3_min_dbg_status[15]}]
+    p3_write_debug_probe_nets $fh probe5 2 "leds[1:0]" [list {p3_min_dbg_status[8]} {p3_min_dbg_status[9]}]
+    p3_write_debug_probe_nets $fh probe6 1 "peripheral_aresetn" [list {p3_min_dbg_status[14]}]
+    p3_write_debug_probe_nets $fh probe7 1 "sd_resetn" [list {p3_min_dbg_status[13]}]
+    p3_write_debug_probe_nets $fh probe8 1 "uart_tx" [list {p3_min_dbg_status[12]}]
+    p3_write_debug_probe_nets $fh probe9 1 "uart_rx" [list {p3_min_dbg_status[11]}]
+    p3_write_debug_probe_nets $fh probe10 1 "sd_cd" [list {p3_min_dbg_status[10]}]
+    p3_write_debug_probe_nets $fh probe11 1 "heartbeat bit 31" [list {p3_min_dbg_heartbeat[31]}]
 } else {
     p3_write_debug_probe $fh probe0 128 "p3_debug_bus" p3_debug_bus
     p3_write_debug_probe $fh probe1 32  "p3_debug_seen" p3_debug_seen
