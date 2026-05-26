@@ -138,6 +138,26 @@ Implementation note: on 2026-05-27 the seed-only ILA path closed implementation 
 
 Implementation note: the Build 25 image programmed cleanly, but the runtime debug path still failed. The generated LTX exposed `axi_dbg_hub` at `0x44a00000` with no `available_addresses`/`ADDRESS_LIST` master path, and hardware refresh timed out. Manually patching the LTX to use the reference address `0x3ffc0000000` and `u_bd/openpiton_top_i/ps_wizard_0/PMC_AXI_NOC0` changed the failing address but still timed out. This confirms the fault is not just a probes-file address label; the post-synthesis debug hub/NoC insertion path is not producing a hub reachable through the P3 PMC debug route. The next minimal debug build should instantiate or connect the ILA through the BD-owned debug infrastructure, matching the reference design where `axis_ila_1` is inside the block design and the routed DCP has `ADDRESS_LIST=MASTER0 .../ps_wizard_0/PMC_AXI_NOC0`.
 
+### P3 Build 26 BD-Owned Minimal ILA
+
+Build 26 moves the minimal heartbeat/status ILA from post-synthesis `create_debug_core` insertion into the Vivado block design. This mirrors the verified `huaprop3onecore` reference strategy: the ILA is a BD-owned `axis_ila` net-probe IP clocked by `clk_wizard_0/chipset_clk`, so Vivado should generate the Versal AXI debug hub and PMC access path as part of the BD infrastructure instead of as a late debug-core overlay.
+
+The top-level minimal debug bus is now always present in `p3_top.v`, independent of the wider `P3_RTL_DEBUG` Ariane probe bus:
+
+- `p3_min_dbg_heartbeat[31:0]` increments directly on `chipset_clk`.
+- `p3_min_dbg_status[31:0]` packs Build ID `16'h2501`, top reset, `peripheral_aresetn`, SD reset/card detect, UART pins, and LEDs.
+- `openpiton_top_wrapper` receives these buses through `p3_dbg_heartbeat_i` and `p3_dbg_status_i`, and the BD-owned `axis_ila_0` probes them as `probe0` and `probe1`.
+
+Use the Build 26 script from the repository root:
+
+```bash
+vivado -mode batch -source scripts/p3_build26_bd_ila.tcl
+```
+
+The script first patches the existing `openpiton_top.bd` in place, generates the BD wrapper, synthesizes the new `axis_ila` IP, regenerates `synth_1` scripts, then delegates to the direct Build 24 implementation path with `-build26_bd_ila`. Unlike Builds 24/25, Build 26 deliberately skips post-synthesis `create_debug_core`; the only ILA in the design should be the BD-owned `axis_ila_0`. Expected outputs are `huaprop3_openpiton/debug_build/p3_top_build26_bd_ila.pdi`, `.ltx`, and `debug_build/build26_bd_ila/p3_top_route.dcp`.
+
+After PDI programming, the first hardware check is not Ariane activity. It is the debug runtime path itself: `refresh_hw_device`, `get_hw_ilas`, immediate trigger/upload, and CSV export should succeed, and the generated LTX should show a BD/PMC debug path comparable to the reference `.../ps_wizard_0/PMC_AXI_NOC0` route.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
