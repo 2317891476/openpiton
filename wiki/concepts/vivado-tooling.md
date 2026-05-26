@@ -156,6 +156,8 @@ vivado -mode batch -source scripts/p3_build26_bd_ila.tcl
 
 The script first patches the existing `openpiton_top.bd` in place, generates the BD wrapper, regenerates `synth_1` scripts, explicitly launches the BD ILA OOC run `openpiton_top_axis_ila_0_0_synth_1`, then delegates to the direct Build 24 implementation path with `-build26_bd_ila`. Unlike Builds 24/25, Build 26 deliberately skips post-synthesis `create_debug_core`; the only ILA in the design should be the BD-owned `axis_ila_0`. Expected outputs are `huaprop3_openpiton/debug_build/p3_top_build26_bd_ila.pdi`, `.ltx`, and `debug_build/build26_bd_ila/p3_top_route.dcp`.
 
+Implementation note: the direct flow should read BD IP DCPs from the generated BD IP output directory when available, not only from project run directories. A 2026-05-27 Build 26 attempt completed top-level synthesis but failed before implementation because `openpiton_top_axi_noc_0_0_synth_1` did not exist under `.runs`, while `generate_target all` had already produced `huaprop3_openpiton.gen/sources_1/bd/openpiton_top/ip/openpiton_top_axi_noc_0_0/openpiton_top_axi_noc_0_0.dcp`. The Build 26/direct stitch path now uses that generated BD IP DCP for the AXI NoC, matching the existing Clock Wizard, proc_sys_reset, and BD-owned ILA DCP lookup style.
+
 After PDI programming, the first hardware check is not Ariane activity. It is the debug runtime path itself: `refresh_hw_device`, `get_hw_ilas`, immediate trigger/upload, and CSV export should succeed, and the generated LTX should show a BD/PMC debug path comparable to the reference `.../ps_wizard_0/PMC_AXI_NOC0` route.
 
 ## Key Reports
