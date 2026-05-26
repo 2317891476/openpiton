@@ -476,8 +476,7 @@ proc p3_stitch_build25_cached_debug_ip {direct_dir} {
         "${cache_root}/2024.2.2/2/6/26f047544d6aa94f/design_axi_noc_axi_noc_0.dcp"
     p3_read_cached_debug_dcp_by_ref "proc_sys_reset_CV" "debug proc_sys_reset" \
         "${cache_root}/2024.2.2/2/9/297bb7bb4c294321/proc_sys_reset_proc_sys_reset_0.dcp"
-    p3_read_cached_debug_dcp_by_ref "u_ila_0_CV" "Build 25 minimal ILA" \
-        "${cache_root}/2024.2.2/3/f/3fd143ca8c7451ee/u_ila_0_u_ila_0_0.dcp"
+    puts "Skipping direct u_ila_0_CV DCP stitching; the seeded ILA cache must be consumed by Vivado's debug-IP flow."
 }
 
 set ddr_io_xdc "${direct_dir}/p3_top_ddr_io.xdc"
