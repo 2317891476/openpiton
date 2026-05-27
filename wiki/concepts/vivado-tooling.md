@@ -208,6 +208,23 @@ Probe mapping:
 
 The total Build 28 probe payload is 128 bits, down from Build 27's 384 bits. The direct flow branch is `-build28_split_ila`; it reads both BD ILA DCPs (`openpiton_top_axis_ila_0_0` and `openpiton_top_axis_ila_1_0`) and still skips `create_debug_core`. After `write_debug_probes`, the script now explicitly checks that the matching LTX file exists and is non-empty before writing the PDI. If LTX generation silently fails again, the build stops before producing a programmable image so the hardware test cannot accidentally use a stale or missing probes file.
 
+Build 28 completed synthesis, placement, routing, and post-route physical optimization with 0 failed or unrouted nets, but intentionally stopped before PDI generation because `write_debug_probes` did not produce `p3_top_build28_split_ila.ltx`. A read-only checkpoint diagnostic confirmed that the routed design does contain Chipscope cores for `u_bd/openpiton_top_i/axis_ila_0` and `axis_ila_1`, but reopening the post-route checkpoint fails inside the ILA implementation with site routing overlap/fixed-pin errors. This reinforces the bring-up rule: do not rely on post-route DCP reopen to recover a missing LTX on this Versal flow.
+
+### P3 Build 29 Route-Time Split ILA LTX
+
+Build 29 keeps the Build 28 split 128-bit probe payload and BD-owned `axis_ila_0`/`axis_ila_1` structure, but changes two flow details:
+
+- `scripts/p3_prepare_build29_split_ila.tcl` reuses the Build 28 BD patch logic while setting `C_INPUT_PIPE_STAGES=0`, matching the conservative Build 26 ILA setting that already passed runtime debug capture.
+- `scripts/p3_build24_direct_flow.tcl -build29_split_ila` writes and validates the LTX immediately after `route_design` in the same in-memory implementation session, before writing the route checkpoint or PDI. The LTX check requires a non-empty file and the expected Versal debug path `0x000003FFC0000000` through `PMC_AXI_NOC0`.
+
+Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build29_split_ila.tcl
+```
+
+Build 29 skips `post_route_phys_opt_design` so the PDI is generated from the same routed in-memory design used for LTX generation. The intent is to avoid both failure modes seen in Builds 27/28: missing main-flow LTX and fragile post-route checkpoint reopening.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
