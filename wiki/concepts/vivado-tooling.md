@@ -295,6 +295,18 @@ The first Build 32 hardware capture succeeded at the debug-transport level but e
 
 Follow-up diagnostic result: the routed DCP showed the Build 32 probe nets tied to `GROUND`, including the heartbeat probe. The underlying build-flow fault was stale mirrored RTL under `Z:/tmp`: `synth_1/p3_top.tcl` read `Z:/tmp/p3_top.v`, but that temp copy predated the repository `p3_top.v` change that added the `P3_BD_CHIPSET_DEBUG_ILA` wrapper-port connections. Vivado emitted the corresponding synthesis warning that `u_bd` had 69 declared ports but only 65 connected. Future run-manager debug builds that still rely on `Z:/tmp` mirrors must refresh those mirrors before `launch_runs`, and should fail early if the synth log contains that port-count warning.
 
+### P3 Build 33 Temp-Synced Chipset ILAs
+
+Build 33 is the corrected rerun of the Build 32 chipset probe payload. It keeps the same two BD-owned `axis_ila` instances and the same 97-bit probe plan, but moves temp-source synchronization into the Vivado Tcl flow before synthesis:
+
+```bash
+vivado -mode batch -source scripts/p3_build33_runmgr_chipset_ila.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpiton/debug_build/p3_top_build33_runmgr_chipset_ila.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build33_chipset_ila.tcl
+```
+
+The prepare and run scripts copy the canonical repository files `piton/design/xilinx/huaprop3/p3_top.v`, `piton/design/xilinx/huaprop3/openpiton_wrapper.v`, `piton/design/rtl/system.v`, and `piton/design/include/piton_system.vh` into `Z:/tmp` before Vivado regenerates or launches runs. The run script also scans the synthesis log and aborts if `openpiton_top_wrapper/u_bd` still shows the under-connected-port warning that caused Build 32's ILA probes to be tied low.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
