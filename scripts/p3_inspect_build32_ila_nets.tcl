@@ -22,7 +22,7 @@ proc p3_report_objects {fh label objects} {
 }
 
 proc p3_report_pin_net {fh pin_pattern} {
-    set pins [get_pins -quiet -hier $pin_pattern]
+    set pins [get_pins -quiet -hier -filter "NAME =~ $pin_pattern"]
     p3_puts $fh ""
     p3_puts $fh "PIN_PATTERN $pin_pattern"
     p3_report_objects $fh "pins" $pins
@@ -55,20 +55,32 @@ p3_puts $fh "DCP: $routed_dcp"
 open_checkpoint $routed_dcp
 
 foreach pat [list \
-    "u_bd/openpiton_top_i/axis_ila_0/*probe0*" \
-    "u_bd/openpiton_top_i/axis_ila_0/*probe1*" \
-    "u_bd/openpiton_top_i/axis_ila_0/*probe2*" \
-    "u_bd/openpiton_top_i/axis_ila_1/*probe0*" \
-    "u_bd/openpiton_top_i/axis_ila_0/*clk*" \
-    "u_bd/openpiton_top_i/axis_ila_1/*clk*" \
-    "u_bd/openpiton_top_i/p3_dbg_heartbeat_bit_i*" \
-    "u_bd/openpiton_top_i/p3_dbg_top_status16_i*" \
-    "u_bd/openpiton_top_i/p3_dbg_chipset_seen16_i*" \
-    "u_bd/openpiton_top_i/p3_dbg_chipset_bus64_i*" \
-    "p3_min_dbg_heartbeat_reg*" \
+    "*u_bd/openpiton_top_i/axis_ila_0*probe0*" \
+    "*u_bd/openpiton_top_i/axis_ila_0*probe1*" \
+    "*u_bd/openpiton_top_i/axis_ila_0*probe2*" \
+    "*u_bd/openpiton_top_i/axis_ila_1*probe0*" \
+    "*u_bd/openpiton_top_i/axis_ila_0*clk*" \
+    "*u_bd/openpiton_top_i/axis_ila_1*clk*" \
+    "*u_bd/openpiton_top_i*p3_dbg_heartbeat_bit_i*" \
+    "*u_bd/openpiton_top_i*p3_dbg_top_status16_i*" \
+    "*u_bd/openpiton_top_i*p3_dbg_chipset_seen16_i*" \
+    "*u_bd/openpiton_top_i*p3_dbg_chipset_bus64_i*" \
+    "*p3_min_dbg_heartbeat*reg*" \
 ] {
     p3_report_pin_net $fh $pat
 }
+
+p3_puts $fh ""
+p3_puts $fh "CELL_SEARCH axis_ila"
+p3_report_objects $fh "cells" [get_cells -quiet -hier -filter {NAME =~ *axis_ila*}]
+
+p3_puts $fh ""
+p3_puts $fh "NET_SEARCH p3_dbg"
+p3_report_objects $fh "nets" [get_nets -quiet -hier -filter {NAME =~ *p3_dbg*}]
+
+p3_puts $fh ""
+p3_puts $fh "NET_SEARCH heartbeat"
+p3_report_objects $fh "nets" [get_nets -quiet -hier -filter {NAME =~ *heartbeat*}]
 
 close_design
 close $fh
