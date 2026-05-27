@@ -160,7 +160,7 @@ Implementation note: the direct flow should read BD IP DCPs from the generated B
 
 Build 26 completed implementation on 2026-05-27. The output files are `huaprop3_openpiton/debug_build/p3_top_build26_bd_ila.pdi`, `huaprop3_openpiton/debug_build/p3_top_build26_bd_ila.ltx`, and `huaprop3_openpiton/debug_build/build26_bd_ila/p3_top_route.dcp`. The LTX now matches the reference-style debug route: `axi_dbg_hub` has offset `0x000003FFC0000000`, `available_addresses` points to `u_bd/openpiton_top_i/ps_wizard_0/PMC_AXI_NOC0`, and the ILA core is `u_bd/openpiton_top_i/axis_ila_0`.
 
-After PDI programming, the first hardware check is not Ariane activity. It is the debug runtime path itself: `refresh_hw_device`, `get_hw_ilas`, immediate trigger/upload, and CSV export should succeed, and the generated LTX should show a BD/PMC debug path comparable to the reference `.../ps_wizard_0/PMC_AXI_NOC0` route.
+After PDI programming, the first hardware check is not Ariane activity. It is the debug runtime path itself: `refresh_hw_device`, `get_hw_ilas`, immediate trigger/upload, and CSV export should succeed, and the generated LTX should show a BD/PMC debug path comparable to the reference `.../ps_wizard_0/PMC_AXI_NOC0` route. This check passed on 2026-05-27: Vivado reported `Successfully set up debug cores at debug hub address(es): 0x3ffc0000000`, found `hw_ila_1` at `u_bd/openpiton_top_i/axis_ila_0`, and exported `huaprop3_openpiton/debug_build/ila_capture_build26_bd_ila.csv`.
 
 ## Key Reports
 
