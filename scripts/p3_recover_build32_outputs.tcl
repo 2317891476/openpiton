@@ -55,7 +55,11 @@ open_checkpoint $routed_dcp
 set debug_cores [get_debug_cores -quiet]
 puts "Debug cores: ${debug_cores}"
 foreach core $debug_cores {
-    puts "  CORE [get_property NAME $core] CELL=[get_property CELL_NAME $core] TYPE=[get_property CORE_TYPE $core]"
+    set name $core
+    catch {set name [get_property NAME $core]}
+    set core_type ""
+    catch {set core_type [get_property CORE_TYPE $core]}
+    puts "  CORE ${name} TYPE=${core_type}"
 }
 
 if {[llength $debug_cores] == 0} {
