@@ -19,6 +19,11 @@ set synth_dcp "${direct_dir}/p3_top.dcp"
 
 set reuse_synth_dcp 0
 set build25_minimal_debug 0
+set build26_bd_ila 0
+set build27_bd_rtl_ila 0
+set build28_split_ila 0
+set build29_split_ila 0
+set build30_split_ila 0
 foreach arg $argv {
     switch -- $arg {
         -reuse_synth {
@@ -27,9 +32,24 @@ foreach arg $argv {
         -build25_minimal_debug {
             set build25_minimal_debug 1
         }
+        -build26_bd_ila {
+            set build26_bd_ila 1
+        }
+        -build27_bd_rtl_ila {
+            set build27_bd_rtl_ila 1
+        }
+        -build28_split_ila {
+            set build28_split_ila 1
+        }
+        -build29_split_ila {
+            set build29_split_ila 1
+        }
+        -build30_split_ila {
+            set build30_split_ila 1
+        }
         default {
             puts "ERROR: unknown argument: $arg"
-            puts "Usage: vivado -mode batch -source scripts/p3_build24_direct_flow.tcl ?-tclargs -reuse_synth? ?-build25_minimal_debug?"
+            puts "Usage: vivado -mode batch -source scripts/p3_build24_direct_flow.tcl ?-tclargs -reuse_synth? ?-build25_minimal_debug? ?-build26_bd_ila? ?-build27_bd_rtl_ila? ?-build28_split_ila? ?-build29_split_ila? ?-build30_split_ila?"
             exit 1
         }
     }
@@ -38,12 +58,48 @@ foreach arg $argv {
 set build_label "Build 24"
 set debug_xdc_basename "p3_top_rtl_debug.xdc"
 set pdi_basename "p3_top_rtl_debug"
+set use_post_synth_debug 1
 if {$build25_minimal_debug} {
     set build_label "Build 25 minimal debug"
     set direct_dir "${project_dir}/debug_build/build25_minimal"
     set synth_dcp "${direct_dir}/p3_top.dcp"
     set debug_xdc_basename "p3_top_build25_minimal_debug.xdc"
     set pdi_basename "p3_top_build25_minimal_debug"
+}
+if {$build26_bd_ila} {
+    set build_label "Build 26 BD-owned minimal ILA"
+    set direct_dir "${project_dir}/debug_build/build26_bd_ila"
+    set synth_dcp "${direct_dir}/p3_top.dcp"
+    set pdi_basename "p3_top_build26_bd_ila"
+    set use_post_synth_debug 0
+}
+if {$build27_bd_rtl_ila} {
+    set build_label "Build 27 BD-owned RTL debug ILA"
+    set direct_dir "${project_dir}/debug_build/build27_bd_rtl_ila"
+    set synth_dcp "${direct_dir}/p3_top.dcp"
+    set pdi_basename "p3_top_build27_bd_rtl_ila"
+    set use_post_synth_debug 0
+}
+if {$build28_split_ila} {
+    set build_label "Build 28 split compact BD-owned RTL ILAs"
+    set direct_dir "${project_dir}/debug_build/build28_split_ila"
+    set synth_dcp "${direct_dir}/p3_top.dcp"
+    set pdi_basename "p3_top_build28_split_ila"
+    set use_post_synth_debug 0
+}
+if {$build29_split_ila} {
+    set build_label "Build 29 split compact BD-owned RTL ILAs"
+    set direct_dir "${project_dir}/debug_build/build29_split_ila"
+    set synth_dcp "${direct_dir}/p3_top.dcp"
+    set pdi_basename "p3_top_build29_split_ila"
+    set use_post_synth_debug 0
+}
+if {$build30_split_ila} {
+    set build_label "Build 30 split compact BD-owned RTL ILAs"
+    set direct_dir "${project_dir}/debug_build/build30_split_ila"
+    set synth_dcp "${direct_dir}/p3_top.dcp"
+    set pdi_basename "p3_top_build30_split_ila"
+    set use_post_synth_debug 0
 }
 
 puts "=========================================="
@@ -54,6 +110,21 @@ if {$reuse_synth_dcp} {
 }
 if {$build25_minimal_debug} {
     puts "Mode: minimal top-level debug hub recovery ILA"
+}
+if {$build26_bd_ila} {
+    puts "Mode: BD-owned minimal axis_ila, no post-synthesis create_debug_core"
+}
+if {$build27_bd_rtl_ila} {
+    puts "Mode: BD-owned RTL debug axis_ila, no post-synthesis create_debug_core"
+}
+if {$build28_split_ila} {
+    puts "Mode: two compact BD-owned RTL debug axis_ila instances, no post-synthesis create_debug_core"
+}
+if {$build29_split_ila} {
+    puts "Mode: two compact BD-owned RTL debug axis_ila instances, route-time LTX generation, no post-synthesis create_debug_core"
+}
+if {$build30_split_ila} {
+    puts "Mode: Build 29 split ILA probe set plus pre-implementation debug child-IP stitching and route-time LTX validation"
 }
 
 file mkdir $tmp_dir
@@ -222,6 +293,118 @@ proc p3_run_step {label cmd checkpoint} {
     if {$checkpoint ne ""} {
         write_checkpoint -force $checkpoint
     }
+}
+
+proc p3_get_prop_or_na {obj prop} {
+    if {[catch {get_property $prop $obj} value]} {
+        return "NA"
+    }
+    if {$value eq ""} {
+        return "<empty>"
+    }
+    return $value
+}
+
+proc p3_dump_pin_nets {fh cell} {
+    set pins [get_pins -quiet -of_objects $cell]
+    set count 0
+    foreach pin $pins {
+        set pin_name [get_property NAME $pin]
+        set lower_name [string tolower $pin_name]
+        if {[string match "*clk*" $lower_name] ||
+            [string match "*reset*" $lower_name] ||
+            [string match "*rst*" $lower_name] ||
+            [string match "*aclk*" $lower_name] ||
+            [string match "*areset*" $lower_name] ||
+            [string match "*probe*" $lower_name] ||
+            [string match "*axi*" $lower_name]} {
+            set net [get_nets -quiet -of_objects $pin]
+            puts $fh "    PIN $pin_name NET=$net"
+            incr count
+            if {$count >= 80} {
+                puts $fh "    PIN dump truncated at 80 matching pins"
+                break
+            }
+        }
+    }
+}
+
+proc p3_dump_debug_summary {label out_file} {
+    puts "Dumping debug summary: $label -> $out_file"
+    set fh [open $out_file a]
+    puts $fh "============================================================"
+    puts $fh "$label"
+    puts $fh "============================================================"
+
+    set debug_cores [get_debug_cores -quiet *]
+    puts $fh "get_debug_cores count: [llength $debug_cores]"
+    foreach core $debug_cores {
+        puts $fh "  DEBUG_CORE $core TYPE=[p3_get_prop_or_na $core CORE_TYPE] CELL=[p3_get_prop_or_na $core CELL_NAME] UUID=[p3_get_prop_or_na $core UUID]"
+    }
+
+    set debug_cells [get_cells -hier -quiet -filter {IS_DEBUG_CORE == 1}]
+    puts $fh "IS_DEBUG_CORE cells count: [llength $debug_cells]"
+    foreach cell $debug_cells {
+        puts $fh "  DEBUG_CELL $cell REF_NAME=[p3_get_prop_or_na $cell REF_NAME] IS_BLACKBOX=[p3_get_prop_or_na $cell IS_BLACKBOX] LOC=[p3_get_prop_or_na $cell LOC]"
+    }
+
+    set blackboxes [get_cells -hier -quiet -filter {IS_BLACKBOX == 1}]
+    puts $fh "IS_BLACKBOX cells count: [llength $blackboxes]"
+    foreach cell $blackboxes {
+        puts $fh "  BLACKBOX $cell REF_NAME=[p3_get_prop_or_na $cell REF_NAME] IS_DEBUG_CORE=[p3_get_prop_or_na $cell IS_DEBUG_CORE]"
+    }
+
+    foreach cell_name [list \
+        axi_dbg_hub \
+        u_bd/openpiton_top_i/axis_ila_0 \
+        u_bd/openpiton_top_i/axis_ila_1 \
+        u_bd/openpiton_top_i/proc_sys_reset_0 \
+    ] {
+        set cells [get_cells -hier -quiet $cell_name]
+        if {[llength $cells] == 0} {
+            puts $fh "  CELL $cell_name not found"
+            continue
+        }
+        foreach cell $cells {
+            puts $fh "  CELL $cell REF_NAME=[p3_get_prop_or_na $cell REF_NAME] IS_BLACKBOX=[p3_get_prop_or_na $cell IS_BLACKBOX] IS_DEBUG_CORE=[p3_get_prop_or_na $cell IS_DEBUG_CORE] LOC=[p3_get_prop_or_na $cell LOC]"
+            p3_dump_pin_nets $fh $cell
+        }
+    }
+
+    puts $fh ""
+    close $fh
+}
+
+proc p3_write_checked_ltx {ltx_file require_address} {
+    puts "Writing debug probes: $ltx_file"
+    if {[catch {write_debug_probes -force $ltx_file} err opts]} {
+        puts "ERROR: write_debug_probes failed: $err"
+        puts [dict get $opts -errorinfo]
+        exit 1
+    }
+    if {![file exists $ltx_file]} {
+        puts "ERROR: write_debug_probes completed but did not create LTX: $ltx_file"
+        puts "       Refusing to write PDI without a matching probes file."
+        exit 1
+    }
+    set ltx_size [file size $ltx_file]
+    if {$ltx_size <= 0} {
+        puts "ERROR: write_debug_probes created an empty LTX: $ltx_file"
+        puts "       Refusing to write PDI without a usable probes file."
+        exit 1
+    }
+    if {$require_address} {
+        set fh [open $ltx_file r]
+        set ltx_data [read $fh]
+        close $fh
+        if {[string first "0x000003FFC0000000" $ltx_data] < 0 ||
+            [string first "PMC_AXI_NOC0" $ltx_data] < 0} {
+            puts "ERROR: LTX is missing the expected Versal debug hub address/path."
+            puts "       Expected address 0x000003FFC0000000 through PMC_AXI_NOC0."
+            exit 1
+        }
+    }
+    puts "LTX file written (${ltx_size} bytes): $ltx_file"
 }
 
 proc p3_read_ip_dcp {cell dcp} {
@@ -482,60 +665,63 @@ proc p3_stitch_build25_cached_debug_ip {direct_dir} {
 set ddr_io_xdc "${direct_dir}/p3_top_ddr_io.xdc"
 p3_write_ddr_io_xdc $ddr_io_xdc
 
-set debug_xdc "${direct_dir}/${debug_xdc_basename}"
-puts "Writing RTL debug XDC: $debug_xdc"
-set fh [open $debug_xdc w]
-puts $fh "########################################################################"
-if {$build25_minimal_debug} {
-    puts $fh "# Build 25 minimal debug ILA constraints."
-} else {
-    puts $fh "# Build 24 RTL debug ILA constraints."
+set debug_xdc ""
+if {$use_post_synth_debug} {
+    set debug_xdc "${direct_dir}/${debug_xdc_basename}"
+    puts "Writing RTL debug XDC: $debug_xdc"
+    set fh [open $debug_xdc w]
+    puts $fh "########################################################################"
+    if {$build25_minimal_debug} {
+        puts $fh "# Build 25 minimal debug ILA constraints."
+    } else {
+        puts $fh "# Build 24 RTL debug ILA constraints."
+    }
+    puts $fh "# Generated by scripts/p3_build24_direct_flow.tcl."
+    puts $fh "########################################################################"
+    puts $fh ""
+    puts $fh "create_debug_core u_ila_0 ila"
+    puts $fh "set_property ALL_PROBE_SAME_MU true \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property ALL_PROBE_SAME_MU_CNT 2 \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property C_ADV_TRIGGER false \[get_debug_cores u_ila_0\]"
+    if {$build25_minimal_debug} {
+        puts $fh "set_property C_DATA_DEPTH 4096 \[get_debug_cores u_ila_0\]"
+        puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_0\]"
+    } else {
+        puts $fh "set_property C_DATA_DEPTH 4096 \[get_debug_cores u_ila_0\]"
+        puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_0\]"
+    }
+    puts $fh "set_property C_INPUT_PIPE_STAGES 0 \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property C_MEMORY_TYPE 0 \[get_debug_cores u_ila_0\]"
+    if {$build25_minimal_debug} {
+        puts $fh "set_property C_NUM_OF_PROBES 12 \[get_debug_cores u_ila_0\]"
+    } else {
+        puts $fh "set_property C_NUM_OF_PROBES 5 \[get_debug_cores u_ila_0\]"
+    }
+    puts $fh "set_property C_TRIGIN_EN false \[get_debug_cores u_ila_0\]"
+    puts $fh "set_property C_TRIGOUT_EN false \[get_debug_cores u_ila_0\]"
+    p3_write_debug_clock $fh
+    if {$build25_minimal_debug} {
+        p3_write_debug_probe_nets $fh probe0 1 "heartbeat bit 0" [list {p3_min_dbg_heartbeat[0]}]
+        p3_write_debug_probe_nets $fh probe1 1 "heartbeat bit 8" [list {p3_min_dbg_heartbeat[8]}]
+        p3_write_debug_probe_nets $fh probe2 1 "heartbeat bit 16" [list {p3_min_dbg_heartbeat[16]}]
+        p3_write_debug_probe_nets $fh probe3 1 "heartbeat bit 24" [list {p3_min_dbg_heartbeat[24]}]
+        p3_write_debug_probe_nets $fh probe4 1 "top reset" [list {p3_min_dbg_status[15]}]
+        p3_write_debug_probe_nets $fh probe5 2 "leds[1:0]" [list {p3_min_dbg_status[8]} {p3_min_dbg_status[9]}]
+        p3_write_debug_probe_nets $fh probe6 1 "peripheral_aresetn" [list {p3_min_dbg_status[14]}]
+        p3_write_debug_probe_nets $fh probe7 1 "sd_resetn" [list {p3_min_dbg_status[13]}]
+        p3_write_debug_probe_nets $fh probe8 1 "uart_tx" [list {p3_min_dbg_status[12]}]
+        p3_write_debug_probe_nets $fh probe9 1 "uart_rx" [list {p3_min_dbg_status[11]}]
+        p3_write_debug_probe_nets $fh probe10 1 "sd_cd" [list {p3_min_dbg_status[10]}]
+        p3_write_debug_probe_nets $fh probe11 1 "heartbeat bit 31" [list {p3_min_dbg_heartbeat[31]}]
+    } else {
+        p3_write_debug_probe $fh probe0 128 "p3_debug_bus" p3_debug_bus
+        p3_write_debug_probe $fh probe1 32  "p3_debug_seen" p3_debug_seen
+        p3_write_debug_probe $fh probe2 32  "p3_top_status" p3_top_status
+        p3_write_debug_probe $fh probe3 64  "dbg_m_axi_araddr" dbg_m_axi_araddr
+        p3_write_debug_probe $fh probe4 64  "dbg_m_axi_awaddr" dbg_m_axi_awaddr
+    }
+    close $fh
 }
-puts $fh "# Generated by scripts/p3_build24_direct_flow.tcl."
-puts $fh "########################################################################"
-puts $fh ""
-puts $fh "create_debug_core u_ila_0 ila"
-puts $fh "set_property ALL_PROBE_SAME_MU true \[get_debug_cores u_ila_0\]"
-puts $fh "set_property ALL_PROBE_SAME_MU_CNT 2 \[get_debug_cores u_ila_0\]"
-puts $fh "set_property C_ADV_TRIGGER false \[get_debug_cores u_ila_0\]"
-if {$build25_minimal_debug} {
-    puts $fh "set_property C_DATA_DEPTH 4096 \[get_debug_cores u_ila_0\]"
-    puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_0\]"
-} else {
-    puts $fh "set_property C_DATA_DEPTH 4096 \[get_debug_cores u_ila_0\]"
-    puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_0\]"
-}
-puts $fh "set_property C_INPUT_PIPE_STAGES 0 \[get_debug_cores u_ila_0\]"
-puts $fh "set_property C_MEMORY_TYPE 0 \[get_debug_cores u_ila_0\]"
-if {$build25_minimal_debug} {
-    puts $fh "set_property C_NUM_OF_PROBES 12 \[get_debug_cores u_ila_0\]"
-} else {
-    puts $fh "set_property C_NUM_OF_PROBES 5 \[get_debug_cores u_ila_0\]"
-}
-puts $fh "set_property C_TRIGIN_EN false \[get_debug_cores u_ila_0\]"
-puts $fh "set_property C_TRIGOUT_EN false \[get_debug_cores u_ila_0\]"
-p3_write_debug_clock $fh
-if {$build25_minimal_debug} {
-    p3_write_debug_probe_nets $fh probe0 1 "heartbeat bit 0" [list {p3_min_dbg_heartbeat[0]}]
-    p3_write_debug_probe_nets $fh probe1 1 "heartbeat bit 8" [list {p3_min_dbg_heartbeat[8]}]
-    p3_write_debug_probe_nets $fh probe2 1 "heartbeat bit 16" [list {p3_min_dbg_heartbeat[16]}]
-    p3_write_debug_probe_nets $fh probe3 1 "heartbeat bit 24" [list {p3_min_dbg_heartbeat[24]}]
-    p3_write_debug_probe_nets $fh probe4 1 "top reset" [list {p3_min_dbg_status[15]}]
-    p3_write_debug_probe_nets $fh probe5 2 "leds[1:0]" [list {p3_min_dbg_status[8]} {p3_min_dbg_status[9]}]
-    p3_write_debug_probe_nets $fh probe6 1 "peripheral_aresetn" [list {p3_min_dbg_status[14]}]
-    p3_write_debug_probe_nets $fh probe7 1 "sd_resetn" [list {p3_min_dbg_status[13]}]
-    p3_write_debug_probe_nets $fh probe8 1 "uart_tx" [list {p3_min_dbg_status[12]}]
-    p3_write_debug_probe_nets $fh probe9 1 "uart_rx" [list {p3_min_dbg_status[11]}]
-    p3_write_debug_probe_nets $fh probe10 1 "sd_cd" [list {p3_min_dbg_status[10]}]
-    p3_write_debug_probe_nets $fh probe11 1 "heartbeat bit 31" [list {p3_min_dbg_heartbeat[31]}]
-} else {
-    p3_write_debug_probe $fh probe0 128 "p3_debug_bus" p3_debug_bus
-    p3_write_debug_probe $fh probe1 32  "p3_debug_seen" p3_debug_seen
-    p3_write_debug_probe $fh probe2 32  "p3_top_status" p3_top_status
-    p3_write_debug_probe $fh probe3 64  "dbg_m_axi_araddr" dbg_m_axi_araddr
-    p3_write_debug_probe $fh probe4 64  "dbg_m_axi_awaddr" dbg_m_axi_awaddr
-}
-close $fh
 
 file copy -force $synth_dont_touch "${direct_dir}/dont_touch.xdc"
 cd $direct_dir
@@ -568,16 +754,32 @@ read_xdc $xdc_file
 read_xdc $ddr_io_xdc
 
 p3_read_ip_dcp_by_ref "openpiton_top_axi_noc_0_0" \
-    "${project_dir}/${project_name}.runs/openpiton_top_axi_noc_0_0_synth_1/openpiton_top_axi_noc_0_0.dcp"
+    "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_axi_noc_0_0/openpiton_top_axi_noc_0_0.dcp"
 p3_read_ip_dcp_by_ref "openpiton_top_clk_wizard_0_0" \
     "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_clk_wizard_0_0/openpiton_top_clk_wizard_0_0.dcp"
 p3_read_ip_dcp_by_ref "openpiton_top_proc_sys_reset_0_0" \
     "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_proc_sys_reset_0_0/openpiton_top_proc_sys_reset_0_0.dcp"
+if {$build26_bd_ila || $build27_bd_rtl_ila || $build28_split_ila || $build29_split_ila || $build30_split_ila} {
+    p3_read_ip_dcp_by_ref "openpiton_top_axis_ila_0_0" \
+        "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_axis_ila_0_0/openpiton_top_axis_ila_0_0.dcp"
+}
+if {$build28_split_ila || $build29_split_ila || $build30_split_ila} {
+    p3_read_ip_dcp_by_ref "openpiton_top_axis_ila_1_0" \
+        "${project_dir}/${project_name}.gen/sources_1/bd/openpiton_top/ip/openpiton_top_axis_ila_1_0/openpiton_top_axis_ila_1_0.dcp"
+}
 p3_read_ip_dcp_by_ref "uart_16550" \
     "${project_dir}/${project_name}.runs/uart_16550_synth_1/uart_16550.dcp"
 
-puts "Applying RTL debug core after IP DCP stitching..."
-source $debug_xdc
+if {$use_post_synth_debug} {
+    puts "Applying RTL debug core after IP DCP stitching..."
+    source $debug_xdc
+} else {
+    if {$build28_split_ila || $build29_split_ila || $build30_split_ila} {
+        puts "Skipping post-synthesis debug core insertion; this build uses BD-owned axis_ila_0 and axis_ila_1."
+    } else {
+        puts "Skipping post-synthesis debug core insertion; this build uses BD-owned axis_ila_0."
+    }
+}
 
 puts "Reapplying top-level DDR IO constraints after IP DCP stitching..."
 read_xdc $ddr_io_xdc
@@ -591,6 +793,7 @@ foreach cell [get_cells -hier -quiet *] {
 set allowed_blackbox_ref_patterns [list \
     axi_dbg_hub axi_dbg_hub_CV \
     axi_noc axi_noc_CV \
+    axis_ila axis_ila_CV openpiton_top_axis_ila_* \
     ila ila_CV u_ila_*_CV \
     proc_sys_reset proc_sys_reset_CV \
 ]
@@ -617,27 +820,48 @@ if {[llength $unexpected_blackboxes] != 0} {
 set route_dcp "${direct_dir}/p3_top_route.dcp"
 set pdi_file "${output_dir}/${pdi_basename}.pdi"
 set ltx_file "${output_dir}/${pdi_basename}.ltx"
+set debug_summary_file "${direct_dir}/${pdi_basename}_debug_summary.txt"
+file delete -force $debug_summary_file
 
 p3_seed_debug_ip_cache $project_dir $project_name $direct_dir
-if {$build25_minimal_debug} {
+if {$build25_minimal_debug || $build30_split_ila} {
     p3_stitch_build25_cached_debug_ip $direct_dir
 }
+p3_dump_debug_summary "after debug child-IP cache stitching" $debug_summary_file
 p3_force_launch_runs_jobs 1
 p3_force_debug_ip_synth_jobs 1
 
 p3_run_step "opt_design" {opt_design} "${direct_dir}/p3_top_opt.dcp"
+if {$build30_split_ila} {
+    p3_stitch_build25_cached_debug_ip $direct_dir
+}
+p3_dump_debug_summary "after opt_design" $debug_summary_file
 p3_run_step "power_opt_design" {power_opt_design} "${direct_dir}/p3_top_power_opt.dcp"
+if {$build30_split_ila} {
+    p3_stitch_build25_cached_debug_ip $direct_dir
+}
 p3_run_step "place_design" {place_design} "${direct_dir}/p3_top_place.dcp"
 p3_run_step "phys_opt_design" {phys_opt_design} "${direct_dir}/p3_top_phys_opt.dcp"
-p3_run_step "route_design" {route_design} $route_dcp
-p3_run_step "post_route_phys_opt_design" {phys_opt_design} "${direct_dir}/p3_top_post_route_phys_opt.dcp"
+p3_dump_debug_summary "after phys_opt_design" $debug_summary_file
+if {$build29_split_ila || $build30_split_ila} {
+    p3_run_step "route_design" {route_design} ""
+    p3_dump_debug_summary "after route_design before write_debug_probes" $debug_summary_file
+    p3_write_checked_ltx $ltx_file 1
+    write_checkpoint -force $route_dcp
+    puts "Skipping post_route_phys_opt_design so the routed image matches the same in-memory design used for LTX generation."
+} else {
+    p3_run_step "route_design" {route_design} $route_dcp
+    p3_run_step "post_route_phys_opt_design" {phys_opt_design} "${direct_dir}/p3_top_post_route_phys_opt.dcp"
+    p3_dump_debug_summary "after post_route_phys_opt_design before write_debug_probes" $debug_summary_file
+}
 
 report_route_status -file "${direct_dir}/p3_top_route_status.rpt"
 report_timing_summary -file "${direct_dir}/p3_top_timing_summary.rpt"
 report_utilization -file "${direct_dir}/p3_top_utilization_impl.rpt"
 
-puts "Writing debug probes: $ltx_file"
-write_debug_probes -force $ltx_file
+if {!$build29_split_ila && !$build30_split_ila} {
+    p3_write_checked_ltx $ltx_file 0
+}
 
 puts "Writing PDI: $pdi_file"
 write_device_image -force $pdi_file

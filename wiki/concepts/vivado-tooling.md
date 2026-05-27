@@ -225,6 +225,23 @@ vivado -mode batch -source scripts/p3_build29_split_ila.tcl
 
 Build 29 skips `post_route_phys_opt_design` so the PDI is generated from the same routed in-memory design used for LTX generation. The intent is to avoid both failure modes seen in Builds 27/28: missing main-flow LTX and fragile post-route checkpoint reopening.
 
+Build 29 routed successfully with 0 failed or unrouted nets, but `write_debug_probes` still stopped before PDI generation with `No debug cores were found in this design`. A read-only diagnostic of the in-memory implementation checkpoint showed `axis_ila_0` and `axis_ila_1` as debug cores while the generated `axi_dbg_hub_CV` remained a black box. Reopening the checkpoint can produce an LTX, but without the expected address/path, so DCP reopen is not a valid recovery path.
+
+### P3 Build 30 Debug Child-IP Stitching
+
+Build 30 keeps the Build 29 BD and probe payload unchanged: two BD-owned net-probe ILAs, `C_INPUT_PIPE_STAGES=0`, data depth 1024, and 128 total probe bits. The direct-flow change is limited to debug infrastructure handling:
+
+- `scripts/p3_build24_direct_flow.tcl -build30_split_ila` seeds the same debug child-IP cache as Build 25, then explicitly stitches the cached `axi_dbg_hub_CV`, generated debug `axi_noc_CV`, and debug `proc_sys_reset_CV` DCPs.
+- The stitching is attempted before implementation and again immediately after `opt_design`, because Build 29 showed that the `axi_dbg_hub_CV` black box may only become visible during optimization.
+- The flow writes `p3_top_build30_split_ila_debug_summary.txt` with `get_debug_cores`, `IS_DEBUG_CORE`, black-box, and selected clock/reset/probe pin-net summaries before route-time `write_debug_probes`.
+- The flow still writes the LTX in the same in-memory routed session and requires `0x000003FFC0000000` plus `PMC_AXI_NOC0` before any PDI is emitted.
+
+Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build30_split_ila.tcl
+```
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
