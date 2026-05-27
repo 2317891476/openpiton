@@ -243,6 +243,20 @@ Use:
 vivado -mode batch -source scripts/p3_build30_split_ila.tcl
 ```
 
+Build 30 completed synthesis, optimization, placement, physical optimization, and routing with 0 failed or unrouted nets, but still stopped before PDI generation because `write_debug_probes` reported no debug cores. Its debug summary showed `get_debug_cores=0` and only `ps_wizard_0` marked as `IS_DEBUG_CORE`; `axis_ila_0`, `axis_ila_1`, and `axi_dbg_hub` were not visible as Chipscope debug cores in the direct-flow netlist. The direct `read_checkpoint -cell` path can place and route the ILA logic, but it is not a reliable way to preserve BD/IP Integrator debug-core metadata for LTX generation on this Versal design.
+
+### P3 Build 31 Run-Manager Split ILA
+
+Build 31 keeps the Build 30 probe payload and BD structure unchanged, but stops manually stitching BD ILA DCPs in the direct implementation flow. Instead, `scripts/p3_build31_runmgr_split_ila.tcl` uses Vivado's project run manager for `synth_1` and a dedicated `impl_31_runmgr_split_ila` implementation run. This lets IP Integrator own the `axis_ila_0`/`axis_ila_1`, AXI Debug Hub, and `PMC_AXI_NOC0` address-path metadata end to end.
+
+Before launching the run, Build 31 removes stale post-synthesis debug XDC files (`p3_top_debug.xdc` and `p3_top_rtl_debug.xdc`) from the active project filesets so the image contains only the BD-owned split ILAs. After `write_device_image`, the script publishes `huaprop3_openpiton/debug_build/p3_top_build31_runmgr_split_ila.pdi` and `.ltx` only if the LTX exists, is non-empty, and contains the expected `0x000003FFC0000000` / `PMC_AXI_NOC0` path plus both split ILA cell names.
+
+Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build31_runmgr_split_ila.tcl -tclargs -jobs 1
+```
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
