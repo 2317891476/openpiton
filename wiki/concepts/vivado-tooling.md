@@ -270,6 +270,25 @@ vivado -mode batch -source scripts/p3_ila_capture_build31_split_ila.tcl
 
 The capture script enumerates both ILAs, triggers each immediately, uploads samples, and writes CSV files under `huaprop3_openpiton/debug_build/`.
 
+Hardware validation passed on 2026-05-27: programming reported `DONE bit: HIGH`, `refresh_hw_device` reported `Successfully set up debug cores at debug hub address(es): 0x3ffc0000000`, and Vivado enumerated two ILA cores. Immediate capture wrote two 1024-sample CSV files. The capture showed `p3_dbg_heartbeat_bit_i` toggling, `p3_dbg_top_status16_i = 0xff02`, `p3_dbg_seen15_i = 0x7fff`, `p3_dbg_core_bus32_i = 0x0038fe00`, and `p3_dbg_axi_bus64_i = 0x0000000000000005`. This proves the debug path is stable and the tile/L15/NoC side has sticky activity; the remaining no-UART question should move to the chipset bootrom/UART/MMIO path.
+
+### P3 Build 32 Run-Manager Chipset ILAs
+
+Build 32 keeps the Build 31 run-manager and BD-owned `axis_ila_0`/`axis_ila_1` infrastructure, but replaces the probe payload with chipset-focused signals. The total probe payload is 97 bits:
+
+- `axis_ila_0/probe0[0:0]`: `p3_min_dbg_heartbeat[0]`
+- `axis_ila_0/probe1[15:0]`: `p3_top_status[15:0]`
+- `axis_ila_0/probe2[15:0]`: `p3_debug_seen[31:16]`, the chipset sticky activity word
+- `axis_ila_1/probe0[63:0]`: `p3_debug_bus[127:64]`, the full chipset debug bus
+
+Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build32_runmgr_chipset_ila.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpiton/debug_build/p3_top_build32_runmgr_chipset_ila.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build32_chipset_ila.tcl
+```
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
