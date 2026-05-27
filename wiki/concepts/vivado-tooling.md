@@ -188,6 +188,26 @@ Build 27 completed direct implementation and generated `huaprop3_openpiton/debug
 
 Implementation note: the Build 27 flow printed `Writing debug probes: .../p3_top_build27_bd_rtl_ila.ltx` and `write_debug_probes` returned without an error, but no Build 27 LTX file was present in the output directory. Attempts to reopen both `p3_top_route.dcp` and `p3_top_post_route_phys_opt.dcp` to regenerate the LTX failed during `open_checkpoint` with ILA-internal site routing overlap errors around `u_bd/openpiton_top_i/axis_ila_0/inst/axis_ila_intf`. Do not program Build 27 for ILA capture until a valid matching LTX is produced; the next build should reduce or split the widened probes, adjust ILA settings, or otherwise avoid the DCP reopen/LTX generation failure.
 
+### P3 Build 28 Split Compact BD-Owned RTL ILAs
+
+Build 28 is the recovery path for the Build 27 LTX/routing issue. It keeps the validated Build 26 BD-owned debug infrastructure and avoids post-synthesis debug insertion or post-route LTX regeneration. Instead of one wide `axis_ila_0`, the BD now owns two smaller net-probe ILAs clocked by `clk_wizard_0/chipset_clk`: `axis_ila_0` captures reset/status/core activity and `axis_ila_1` captures compact AXI address/control activity. This gives Vivado two independent debug IP instances to place and route instead of concentrating the whole debug load in one ILA interface.
+
+Use the Build 28 script from the repository root:
+
+```bash
+vivado -mode batch -source scripts/p3_build28_split_ila.tcl
+```
+
+Probe mapping:
+
+- `axis_ila_0/probe0[0:0]`: `p3_min_dbg_heartbeat[0]`
+- `axis_ila_0/probe1[15:0]`: compact `p3_top_status[15:0]`
+- `axis_ila_0/probe2[14:0]`: compact sticky/activity `p3_debug_seen[14:0]`
+- `axis_ila_0/probe3[31:0]`: selected core/tile/chip debug bits `{p3_debug_bus[39:32], p3_debug_bus[23:16], p3_debug_bus[15:0]}`
+- `axis_ila_1/probe0[63:0]`: compact AXI `{m_axi_araddr[31:2], m_axi_awaddr[31:2], arvalid, arready, awvalid, awready}`
+
+The total Build 28 probe payload is 128 bits, down from Build 27's 384 bits. The direct flow branch is `-build28_split_ila`; it reads both BD ILA DCPs (`openpiton_top_axis_ila_0_0` and `openpiton_top_axis_ila_1_0`) and still skips `create_debug_core`. After `write_debug_probes`, the script now explicitly checks that the matching LTX file exists and is non-empty before writing the PDI. If LTX generation silently fails again, the build stops before producing a programmable image so the hardware test cannot accidentally use a stale or missing probes file.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
