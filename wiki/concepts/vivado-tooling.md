@@ -162,6 +162,28 @@ Build 26 completed implementation on 2026-05-27. The output files are `huaprop3_
 
 After PDI programming, the first hardware check is not Ariane activity. It is the debug runtime path itself: `refresh_hw_device`, `get_hw_ilas`, immediate trigger/upload, and CSV export should succeed, and the generated LTX should show a BD/PMC debug path comparable to the reference `.../ps_wizard_0/PMC_AXI_NOC0` route. This check passed on 2026-05-27: Vivado reported `Successfully set up debug cores at debug hub address(es): 0x3ffc0000000`, found `hw_ila_1` at `u_bd/openpiton_top_i/axis_ila_0`, and exported `huaprop3_openpiton/debug_build/ila_capture_build26_bd_ila.csv`.
 
+### P3 Build 27 BD-Owned RTL Debug ILA
+
+Build 27 keeps the Build 26 debug infrastructure intact and only widens the BD-owned `axis_ila_0` probe set. It is the first post-runtime-validation Ariane bring-up probe build, intended to answer whether reset, wakeup, L15/NoC, and AXI activity are present before adding deeper fetch/PC probes.
+
+Use the Build 27 script from the repository root:
+
+```bash
+vivado -mode batch -source scripts/p3_build27_bd_rtl_ila.tcl
+```
+
+The Build 27 prepare step defines both `P3_RTL_DEBUG` and `P3_BD_RTL_DEBUG_ILA`, expands `axis_ila_0` to seven net probes, regenerates the BD wrapper and `synth_1` scripts, and launches the updated `openpiton_top_axis_ila_0_0_synth_1` OOC run. The direct implementation branch is `-build27_bd_rtl_ila`, which still skips post-synthesis `create_debug_core`.
+
+Probe mapping:
+
+- `probe0[31:0]`: top-level `p3_min_dbg_heartbeat`
+- `probe1[31:0]`: top-level `p3_min_dbg_status`
+- `probe2[31:0]`: accumulated `p3_debug_seen`
+- `probe3[31:0]`: `p3_top_status`
+- `probe4[127:0]`: combined chipset/chip/tile `p3_debug_bus`
+- `probe5[63:0]`: AXI read address `m_axi_araddr`
+- `probe6[63:0]`: AXI write address `m_axi_awaddr`
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
