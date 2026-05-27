@@ -293,6 +293,8 @@ Implementation note: on 2026-05-28, Build 32 completed synthesis, `opt_design`, 
 
 The first Build 32 hardware capture succeeded at the debug-transport level but exported all-zero probe samples, including the `p3_min_dbg_heartbeat[0]` probe that toggled in Build 31. Treat an all-zero capture as a probe wiring/clock/capture validity issue until the routed DCP proves the ILA inputs are driven by the intended `p3_top` nets. `scripts/p3_inspect_build32_ila_nets.tcl` is the read-only diagnostic for this check.
 
+Follow-up diagnostic result: the routed DCP showed the Build 32 probe nets tied to `GROUND`, including the heartbeat probe. The underlying build-flow fault was stale mirrored RTL under `Z:/tmp`: `synth_1/p3_top.tcl` read `Z:/tmp/p3_top.v`, but that temp copy predated the repository `p3_top.v` change that added the `P3_BD_CHIPSET_DEBUG_ILA` wrapper-port connections. Vivado emitted the corresponding synthesis warning that `u_bd` had 69 declared ports but only 65 connected. Future run-manager debug builds that still rely on `Z:/tmp` mirrors must refresh those mirrors before `launch_runs`, and should fail early if the synth log contains that port-count warning.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
