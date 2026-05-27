@@ -289,6 +289,8 @@ vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpito
 vivado -mode batch -source scripts/p3_ila_capture_build32_chipset_ila.tcl
 ```
 
+Implementation note: on 2026-05-28, Build 32 completed synthesis, `opt_design`, `place_design`, `phys_opt_design`, and `route_design` with 0 failed nets, 0 unrouted nets, and 0 node overlaps. Post-route timing was positive (`WNS` about 9.073 ns, `WHS` about 0.014 ns). The run then failed only in `write_device_image` while Vivado generated the Versal PLM BSP from `D:/Xilinx/Vivado/2024.2/data/embeddedsw`: HSI reported a failed copy of `standalone_v9_2/.../translation_table.S`, and XilPM compilation later missed `xstatus.h`. The source files exist in the Vivado install, so this is a Windows/WSL run-directory PLM/BSP generation issue, not an RTL, route, ILA, or timing failure. `scripts/p3_recover_build32_outputs.tcl` opens the routed DCP and writes a checked Build 32 LTX without rerunning synthesis or implementation; PDI recovery should reuse the routed partition outputs or rerun only the device-image step after the PLM path issue is cleared.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
