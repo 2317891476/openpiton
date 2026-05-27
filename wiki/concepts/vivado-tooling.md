@@ -232,6 +232,7 @@ Build 29 routed successfully with 0 failed or unrouted nets, but `write_debug_pr
 Build 30 keeps the Build 29 BD and probe payload unchanged: two BD-owned net-probe ILAs, `C_INPUT_PIPE_STAGES=0`, data depth 1024, and 128 total probe bits. The direct-flow change is limited to debug infrastructure handling:
 
 - `scripts/p3_build24_direct_flow.tcl -build30_split_ila` seeds the same debug child-IP cache as Build 25, then explicitly stitches the cached `axi_dbg_hub_CV`, generated debug `axi_noc_CV`, and debug `proc_sys_reset_CV` DCPs.
+- The shared split-ILA prepare script now accepts an already-exported cached ILA DCP when Vivado 2024.2 does not materialize an `openpiton_top_axis_ila_*_synth_1` run object after `generate_target`.
 - The stitching is attempted before implementation and again immediately after `opt_design`, because Build 29 showed that the `axi_dbg_hub_CV` black box may only become visible during optimization.
 - The flow writes `p3_top_build30_split_ila_debug_summary.txt` with `get_debug_cores`, `IS_DEBUG_CORE`, black-box, and selected clock/reset/probe pin-net summaries before route-time `write_debug_probes`.
 - The flow still writes the LTX in the same in-memory routed session and requires `0x000003FFC0000000` plus `PMC_AXI_NOC0` before any PDI is emitted.
