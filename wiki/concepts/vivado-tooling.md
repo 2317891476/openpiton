@@ -184,6 +184,10 @@ Probe mapping:
 - `probe5[63:0]`: AXI read address `m_axi_araddr`
 - `probe6[63:0]`: AXI write address `m_axi_awaddr`
 
+Build 27 completed direct implementation and generated `huaprop3_openpiton/debug_build/p3_top_build27_bd_rtl_ila.pdi` on 2026-05-27. Route status reported 147,559 fully routed routable nets and 0 routing errors. The timing report met all user-specified constraints with WNS 17.068 ns, TNS 0, WHS 0.022 ns, and THS 0, while still reporting many no-clock and unconstrained internal endpoints inherited from the current constraint set.
+
+Implementation note: the Build 27 flow printed `Writing debug probes: .../p3_top_build27_bd_rtl_ila.ltx` and `write_debug_probes` returned without an error, but no Build 27 LTX file was present in the output directory. Attempts to reopen both `p3_top_route.dcp` and `p3_top_post_route_phys_opt.dcp` to regenerate the LTX failed during `open_checkpoint` with ILA-internal site routing overlap errors around `u_bd/openpiton_top_i/axis_ila_0/inst/axis_ila_intf`. Do not program Build 27 for ILA capture until a valid matching LTX is produced; the next build should reduce or split the widened probes, adjust ILA settings, or otherwise avoid the DCP reopen/LTX generation failure.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
