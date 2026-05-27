@@ -259,6 +259,17 @@ Use:
 vivado -mode batch -source scripts/p3_build31_runmgr_split_ila.tcl -tclargs -jobs 1
 ```
 
+Build 31 completed on 2026-05-27 with the run-manager flow. The published files are `huaprop3_openpiton/debug_build/p3_top_build31_runmgr_split_ila.pdi` and `huaprop3_openpiton/debug_build/p3_top_build31_runmgr_split_ila.ltx`. The LTX contains the expected Versal debug route: `AXI_DEBUG_HUB_V1` at `0x000003FFC0000000`, accessible through `u_bd/openpiton_top_i/ps_wizard_0/PMC_AXI_NOC0`, with both `u_bd/openpiton_top_i/axis_ila_0` and `u_bd/openpiton_top_i/axis_ila_1`.
+
+Program and capture with:
+
+```bash
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpiton/debug_build/p3_top_build31_runmgr_split_ila.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build31_split_ila.tcl
+```
+
+The capture script enumerates both ILAs, triggers each immediately, uploads samples, and writes CSV files under `huaprop3_openpiton/debug_build/`.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
