@@ -5,9 +5,9 @@
 #
 # Build 32 routed successfully but failed during write_device_image PLM BSP
 # generation in a Windows/WSL path-dependent embeddedsw copy/include step. This
-# recovery script first validates that the routed DCP still contains the BD-owned
-# debug metadata and writes the matching LTX without rerunning synthesis or
-# implementation. PDI recovery is handled after the LTX check.
+# recovery script opens the routed DCP from a shorter working directory, validates
+# that the BD-owned debug metadata is still present, then writes the matching LTX
+# and PDI without rerunning synthesis or implementation.
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
@@ -15,6 +15,9 @@ set run_dir [file normalize "${repo_dir}/huaprop3_openpiton/huaprop3_openpiton.r
 set output_dir [file normalize "${repo_dir}/huaprop3_openpiton/debug_build"]
 set routed_dcp "${run_dir}/p3_top_routed.dcp"
 set ltx_out "${output_dir}/p3_top_build32_runmgr_chipset_ila.ltx"
+set pdi_out "${output_dir}/p3_top_build32_runmgr_chipset_ila.pdi"
+
+cd $repo_dir
 
 proc p3_require_file {path label} {
     if {![file exists $path]} {
@@ -40,11 +43,20 @@ proc p3_validate_ltx {ltx_file} {
     }
 }
 
+proc p3_validate_pdi {pdi_file} {
+    p3_require_file $pdi_file "PDI"
+    if {[file size $pdi_file] <= 0} {
+        puts "ERROR: empty PDI: ${pdi_file}"
+        exit 1
+    }
+}
+
 puts "=========================================="
 puts " Build 32 routed-output recovery"
 puts " Run dir: ${run_dir}"
 puts " Routed DCP: ${routed_dcp}"
 puts " LTX out: ${ltx_out}"
+puts " PDI out: ${pdi_out}"
 puts "=========================================="
 
 p3_require_file $routed_dcp "Build 32 routed DCP"
@@ -57,9 +69,7 @@ puts "Debug cores: ${debug_cores}"
 foreach core $debug_cores {
     set name $core
     catch {set name [get_property NAME $core]}
-    set core_type ""
-    catch {set core_type [get_property CORE_TYPE $core]}
-    puts "  CORE ${name} TYPE=${core_type}"
+    puts "  CORE ${name}"
 }
 
 if {[llength $debug_cores] == 0} {
@@ -70,8 +80,12 @@ if {[llength $debug_cores] == 0} {
 write_debug_probes -force $ltx_out
 p3_validate_ltx $ltx_out
 
+write_device_image -force $pdi_out
+p3_validate_pdi $pdi_out
+
 close_design
 puts "Published recovered Build 32 LTX: ${ltx_out}"
+puts "Published recovered Build 32 PDI: ${pdi_out}"
 puts "=========================================="
-puts " Build 32 LTX recovery complete"
+puts " Build 32 output recovery complete"
 puts "=========================================="
