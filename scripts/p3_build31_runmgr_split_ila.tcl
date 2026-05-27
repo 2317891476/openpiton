@@ -166,7 +166,7 @@ if {$run_prepare} {
 
 open_project "${project_dir}/${project_name}.xpr"
 p3_remove_stale_post_synth_debug_constraints
-save_project
+update_compile_order -fileset sources_1
 
 if {[llength [get_runs -quiet $impl_run]] == 0} {
     puts "Creating implementation run: ${impl_run}"

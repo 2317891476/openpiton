@@ -251,6 +251,8 @@ Build 31 keeps the Build 30 probe payload and BD structure unchanged, but stops 
 
 Before launching the run, Build 31 removes stale post-synthesis debug XDC files (`p3_top_debug.xdc` and `p3_top_rtl_debug.xdc`) from the active project filesets so the image contains only the BD-owned split ILAs. After `write_device_image`, the script publishes `huaprop3_openpiton/debug_build/p3_top_build31_runmgr_split_ila.pdi` and `.ltx` only if the LTX exists, is non-empty, and contains the expected `0x000003FFC0000000` / `PMC_AXI_NOC0` path plus both split ILA cell names.
 
+Implementation note: the stale-XDC removal is kept in the active Vivado session and followed by `update_compile_order`; it is not followed by `save_project`. Vivado 2024.2 treats `save_project` as a `save_project_as` form requiring a project name in this batch context, which caused the first Build 31 attempt to exit before synthesis.
+
 Use:
 
 ```bash
