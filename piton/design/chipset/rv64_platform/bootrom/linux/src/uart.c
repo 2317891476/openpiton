@@ -32,7 +32,7 @@ void init_uart(uint32_t freq, uint32_t baud)
     write_reg_u8(UART_DLAB_LSB, divisor);         // divisor (lo byte)
     write_reg_u8(UART_DLAB_MSB, (divisor >> 8) & 0xFF);  // divisor (hi byte)
     write_reg_u8(UART_LINE_CONTROL, 0x03);     // 8 bits, no parity, one stop bit
-    write_reg_u8(UART_MODEM_CONTROL, 0x20);    // Autoflow mode
+    write_reg_u8(UART_MODEM_CONTROL, 0x00);    // Disable autoflow mode
 }
 
 // returns number of characters printed
