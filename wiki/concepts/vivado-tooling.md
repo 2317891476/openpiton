@@ -347,6 +347,22 @@ The 64-bit payload records the last UART-side accepted write data byte, write st
 
 Build 35 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpiton/debug_build/p3_top_build35_runmgr_uart_write_ila.pdi` and `p3_top_build35_runmgr_uart_write_ila.ltx`. The LTX contains the expected `0x000003FFC0000000` debug hub address, `PMC_AXI_NOC0` access path, both `axis_ila_0`/`axis_ila_1` cells, and the UART probes `p3_dbg_uart_seen16_i` plus `p3_dbg_uart_bus64_i`. Route status was clean: 148,099 routable nets were fully routed with 0 routing errors. Post-route timing met all user constraints with `WNS` 8.871 ns, `TNS` 0, `WHS` 0.014 ns, and `THS` 0.
 
+Hardware validation showed a narrower runtime failure than the earlier Build 24/25 debug-hub issue. After restarting the remote Vivado Lab 2024.2 `hw_server`, Build 34 could still program, refresh, trigger, upload, and export CSVs. Build 35 programmed and `refresh_hw_device` reached debug hub `0x3ffc0000000`, but AxisILA core access timed out during trigger. Reprogramming Build 34 immediately afterward passed again, so the failure is specific to the Build 35 ILA payload/wrapper interaction rather than the board-level XVC, JTAG, hw_server, LTX, or `PMC_AXI_NOC0` path.
+
+### P3 Build 36 Narrow UART Last-Write ILAs
+
+Build 36 keeps the Build 34/35 BD-owned two-ILA topology but avoids Build 35's raw 64-bit chipset wrapper bypass. It adds `P3_BD_UART_WR_NARROW_DEBUG_ILA`, keeps the normal `chipset.v` status-byte wrapper, and packs the UART write payload into `p3_chipset_impl_debug_bus[55:0]`, which the wrapper preserves as `p3_dbg_uart_bus64_i[63:8]`.
+
+The UART payload is double-registered in `uart_top.v` before it reaches the BD ILA. The preserved 56-bit field contains last UART-side write data/strobe/address low byte, last core-side write data/strobe/address low byte, UART/core B responses, sticky AW/W/B acceptance bits, live/sticky UART TX state, `test_start`, and NoC request/response sticky flags. The low byte of the exported 64-bit ILA probe remains the stable chipset reset/clock/status byte, matching the Build 34 transport behavior.
+
+Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build36_runmgr_uart_write_narrow_ila.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpiton/debug_build/p3_top_build36_runmgr_uart_write_narrow_ila.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build36_uart_write_narrow_ila.tcl
+```
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
