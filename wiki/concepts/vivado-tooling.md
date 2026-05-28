@@ -381,6 +381,8 @@ Build 37 completed synthesis through `route_design` on 2026-05-29, but the run-m
 
 The failure was the same PLM/BSP path class as Build 32, not an implementation failure: after route, HSI failed copying `standalone_v9_2/.../translation_table.S` into the run-directory BSP, then XilPM compilation missed `xstatus.h`. The source file exists under `D:/Xilinx/Vivado/2024.2/data/embeddedsw`, so `scripts/p3_recover_build37_outputs.tcl` recovers PDI/LTX from `impl_37_uartlivenarrowila/p3_top_routed.dcp` using the short working directory `Z:/tmp/p3_b37_recover`. The script validates that the generated LTX still contains `0x000003FFC0000000`, `PMC_AXI_NOC0`, `axis_ila_0`, `axis_ila_1`, `p3_dbg_uart_seen16_i`, and `p3_dbg_uart_bus64_i` before publishing outputs. The first recovery run completed successfully and published `huaprop3_openpiton/debug_build/p3_top_build37_runmgr_uart_live_narrow_ila.pdi` plus `.ltx`.
 
+Hardware validation passed after recovery. Build 37 programmed with `DONE bit: HIGH`, refreshed the debug hub at `0x3ffc0000000`, enumerated both BD-owned ILAs, and exported CSVs for both immediate triggers. The capture showed `p3_dbg_top_status16_i = 0xff03`, `p3_dbg_uart_seen16_i = 0x73f3`, and `p3_dbg_uart_bus64_i = 0x20110201100fe7f9`. Decoding the live-narrow payload gives UART-side and core-side `wdata=0x20`, `wstrb=1`, `awaddr_low=0x10`, OKAY B responses, `uart_tx=1`, and no TX-low sticky event. This isolates the Build 35/36 hardware timeout to the registered last-write payload path while keeping the no-UART-output debug focused on ns16550 register mapping/configuration/initialization.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
