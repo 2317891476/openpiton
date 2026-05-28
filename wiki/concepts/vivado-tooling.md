@@ -369,6 +369,8 @@ Route status was clean: 148,222 routable nets were fully routed with 0 routing e
 
 The next hardware step is to program Build 36 and capture both ILAs. Decode `p3_dbg_uart_bus64_i[63:8]` as the 56-bit narrow UART last-write payload and `p3_dbg_uart_bus64_i[7:0]` as the chipset reset/clock/status byte. A correct UART-side transmit-register write with no TX-low/transition sticky bit would point to ns16550 clock/reset/configuration or baud behavior; an incorrect address, strobe, or byte points back to bootrom/ns16550 register mapping.
 
+Hardware validation did not pass on the first Build 36 attempt. Programming succeeded and `refresh_hw_device` reached debug hub `0x3ffc0000000`, but AxisILA access timed out when triggering `u_bd/openpiton_top_i/axis_ila_0`. Reprogramming Build 34 immediately afterward, without restarting `hw_server`, still refreshed and captured both ILAs successfully. Treat Build 36 as a design-specific ILA runtime failure, not as a board, XVC, JTAG, hw_server, PDI, LTX, or `PMC_AXI_NOC0` infrastructure failure. The next check is to compare routed DCP properties for Build 34 and Build 36 debug hubs, ILA clocks/resets, and probe nets.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
