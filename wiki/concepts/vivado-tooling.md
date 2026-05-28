@@ -326,6 +326,8 @@ Build 34 keeps the Build 33 run-manager flow and two BD-owned ILAs, but introduc
 
 The low UART sticky/bus bits preserve the Build 33 meaning for comparison. The added bits expose AXI-lite ready/response channels, NOC valid/ready around `uart_top`, ns16550 TX and interrupt state, write strobes, and `s_axi_wdata[7:0]`. This should distinguish a missing NOC request, a stuck `noc_axilite_bridge`, an AXI-lite backpressure problem, and a UART16550 register/TX problem without perturbing the proven debug hub route.
 
+Build 34 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpiton/debug_build/p3_top_build34_runmgr_uart_ila.pdi` and `p3_top_build34_runmgr_uart_ila.ltx`. The LTX contains the expected `0x000003FFC0000000` debug hub address, `PMC_AXI_NOC0` access path, both `axis_ila_0`/`axis_ila_1` cells, and the UART-local probes `p3_dbg_uart_seen16_i` plus `p3_dbg_uart_bus64_i`. Route status was clean: 148,064 routable nets were fully routed, with 0 routing errors, 0 failed nets, 0 unrouted nets, 0 partially routed nets, and 0 node overlaps. Post-route timing met all user constraints with `WNS` 9.125 ns, `TNS` 0, `WHS` 0.011 ns, and `THS` 0.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
