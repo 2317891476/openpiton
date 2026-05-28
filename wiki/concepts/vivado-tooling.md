@@ -328,6 +328,8 @@ The low UART sticky/bus bits preserve the Build 33 meaning for comparison. The a
 
 Build 34 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpiton/debug_build/p3_top_build34_runmgr_uart_ila.pdi` and `p3_top_build34_runmgr_uart_ila.ltx`. The LTX contains the expected `0x000003FFC0000000` debug hub address, `PMC_AXI_NOC0` access path, both `axis_ila_0`/`axis_ila_1` cells, and the UART-local probes `p3_dbg_uart_seen16_i` plus `p3_dbg_uart_bus64_i`. Route status was clean: 148,064 routable nets were fully routed, with 0 routing errors, 0 failed nets, 0 unrouted nets, 0 partially routed nets, and 0 node overlaps. Post-route timing met all user constraints with `WNS` 9.125 ns, `TNS` 0, `WHS` 0.011 ns, and `THS` 0.
 
+Hardware validation passed on 2026-05-28. Programming reported `DONE bit: HIGH`, the debug hub refreshed at `0x3ffc0000000`, and both ILAs triggered/uploaded CSVs. The decoded capture had heartbeat activity, `p3_dbg_top_status16_i = 0xff03`, `p3_dbg_uart_seen16_i = 0x73f3`, and `p3_dbg_uart_bus64_i = 0x11000180840000f9`. The sticky decode shows that core-to-UART NoC traffic, core AXI-lite AW/W plus B response, and UART-side AXI-lite AW/W plus B response all occurred. The TX-low sticky bit remained clear, so the write path reached the UART-side AXI-lite interface but did not produce observed UART serial activity. The next probe should preserve the compact ILA shape but capture the last accepted UART-side write address/data/strobe, so the bring-up can separate wrong register offset/strobe from UART16550 TX enable/configuration behavior.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
