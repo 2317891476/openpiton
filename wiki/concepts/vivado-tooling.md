@@ -371,6 +371,12 @@ The next hardware step is to program Build 36 and capture both ILAs. Decode `p3_
 
 Hardware validation did not pass on the first Build 36 attempt. Programming succeeded and `refresh_hw_device` reached debug hub `0x3ffc0000000`, but AxisILA access timed out when triggering `u_bd/openpiton_top_i/axis_ila_0`. Reprogramming Build 34 immediately afterward, without restarting `hw_server`, still refreshed and captured both ILAs successfully. Treat Build 36 as a design-specific ILA runtime failure, not as a board, XVC, JTAG, hw_server, PDI, LTX, or `PMC_AXI_NOC0` infrastructure failure. The next check is to compare routed DCP properties for Build 34 and Build 36 debug hubs, ILA clocks/resets, and probe nets.
 
+### P3 Build 37 Live-Narrow UART ILAs
+
+Build 37 is the isolation step after Build 35 and Build 36 both timed out during AxisILA runtime access. It keeps the Build 34 BD-owned two-ILA topology and does not define `P3_BD_UART_WR_DEBUG_ILA`. Instead, it adds a live payload selector that packs the current UART-side and core-side write address/data/strobe/response fields plus existing sticky handshake bits into `p3_chipset_impl_debug_bus[55:0]`, so the normal `chipset.v` status-byte wrapper remains in place.
+
+This build deliberately avoids the registered last-write debug bus. If it captures like Build 34, then the failure is tied to the registered last-write payload path used by Build 35/36. If it times out like Build 35/36, then the failure is tied to payload remapping or ILA payload content more generally.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
