@@ -332,6 +332,19 @@ Hardware validation passed on 2026-05-28. Programming reported `DONE bit: HIGH`,
 
 One instrumentation caveat matters for the live bus decode: `chipset.v` wraps the chipset implementation bus as `{p3_chipset_impl_debug_bus[55:0], chipset_status[7:0]}` before it reaches `p3_debug_bus[127:64]`. In Build 34 this means `p3_dbg_uart_bus64_i` does not expose raw `uart_top.p3_uart_debug_bus[63:0]`; the original UART `s_axi_wdata[7:0]` field is dropped, and the CSV low byte is reset/clock/status (`0xf9` in the first capture). The next probe should preserve the compact ILA shape but either bypass this wrapper for UART-local payloads or add sticky last-write registers for the accepted UART-side write address/data/strobe, so the bring-up can separate wrong register offset/strobe from UART16550 TX enable/configuration behavior.
 
+### P3 Build 35 UART Last-Write ILAs
+
+Build 35 is the narrow successor to Build 34. It keeps the proven run-manager flow, BD-owned `axis_ila_0`/`axis_ila_1`, and 97-bit probe budget, but changes the UART payload from mostly live signals to sticky last-accepted write fields. The build defines both `P3_BD_UART_DEBUG_ILA` and `P3_BD_UART_WR_DEBUG_ILA`: the first keeps the existing top-level and BD probe ports, while the second selects the last-write payload and bypasses the generic `chipset.v` status-byte wrapper.
+
+Probe mapping remains:
+
+- `axis_ila_0/probe0[0:0]`: `p3_min_dbg_heartbeat[0]`
+- `axis_ila_0/probe1[15:0]`: `p3_top_status[15:0]`
+- `axis_ila_0/probe2[15:0]`: UART sticky handshakes through `p3_debug_seen[31:16]`
+- `axis_ila_1/probe0[63:0]`: raw UART last-write payload through `p3_debug_bus[127:64]`
+
+The 64-bit payload records the last UART-side accepted write data byte, write strobe, write address, last core-side write data byte, core strobe, core write address, UART/core B responses, sticky AW/W/B acceptance bits, and UART TX low/toggle state. This targets the next branch in the bring-up: wrong ns16550 register offset/strobe/data versus a correctly accepted transmit write that still produces no serial TX activity.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
