@@ -311,6 +311,10 @@ Build 33 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpi
 
 The Build 33 routed probe inspection is intentionally treated as a wiring sanity check, not a functional chipset result. Unlike Build 32, the probe inputs are not all tied to `GROUND`: the heartbeat/status/chipset pins exist in the BD wrapper path, most payload bits are real `SIGNAL` nets, and only isolated fields are optimized to `GROUND` or `POWER` where the selected debug bit is statically false or true. Therefore a Build 33 hardware capture can be interpreted as chipset activity data rather than stale-wrapper fallout, assuming the debug hub refresh and CSV upload succeed.
 
+Hardware validation passed on 2026-05-28. Programming reported `DONE bit: HIGH`; `refresh_hw_device` reached the debug hub at `0x3ffc0000000`, found two ILA cores, and immediate captures exported two 1024-sample CSV files. Repeated captures were stable: heartbeat toggled, `p3_dbg_top_status16_i = 0xff02`, `p3_dbg_chipset_seen16_i = 0x6fff`, and `p3_dbg_chipset_bus64_i = 0x00000000000290f9`. The decoded sticky bits show chipset reset released, NoC2 traffic from the core into the chipset, bootrom request/response path activity, memory/AXI request activity, UART-buffer readiness, and at least one UART core AXI write-address handshake. This moves the no-UART-output problem from reset/clock/fetch/bootrom reachability into the UART bridge/ns16550 transaction layer.
+
+The next debug image should not widen the general chipset bus. It should replace the payload with UART-local observability: NOC-to-UART request/response valid/ready, `noc_axilite_bridge` core AXI-lite AW/W/B/AR/R valid/ready, `uart_mux` selected AXI-lite signals, ns16550 TX low/toggle state, and low UART address/data/status fields.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
