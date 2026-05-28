@@ -315,6 +315,17 @@ Hardware validation passed on 2026-05-28. Programming reported `DONE bit: HIGH`;
 
 The next debug image should not widen the general chipset bus. It should replace the payload with UART-local observability: NOC-to-UART request/response valid/ready, `noc_axilite_bridge` core AXI-lite AW/W/B/AR/R valid/ready, `uart_mux` selected AXI-lite signals, ns16550 TX low/toggle state, and low UART address/data/status fields.
 
+### P3 Build 34 UART-Local ILAs
+
+Build 34 keeps the Build 33 run-manager flow and two BD-owned ILAs, but introduces `P3_BD_UART_DEBUG_ILA` as a payload-selection macro. The total debug width stays 97 bits:
+
+- `axis_ila_0/probe0[0:0]`: `p3_min_dbg_heartbeat[0]`
+- `axis_ila_0/probe1[15:0]`: `p3_top_status[15:0]`
+- `axis_ila_0/probe2[15:0]`: UART-local sticky bits through `p3_debug_seen[31:16]`
+- `axis_ila_1/probe0[63:0]`: UART-local live bus through `p3_debug_bus[127:64]`
+
+The low UART sticky/bus bits preserve the Build 33 meaning for comparison. The added bits expose AXI-lite ready/response channels, NOC valid/ready around `uart_top`, ns16550 TX and interrupt state, write strobes, and `s_axi_wdata[7:0]`. This should distinguish a missing NOC request, a stuck `noc_axilite_bridge`, an AXI-lite backpressure problem, and a UART16550 register/TX problem without perturbing the proven debug hub route.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
