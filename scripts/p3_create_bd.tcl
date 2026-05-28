@@ -425,12 +425,20 @@ update_compile_order -fileset sources_1
 # afifo_w64_d128_std: Async FIFO (64-bit, 128 deep) for NoC<->memory clock crossing.
 # Used by noc_bidir_afifo.v. On 7-series boards this is a fifo_generator IP, but
 # fifo_generator is not available on Versal. We use an XPM-based wrapper instead.
-set afifo_file "${piton_root}/piton/design/chipset/xilinx/huaprop3/ip_cores/afifo_w64_d128_std.v"
-if {[file exists $afifo_file]} {
-    add_files -norecurse $afifo_file
-    puts "Added XPM FIFO wrapper: ${afifo_file}"
-} else {
-    puts "WARNING: afifo_w64_d128_std.v not found at ${afifo_file}"
+set required_wrapper_files [list \
+    "${piton_root}/piton/design/chipset/xilinx/huaprop3/ip_cores/afifo_w64_d128_std.v" \
+    "${piton_root}/piton/design/xilinx/huaprop3/xpm_sd_cache_bram.v" \
+    "${piton_root}/piton/design/xilinx/huaprop3/xpm_sd_ctrl_fifo.v" \
+    "${piton_root}/piton/design/xilinx/huaprop3/xpm_sd_data_fifo.v" \
+]
+foreach wrapper_file $required_wrapper_files {
+    if {[file exists $wrapper_file]} {
+        add_files -norecurse $wrapper_file
+        puts "Added XPM/IP wrapper: ${wrapper_file}"
+    } else {
+        puts "ERROR: required P3 wrapper not found: ${wrapper_file}"
+        exit 1
+    }
 }
 
 # ============================================================================
