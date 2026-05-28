@@ -379,7 +379,7 @@ This build deliberately avoids the registered last-write debug bus. If it captur
 
 Build 37 completed synthesis through `route_design` on 2026-05-29, but the run-manager flow failed in `write_device_image`. Route status was clean: 148,083 routable nets were fully routed with 0 routing errors. Post-route timing met all user constraints with `WNS` 8.964 ns, `TNS` 0, `WHS` 0.020 ns, and `THS` 0. Post-place utilization was 86,919 CLB LUTs, 59,540 CLB registers, 83.5 block RAM tiles, 2 URAMs, and 19 DSP slices.
 
-The failure was the same PLM/BSP path class as Build 32, not an implementation failure: after route, HSI failed copying `standalone_v9_2/.../translation_table.S` into the run-directory BSP, then XilPM compilation missed `xstatus.h`. The source file exists under `D:/Xilinx/Vivado/2024.2/data/embeddedsw`, so the fix is to recover PDI/LTX from `impl_37_uartlivenarrowila/p3_top_routed.dcp` using a shorter working directory, then program and capture before drawing hardware conclusions about the live-narrow payload.
+The failure was the same PLM/BSP path class as Build 32, not an implementation failure: after route, HSI failed copying `standalone_v9_2/.../translation_table.S` into the run-directory BSP, then XilPM compilation missed `xstatus.h`. The source file exists under `D:/Xilinx/Vivado/2024.2/data/embeddedsw`, so `scripts/p3_recover_build37_outputs.tcl` recovers PDI/LTX from `impl_37_uartlivenarrowila/p3_top_routed.dcp` using the short working directory `Z:/tmp/p3_b37_recover`. The script validates that the generated LTX still contains `0x000003FFC0000000`, `PMC_AXI_NOC0`, `axis_ila_0`, `axis_ila_1`, `p3_dbg_uart_seen16_i`, and `p3_dbg_uart_bus64_i` before publishing outputs.
 
 ## Key Reports
 
