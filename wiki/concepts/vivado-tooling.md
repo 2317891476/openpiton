@@ -307,6 +307,10 @@ vivado -mode batch -source scripts/p3_ila_capture_build33_chipset_ila.tcl
 
 The prepare and run scripts copy the canonical repository files `piton/design/xilinx/huaprop3/p3_top.v`, `piton/design/xilinx/huaprop3/openpiton_wrapper.v`, `piton/design/rtl/system.v`, and `piton/design/include/piton_system.vh` into `Z:/tmp` before Vivado regenerates or launches runs. The run script also scans the synthesis log and aborts if `openpiton_top_wrapper/u_bd` still shows the under-connected-port warning that caused Build 32's ILA probes to be tied low.
 
+Build 33 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpiton/debug_build/p3_top_build33_runmgr_chipset_ila.pdi` and `p3_top_build33_runmgr_chipset_ila.ltx`; the LTX contains the expected `0x000003FFC0000000` debug hub address, `PMC_AXI_NOC0` access path, and both `axis_ila_0`/`axis_ila_1` cells. The implementation route was clean with 0 failed nets, 0 unrouted nets, 0 partially routed nets, and 0 node overlaps. Estimated timing remained positive (`WNS` about 9.120 ns, `WHS` about 0.015 ns).
+
+The Build 33 routed probe inspection is intentionally treated as a wiring sanity check, not a functional chipset result. Unlike Build 32, the probe inputs are not all tied to `GROUND`: the heartbeat/status/chipset pins exist in the BD wrapper path, most payload bits are real `SIGNAL` nets, and only isolated fields are optimized to `GROUND` or `POWER` where the selected debug bit is statically false or true. Therefore a Build 33 hardware capture can be interpreted as chipset activity data rather than stale-wrapper fallout, assuming the debug hub refresh and CSV upload succeed.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

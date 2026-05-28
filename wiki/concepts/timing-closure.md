@@ -5,6 +5,7 @@ Strategies and issues for meeting timing constraints as core count increases.
 ## Current State
 
 - AX7203 (1-core): 50 MHz core clock, 30 MHz chipset clock. Timing closes with margin.
+- P3 / VP1902 Build 33 (1 OpenPiton/Ariane tile with two BD-owned chipset-focused ILAs): routed on 2026-05-28 with clean route status and positive estimated timing. Post-route timing reported `WNS` about 9.120 ns and `WHS` about 0.015 ns.
 - P3 / VP1902 Build 27 (1 OpenPiton/Ariane tile with widened BD-owned RTL debug ILA): routed on 2026-05-27 with all user timing constraints met. Post-route timing summary reported WNS 17.068 ns, TNS 0, WHS 0.022 ns, and THS 0. The report still shows many no-clock and unconstrained internal endpoints, so this is not a full timing-signoff result.
 - P3 / VP1902 Build 26 (1 OpenPiton/Ariane tile with BD-owned minimal ILA): routed on 2026-05-27 with all user timing constraints met. Post-route timing summary reported WNS 9.008 ns, TNS 0, WHS 0.010 ns, and THS 0.
 
