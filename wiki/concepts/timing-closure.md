@@ -5,6 +5,7 @@ Strategies and issues for meeting timing constraints as core count increases.
 ## Current State
 
 - AX7203 (1-core): 50 MHz core clock, 30 MHz chipset clock. Timing closes with margin.
+- P3 / VP1902 Build 36 (1 OpenPiton/Ariane tile with two BD-owned narrow UART last-write ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 9.015 ns, `TNS` 0, `WHS` 0.022 ns, and `THS` 0.
 - P3 / VP1902 Build 35 (1 OpenPiton/Ariane tile with two BD-owned UART last-write ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 8.871 ns, `TNS` 0, `WHS` 0.014 ns, and `THS` 0.
 - P3 / VP1902 Build 34 (1 OpenPiton/Ariane tile with two BD-owned UART-local ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 9.125 ns, `TNS` 0, `WHS` 0.011 ns, and `THS` 0.
 - P3 / VP1902 Build 33 (1 OpenPiton/Ariane tile with two BD-owned chipset-focused ILAs): routed on 2026-05-28 with clean route status and positive estimated timing. Post-route timing reported `WNS` about 9.120 ns and `WHS` about 0.015 ns.
@@ -31,3 +32,4 @@ Strategies and issues for meeting timing constraints as core count increases.
 - Build 33 confirmed that the two-ILA, 97-bit BD-owned payload is small enough to preserve the P3 debug runtime path and route with large margin. Future bring-up probes should stay similarly narrow and replace payload content between builds instead of accumulating more probes.
 - Build 34 confirmed that the same 97-bit structure still routes cleanly after swapping in UART-local payload content. The next UART bring-up builds should continue replacing selected payload bits rather than increasing total probe width.
 - Build 35 preserved the Build 34 97-bit debug width and only changed payload semantics to sticky UART last-write capture. It routed cleanly, confirming that replacing payload semantics without increasing probe width remains the right pattern for P3 bring-up.
+- Build 36 confirmed that preserving the Build 34 chipset status-byte wrapper while packing the UART last-write payload into the wrapper-preserved 56-bit field also routes cleanly. This is the preferred pattern after Build 35's hardware AxisILA timeout on the raw 64-bit wrapper-bypass variant.

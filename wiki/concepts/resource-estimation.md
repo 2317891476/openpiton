@@ -29,5 +29,6 @@ LUT, BRAM, DSP, and FF budgets per tile count.
 
 | Date | Platform | Build | CLB LUTs | Registers | BRAM Tiles | URAM | DSP | Notes |
 |------|----------|-------|----------|-----------|------------|------|-----|-------|
+| 2026-05-28 | P3 / VP1902 | Build 36 narrow UART last-write ILAs | 86,831 | 59,685 | 83.5 | 2 | 19 | One OpenPiton/Ariane tile plus BD AXI NoC, DDRMC, Clock Wizard, proc_sys_reset, ns16550 UART, and two BD-owned ILAs. Build preserves the chipset status wrapper and exports the 56-bit UART last-write payload in `p3_dbg_uart_bus64_i[63:8]`; PDI/LTX generated successfully. |
 | 2026-05-27 | P3 / VP1902 | Build 27 BD-owned RTL debug ILA | 85,876 | 59,778 | 102 | 2 | 19 | One OpenPiton/Ariane tile plus BD AXI NoC, DDRMC, Clock Wizard, proc_sys_reset, ns16550 UART, and widened 7-probe BD `axis_ila_0`; PDI generated, but the expected LTX did not materialize and routed DCP reopen reports ILA-internal site routing overlap. |
 | 2026-05-27 | P3 / VP1902 | Build 26 BD-owned minimal ILA | 85,386 | 57,534 | 84.5 | 2 | 19 | One OpenPiton/Ariane tile plus BD AXI NoC, DDRMC, Clock Wizard, proc_sys_reset, ns16550 UART, and 2-probe BD `axis_ila_0`; routed successfully. |

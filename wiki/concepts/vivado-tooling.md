@@ -363,6 +363,12 @@ vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_openpito
 vivado -mode batch -source scripts/p3_ila_capture_build36_uart_write_narrow_ila.tcl
 ```
 
+Build 36 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpiton/debug_build/p3_top_build36_runmgr_uart_write_narrow_ila.pdi` and `p3_top_build36_runmgr_uart_write_narrow_ila.ltx`. The LTX contains the expected `0x000003FFC0000000` debug hub address, `PMC_AXI_NOC0` access path, both `axis_ila_0`/`axis_ila_1` cells, and the UART probes `p3_dbg_uart_seen16_i` plus `p3_dbg_uart_bus64_i`.
+
+Route status was clean: 148,222 routable nets were fully routed with 0 routing errors. Post-route timing met all user constraints with `WNS` 9.015 ns, `TNS` 0, `WHS` 0.022 ns, and `THS` 0. Post-place utilization was 86,831 CLB LUTs, 59,685 CLB registers, 83.5 block RAM tiles, 2 URAMs, and 19 DSP slices.
+
+The next hardware step is to program Build 36 and capture both ILAs. Decode `p3_dbg_uart_bus64_i[63:8]` as the 56-bit narrow UART last-write payload and `p3_dbg_uart_bus64_i[7:0]` as the chipset reset/clock/status byte. A correct UART-side transmit-register write with no TX-low/transition sticky bit would point to ns16550 clock/reset/configuration or baud behavior; an incorrect address, strobe, or byte points back to bootrom/ns16550 register mapping.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
