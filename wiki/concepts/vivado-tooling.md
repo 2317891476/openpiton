@@ -345,6 +345,8 @@ Probe mapping remains:
 
 The 64-bit payload records the last UART-side accepted write data byte, write strobe, write address, last core-side write data byte, core strobe, core write address, UART/core B responses, sticky AW/W/B acceptance bits, and UART TX low/toggle state. This targets the next branch in the bring-up: wrong ns16550 register offset/strobe/data versus a correctly accepted transmit write that still produces no serial TX activity.
 
+Build 35 completed on 2026-05-28 with exit code 0. It published `huaprop3_openpiton/debug_build/p3_top_build35_runmgr_uart_write_ila.pdi` and `p3_top_build35_runmgr_uart_write_ila.ltx`. The LTX contains the expected `0x000003FFC0000000` debug hub address, `PMC_AXI_NOC0` access path, both `axis_ila_0`/`axis_ila_1` cells, and the UART probes `p3_dbg_uart_seen16_i` plus `p3_dbg_uart_bus64_i`. Route status was clean: 148,099 routable nets were fully routed with 0 routing errors. Post-route timing met all user constraints with `WNS` 8.871 ns, `TNS` 0, `WHS` 0.014 ns, and `THS` 0.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
