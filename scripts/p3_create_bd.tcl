@@ -318,31 +318,21 @@ set all_inc_dirs [concat [split $GLOBAL_INCLUDE_DIRS] $extra_inc_dirs]
 set_property include_dirs $all_inc_dirs [current_fileset]
 
 # Add the Xilinx AXI UART 16550 IP used by uart_top.v when PITON_UART16550 is
-# enabled. The huaprop3 board currently reuses the checked-in OpenPiton
-# generated IP from genesys2; without importing it, a clean project rebuild
-# reaches top synthesis with an unresolved uart_16550 module.
-set uart16550_xci ""
-foreach candidate [list \
-    "${DV_ROOT}/design/chipset/io_ctrl/xilinx/${BOARD}/ip_cores/uart_16550/uart_16550.xci" \
-    "${DV_ROOT}/design/chipset/io_ctrl/xilinx/genesys2/ip_cores/uart_16550/uart_16550.xci" \
-] {
-    if {[file exists $candidate]} {
-        set uart16550_xci $candidate
-        break
-    }
-}
-
-if {$uart16550_xci eq ""} {
-    puts "ERROR: uart_16550.xci not found for ${BOARD} or genesys2 fallback"
-    exit 1
-}
-
-puts "Importing UART 16550 IP: ${uart16550_xci}"
-if {[catch {import_ip -files $uart16550_xci -name uart_16550} uart_import_err]} {
-    puts "ERROR: failed to import UART 16550 IP: ${uart_import_err}"
-    exit 1
-}
+# enabled. Create it natively for the P3/VP1902 project; importing the old
+# genesys2 XCI locks the IP because it was customized for Vivado 2023.2/Artix-7.
+puts "Creating UART 16550 IP for P3"
+create_ip -name axi_uart16550 -vendor xilinx.com -library ip -version 2.0 -module_name uart_16550
 set uart16550_ip [get_ips uart_16550]
+set_property -dict [list \
+    CONFIG.C_S_AXI_ACLK_FREQ_HZ {30000000} \
+    CONFIG.C_S_AXI_ACLK_FREQ_HZ_d {30.000} \
+    CONFIG.C_IS_A_16550 {16550} \
+    CONFIG.C_USE_MODEM_PORTS {1} \
+    CONFIG.C_USE_USER_PORTS {1} \
+    CONFIG.C_HAS_EXTERNAL_XIN {0} \
+    CONFIG.C_HAS_EXTERNAL_RCLK {0} \
+    CONFIG.C_EXTERNAL_XIN_CLK_HZ {25000000} \
+] $uart16550_ip
 generate_target all $uart16550_ip
 export_ip_user_files -of_objects $uart16550_ip -no_script -sync -force -quiet
 puts "Added UART 16550 IP: ${uart16550_ip}"
