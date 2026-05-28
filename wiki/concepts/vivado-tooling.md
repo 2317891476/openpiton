@@ -377,6 +377,10 @@ Build 37 is the isolation step after Build 35 and Build 36 both timed out during
 
 This build deliberately avoids the registered last-write debug bus. If it captures like Build 34, then the failure is tied to the registered last-write payload path used by Build 35/36. If it times out like Build 35/36, then the failure is tied to payload remapping or ILA payload content more generally.
 
+Build 37 completed synthesis through `route_design` on 2026-05-29, but the run-manager flow failed in `write_device_image`. Route status was clean: 148,083 routable nets were fully routed with 0 routing errors. Post-route timing met all user constraints with `WNS` 8.964 ns, `TNS` 0, `WHS` 0.020 ns, and `THS` 0. Post-place utilization was 86,919 CLB LUTs, 59,540 CLB registers, 83.5 block RAM tiles, 2 URAMs, and 19 DSP slices.
+
+The failure was the same PLM/BSP path class as Build 32, not an implementation failure: after route, HSI failed copying `standalone_v9_2/.../translation_table.S` into the run-directory BSP, then XilPM compilation missed `xstatus.h`. The source file exists under `D:/Xilinx/Vivado/2024.2/data/embeddedsw`, so the fix is to recover PDI/LTX from `impl_37_uartlivenarrowila/p3_top_routed.dcp` using a shorter working directory, then program and capture before drawing hardware conclusions about the live-narrow payload.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

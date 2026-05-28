@@ -5,6 +5,7 @@ Strategies and issues for meeting timing constraints as core count increases.
 ## Current State
 
 - AX7203 (1-core): 50 MHz core clock, 30 MHz chipset clock. Timing closes with margin.
+- P3 / VP1902 Build 37 (1 OpenPiton/Ariane tile with two BD-owned live-narrow UART ILAs): routed on 2026-05-29 with clean route status and all user constraints met. Post-route timing reported `WNS` 8.964 ns, `TNS` 0, `WHS` 0.020 ns, and `THS` 0.
 - P3 / VP1902 Build 36 (1 OpenPiton/Ariane tile with two BD-owned narrow UART last-write ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 9.015 ns, `TNS` 0, `WHS` 0.022 ns, and `THS` 0.
 - P3 / VP1902 Build 35 (1 OpenPiton/Ariane tile with two BD-owned UART last-write ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 8.871 ns, `TNS` 0, `WHS` 0.014 ns, and `THS` 0.
 - P3 / VP1902 Build 34 (1 OpenPiton/Ariane tile with two BD-owned UART-local ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 9.125 ns, `TNS` 0, `WHS` 0.011 ns, and `THS` 0.
@@ -34,3 +35,4 @@ Strategies and issues for meeting timing constraints as core count increases.
 - Build 35 preserved the Build 34 97-bit debug width and only changed payload semantics to sticky UART last-write capture. It routed cleanly, confirming that replacing payload semantics without increasing probe width remains the right pattern for P3 bring-up.
 - Build 36 confirmed that preserving the Build 34 chipset status-byte wrapper while packing the UART last-write payload into the wrapper-preserved 56-bit field also routes cleanly. This is the preferred pattern after Build 35's hardware AxisILA timeout on the raw 64-bit wrapper-bypass variant.
 - Build 36 still timed out during hardware AxisILA access despite clean timing and routing. Timing closure alone is therefore insufficient to validate the Versal debug runtime path; each new ILA payload must be checked on hardware against a known-good image such as Build 34.
+- Build 37 confirmed that returning from registered last-write capture to a live-narrow UART payload still closes route with large timing margin. Its first failure occurred after route during Versal PLM/BSP PDI generation, so timing data remains valid even though PDI recovery is required before hardware validation.
