@@ -402,6 +402,8 @@ Build 39 completed on 2026-05-29 with exit code 0. It published `huaprop3_sifive
 
 Hardware validation did not produce serial output. Programming the Build 39 PDI through remote `hw_server 100.93.77.36:3121` and XVC `202.197.4.99:2540` succeeded with `DONE bit: HIGH`, but a 300-second `/dev/ttyUSB0` capture at 115200, started before programming, returned no characters. Treat this as evidence that the remaining failure is upstream of, or inside, the new SiFive UART transaction path: reset/clock/fetch/bootrom progress and AXI4-Lite/TL bridge handshakes need ILA visibility before changing the physical UART assumptions again.
 
+The minimal Build 39 ILA still validates the runtime debug path. Hardware Manager reached `0x3ffc0000000`, enumerated `u_bd/openpiton_top_i/axis_ila_0`, and exported `ila_capture_build39_sifive_uart_axis_ila_0.csv`. The heartbeat increments, and `p3_dbg_status_i=0x25017f00` decodes as Build ID `0x2501`, top reset deasserted, `peripheral_aresetn=1`, `sd_resetn=1`, UART TX/RX idle high, `sd_cd=1`, and `leds=3`. The next Build 40-style payload should preserve this small BD-owned ILA shape but replace the two minimal probes with Ariane reset/fetch/bootrom and SiFive UART bridge valid/ready/status signals.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
