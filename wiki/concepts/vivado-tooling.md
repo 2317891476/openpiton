@@ -420,6 +420,22 @@ The Build 40 bridge payload decodes as: `[63:56] last AXI address low byte`, `[5
 
 The Build 40 UART sticky seen bits decode as: `[15] interrupt`, `[14] DIV write`, `[13] TXCTRL write`, `[12] TXDATA write`, `[11] TX transition`, `[10] TX low`, `[9] AXI R fire`, `[8] AXI B fire`, `[7] TL read fire`, `[6] TL write fire`, `[5] TL D valid`, `[4] TL A ready`, `[3] TL A valid`, `[2] AXI AR fire`, `[1] AXI W fire`, and `[0] AXI AW fire`.
 
+### P3 Build 41 Fetch/Bootrom Debug ILAs
+
+Build 41 uses `huaprop3_build41_debug` and keeps the BD-owned debug path while splitting the payload into three small ILAs. Program and capture with:
+
+```bash
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build41_debug/debug_build/p3_top_build41_fetch_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build41_fetch_debug.tcl
+python3 scripts/p3_decode_build41_ila_csv.py huaprop3_build41_debug/debug_build
+```
+
+Hardware validation passed at the debug-transport level on 2026-05-30. Programming reported `DONE bit: HIGH`; `refresh_hw_device` reached debug hub `0x3ffc0000000`; Vivado enumerated `axis_ila_0`, `axis_ila_1`, and `axis_ila_2`; and immediate trigger/upload exported all three 1024-sample CSV files.
+
+The decoded capture was stable except for the heartbeat bit: `p3_dbg_top_status16_i=0xff03`, chipset sticky seen `0x7fff`, chip/tile sticky seen `0x7fff`, core payload `0xfff101017083f407`, and chipset payload `0x00000006ecfff5f9`. The core payload records a last L1.5 address of `0xfff1010170`, request type `0x10`, request size `0x3`, released Ariane reset flags, and live L1.5 reset/clock flags. The chipset payload records bootrom request data low16 `0x0006`, bootrom response data low16 `0xecff`, UART path activity, memory AXI request activity, bootrom NoC request/response activity, and chipset reset released.
+
+Serial validation still failed: two `/dev/ttyUSB0` captures at 115200, including a 480-second capture opened before reprogramming, produced no output. Treat this as evidence against reset-held, dead-clock, and missing-bootrom-fetch explanations. The next probe should expose the exact SiFive UART write/read address, write data, write strobe, and TX low/transition state again, now correlated with the proven bootrom fetch/response path.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
