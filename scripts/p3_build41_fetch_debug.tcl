@@ -10,6 +10,7 @@ set project_name "huaprop3_build41_debug"
 set project_dir [file normalize "${repo_dir}/${project_name}"]
 set output_dir "${project_dir}/debug_build"
 set create_tcl [file normalize "${script_dir}/p3_create_bd_build41.tcl"]
+set ariane_unread_impl_src [file normalize "${repo_dir}/piton/design/xilinx/huaprop3/unread_vivado_impl.sv"]
 set synth_run "synth_1"
 set impl_run "impl_1"
 set pdi_basename "p3_top_build41_fetch_debug"
@@ -60,6 +61,45 @@ proc p3_find_latest_file {dir pattern} {
         }
     }
     return $best
+}
+
+proc p3_set_run_property_if_present {run prop value} {
+    if {[lsearch -exact [list_property $run] $prop] >= 0} {
+        set_property $prop $value $run
+        puts "  $prop = [get_property $prop $run]"
+    }
+}
+
+proc p3_disable_synth_incremental {run_name project_dir project_name} {
+    set synth_run [get_runs $run_name]
+    puts "Disabling stale incremental synthesis for ${run_name}..."
+    p3_set_run_property_if_present $synth_run AUTO_INCREMENTAL_CHECKPOINT 0
+    p3_set_run_property_if_present $synth_run INCREMENTAL_CHECKPOINT ""
+    p3_set_run_property_if_present $synth_run AUTO_INCREMENTAL_DIR ""
+
+    set imported_dcp [file normalize "${project_dir}/${project_name}.srcs/utils_1/imports/${run_name}/p3_top.dcp"]
+    set imported_dcp_file [get_files -quiet $imported_dcp]
+    if {$imported_dcp_file ne ""} {
+        puts "  removing imported incremental checkpoint from project: $imported_dcp"
+        remove_files $imported_dcp_file
+    }
+}
+
+proc p3_use_ariane_unread_vivado_shim {shim_src} {
+    if {![file exists $shim_src]} {
+        puts "ERROR: missing Vivado unread implementation shim: $shim_src"
+        exit 1
+    }
+
+    foreach old_unread [get_files -quiet *common_cells/src/unread.sv] {
+        remove_files $old_unread
+    }
+    foreach old_unread_impl [get_files -quiet *unread_vivado_impl.sv] {
+        remove_files $old_unread_impl
+    }
+    add_files -fileset sources_1 -norecurse $shim_src
+    set_property file_type "SystemVerilog" [get_files $shim_src]
+    puts "Using Vivado unread implementation shim: $shim_src"
 }
 
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {
@@ -147,9 +187,11 @@ foreach required_define [list \
 set_property verilog_define $defs [current_fileset]
 puts "Verilog defines: [get_property verilog_define [current_fileset]]"
 
+p3_use_ariane_unread_vivado_shim $ariane_unread_impl_src
 update_compile_order -fileset sources_1
 
 reset_run $synth_run
+p3_disable_synth_incremental $synth_run $project_dir $project_name
 launch_runs $synth_run -jobs $jobs
 wait_on_run $synth_run
 p3_runmgr_check_status $synth_run "Synthesis"

@@ -418,6 +418,23 @@ foreach f $existing_rtl_files {
     }
 }
 
+# Vivado preserves Ariane/common_cells' intentionally empty unread module as an
+# implementation black box. Replace it with a tiny real LUT sink before runs.
+set ariane_unread_impl_src "${piton_root}/piton/design/xilinx/huaprop3/unread_vivado_impl.sv"
+if {![file exists $ariane_unread_impl_src]} {
+    puts "ERROR: missing Vivado unread implementation shim: $ariane_unread_impl_src"
+    exit 1
+}
+foreach old_unread [get_files -quiet *common_cells/src/unread.sv] {
+    remove_files $old_unread
+}
+foreach old_unread_impl [get_files -quiet *unread_vivado_impl.sv] {
+    remove_files $old_unread_impl
+}
+add_files -fileset sources_1 -norecurse $ariane_unread_impl_src
+set_property file_type "SystemVerilog" [get_files $ariane_unread_impl_src]
+puts "Using Vivado unread implementation shim: $ariane_unread_impl_src"
+
 # Set include directories for synthesis
 # Add chipset sub-block include dirs that aren't in GLOBAL_INCLUDE_DIRS
 # (noc_axi4_bridge_define.vh, sd_defines.h, piton_sd_define.vh, etc.)
