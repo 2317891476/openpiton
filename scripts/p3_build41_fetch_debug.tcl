@@ -3,6 +3,7 @@
 #
 # Usage:
 #   vivado -mode batch -source scripts/p3_build41_fetch_debug.tcl -tclargs -jobs 1
+#   vivado -mode batch -source scripts/p3_build41_fetch_debug.tcl -tclargs -skip_create -reuse_synth -jobs 1
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
@@ -15,6 +16,7 @@ set synth_run "synth_1"
 set impl_run "impl_1"
 set pdi_basename "p3_top_build41_fetch_debug"
 set run_create 1
+set reuse_synth 0
 set jobs 1
 
 for {set i 0} {$i < [llength $argv]} {incr i} {
@@ -22,6 +24,9 @@ for {set i 0} {$i < [llength $argv]} {incr i} {
     switch -- $arg {
         -skip_create {
             set run_create 0
+        }
+        -reuse_synth {
+            set reuse_synth 1
         }
         -jobs {
             incr i
@@ -147,6 +152,7 @@ puts "=========================================="
 puts " Build 41: P3 Fetch debug ILAs"
 puts " Project: ${project_dir}/${project_name}.xpr"
 puts " Jobs: ${jobs}"
+puts " Reuse synth: ${reuse_synth}"
 puts "=========================================="
 
 if {$run_create} {
@@ -190,11 +196,21 @@ puts "Verilog defines: [get_property verilog_define [current_fileset]]"
 p3_use_ariane_unread_vivado_shim $ariane_unread_impl_src
 update_compile_order -fileset sources_1
 
-reset_run $synth_run
-p3_disable_synth_incremental $synth_run $project_dir $project_name
-launch_runs $synth_run -jobs $jobs
-wait_on_run $synth_run
-p3_runmgr_check_status $synth_run "Synthesis"
+if {$reuse_synth} {
+    set synth_progress [get_property PROGRESS [get_runs $synth_run]]
+    puts "Reusing existing synthesis run ${synth_run}; progress=${synth_progress}"
+    if {$synth_progress ne "100%"} {
+        puts "ERROR: ${synth_run} is not complete; rerun without -reuse_synth."
+        exit 1
+    }
+    p3_runmgr_check_status $synth_run "Synthesis"
+} else {
+    reset_run $synth_run
+    p3_disable_synth_incremental $synth_run $project_dir $project_name
+    launch_runs $synth_run -jobs $jobs
+    wait_on_run $synth_run
+    p3_runmgr_check_status $synth_run "Synthesis"
+}
 
 reset_run $impl_run
 launch_runs $impl_run -to_step write_device_image -jobs $jobs
