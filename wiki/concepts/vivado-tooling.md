@@ -404,6 +404,20 @@ Hardware validation did not produce serial output. Programming the Build 39 PDI 
 
 The minimal Build 39 ILA still validates the runtime debug path. Hardware Manager reached `0x3ffc0000000`, enumerated `u_bd/openpiton_top_i/axis_ila_0`, and exported `ila_capture_build39_sifive_uart_axis_ila_0.csv`. The heartbeat increments, and `p3_dbg_status_i=0x25017f00` decodes as Build ID `0x2501`, top reset deasserted, `peripheral_aresetn=1`, `sd_resetn=1`, UART TX/RX idle high, `sd_cd=1`, and `leds=3`. The next Build 40-style payload should preserve this small BD-owned ILA shape but replace the two minimal probes with Ariane reset/fetch/bootrom and SiFive UART bridge valid/ready/status signals.
 
+### P3 Build 40 SiFive UART Narrow Debug ILAs
+
+Build 40 uses the separate `huaprop3_sifive_uart_debug` project. It keeps the Build 39 SiFive TLUART replacement and adds only a small BD-owned debug payload:
+
+- `axis_ila_0/probe0[0]`: heartbeat bit from `p3_min_dbg_heartbeat[0]`
+- `axis_ila_0/probe1[15:0]`: `p3_top_status[15:0]`, covering top reset, chip/chipset reset, UART pins, top-level NoC/AXI activity, and selected UART sticky bits
+- `axis_ila_0/probe2[15:0]`: UART sticky seen bits from `uart_top`
+- `axis_ila_0/probe3[15:0]`: chip/tile sticky seen bits from `p3_debug_seen[15:0]`
+- `axis_ila_1/probe0[63:0]`: SiFive UART AXI4-Lite/TL bridge payload
+
+The Build 40 bridge payload decodes as: `[63:56] last AXI address low byte`, `[55:48] last write data byte`, `[47:40] last read data byte`, `[39:36] last write strobe`, `[35] AW pending`, `[34] W pending`, `[33] AR pending`, `[32] B valid`, `[31] R valid`, `[30] TL A valid`, `[29] TL A ready`, `[28] TL D valid`, `[27] UART TX`, `[26] TX low sticky`, `[25] TX transition sticky`, `[24] UART interrupt`, and `[23:0]` reserved zero.
+
+The Build 40 UART sticky seen bits decode as: `[15] interrupt`, `[14] DIV write`, `[13] TXCTRL write`, `[12] TXDATA write`, `[11] TX transition`, `[10] TX low`, `[9] AXI R fire`, `[8] AXI B fire`, `[7] TL read fire`, `[6] TL write fire`, `[5] TL D valid`, `[4] TL A ready`, `[3] TL A valid`, `[2] AXI AR fire`, `[1] AXI W fire`, and `[0] AXI AW fire`.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
