@@ -383,6 +383,21 @@ The failure was the same PLM/BSP path class as Build 32, not an implementation f
 
 Hardware validation passed after recovery. Build 37 programmed with `DONE bit: HIGH`, refreshed the debug hub at `0x3ffc0000000`, enumerated both BD-owned ILAs, and exported CSVs for both immediate triggers. The capture showed `p3_dbg_top_status16_i = 0xff03`, `p3_dbg_uart_seen16_i = 0x73f3`, and `p3_dbg_uart_bus64_i = 0x20110201100fe7f9`. Decoding the live-narrow payload gives UART-side and core-side `wdata=0x20`, `wstrb=1`, `awaddr_low=0x10`, OKAY B responses, `uart_tx=1`, and no TX-low sticky event. This isolates the Build 35/36 hardware timeout to the registered last-write payload path while keeping the no-UART-output debug focused on ns16550 register mapping/configuration/initialization.
 
+### P3 Build 39 SiFive UART Project Variant
+
+Build 39 creates a separate `huaprop3_sifive_uart` Vivado project instead of modifying the known Build 38 `huaprop3_openpiton` project in place. The project is generated with `scripts/p3_create_bd_sifive_uart.tcl`, which delegates to the normal P3 BD creator while setting `P3_ENABLE_SIFIVE_UART=1`.
+
+The SiFive variant does not create the Xilinx `axi_uart16550` IP and does not define `PITON_UART16550`. It adds the reference `TLUART` RTL and defines `P3_SIFIVE_UART`, causing `uart_top.v` to instantiate the RTL wrapper and bypass the old `<< 2 | 13'h1000` ns16550 address transform. The bridge maps 32-bit AXI4-Lite accesses to the generated 64-bit TileLink-UL register beats, preserving the SiFive offsets `0x00/0x04/0x08/0x0c/0x10/0x14/0x18`.
+
+The expected build sequence is:
+
+```bash
+scripts/p3_rebuild_sifive_bootrom.sh
+vivado -mode batch -source scripts/p3_build39_sifive_uart.tcl -tclargs -jobs 1
+```
+
+For software payload validation, rebuild BBL with `scripts/p3_rebuild_sifive_bbl.sh` after the DTS and riscv-pk SiFive UART changes are in place. The first hardware success criterion is still bootrom text on `/dev/ttyUSB0` at 115200; BBL/Linux console output is the second gate.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
