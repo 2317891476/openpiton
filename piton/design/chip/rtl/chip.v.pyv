@@ -158,6 +158,11 @@ module chip(
 ,   input   [`PITON_NUM_TILES*2-1:0]            irq_i           // level sensitive IR lines, mip & sip (async)
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
+
+`ifdef P3_RTL_DEBUG
+,   output  [63:0]                               p3_chip_debug_bus
+,   output  [15:0]                               p3_chip_debug_seen
+`endif
 );
 
 <%
@@ -356,7 +361,15 @@ module chip(
                flatid = i + (j * PITON_X_TILES)
                print("wire tile%d_jtag_ucb_val;" % flatid)
                print("wire [`UCB_BUS_WIDTH-1:0] tile%d_jtag_ucb_data;" % flatid)
+               print("`ifdef P3_RTL_DEBUG")
+               print("wire [63:0] tile%d_p3_debug_bus;" % flatid)
+               print("wire [15:0] tile%d_p3_debug_seen;" % flatid)
+               print("`endif")
    %>
+
+`ifdef P3_RTL_DEBUG
+   reg [15:0] p3_chip_debug_seen_r;
+`endif
 
    // Generate tile wiring
 <%
@@ -449,8 +462,59 @@ module chip(
    always @ (posedge io_clk_inter)
       io_clk_rst_n_inter_sync_f <= io_clk_rst_n_inter_sync;
 
+`ifdef P3_RTL_DEBUG
+   always @(posedge clk_muxed or negedge rst_n_inter_sync_f)
+   begin
+      if (~rst_n_inter_sync_f)
+      begin
+         p3_chip_debug_seen_r <= 16'd0;
+      end
+      else
+      begin
+         p3_chip_debug_seen_r <= p3_chip_debug_seen_r |
+                                 {3'b0,
+                                  processor_offchip_noc3_yummy,
+                                  processor_offchip_noc2_yummy,
+                                  processor_offchip_noc1_yummy,
+                                  offchip_processor_noc3_valid,
+                                  offchip_processor_noc2_valid,
+                                  offchip_processor_noc1_valid,
+                                  processor_offchip_noc3_valid,
+                                  processor_offchip_noc2_valid,
+                                  processor_offchip_noc1_valid,
+                                  clk_en_inter,
+                                  io_clk_rst_n_inter_sync_f,
+                                  rst_n_inter_sync_f,
+                                  rst_n_inter_sync};
+      end
+   end
+
+   assign p3_chip_debug_seen = p3_chip_debug_seen_r | tile0_p3_debug_seen;
+`ifdef P3_BD_BUILD41_DEBUG_ILA
+   assign p3_chip_debug_bus = tile0_p3_debug_bus;
+`else
+   assign p3_chip_debug_bus = {tile0_p3_debug_bus[47:0],
+                               rst_n_inter,
+                               rst_n_inter_sync,
+                               rst_n_inter_sync_f,
+                               io_clk_rst_n_inter_sync,
+                               io_clk_rst_n_inter_sync_f,
+                               clk_en_inter,
+                               pll_lock_inter,
+                               processor_offchip_noc1_valid,
+                               processor_offchip_noc2_valid,
+                               processor_offchip_noc3_valid,
+                               offchip_processor_noc1_valid,
+                               offchip_processor_noc2_valid,
+                               offchip_processor_noc3_valid,
+                               processor_offchip_noc1_yummy,
+                               processor_offchip_noc2_yummy,
+                               processor_offchip_noc3_yummy};
+`endif
+`endif
+
 `ifndef PITON_NO_CHIP_BRIDGE
-   // Buffer chip bridge inputs
+	   // Buffer chip bridge inputs
    always @(posedge io_clk_inter)
    begin
 `ifdef PITON_PROTO
@@ -1045,12 +1109,16 @@ module chip(
         .clk_en             (ctap_clk_en_inter[_FLAT_ID_] && clk_en_inter),
         .default_chipid             (14'b0),    // the first chip
         .default_coreid_x           (COREIDX),
-        .default_coreid_y           (COREIDY),
-        .default_total_num_tiles    (default_total_num_tiles      ),
-        .flat_tileid                (`JTAG_FLATID_WIDTH'd_FLAT_ID_)
-    `ifdef PITON_RV64_PLATFORM
-    `ifdef PITON_RV64_DEBUGUNIT
-        ,.debug_req_i         ( debug_req_i[_FLAT_ID_]   )
+	        .default_coreid_y           (COREIDY),
+	        .default_total_num_tiles    (default_total_num_tiles      ),
+	        .flat_tileid                (`JTAG_FLATID_WIDTH'd_FLAT_ID_)
+	    `ifdef P3_RTL_DEBUG
+	        ,.p3_tile_debug_bus   ( tile0_p3_debug_bus  )
+	        ,.p3_tile_debug_seen  ( tile0_p3_debug_seen )
+	    `endif
+	    `ifdef PITON_RV64_PLATFORM
+	    `ifdef PITON_RV64_DEBUGUNIT
+	        ,.debug_req_i         ( debug_req_i[_FLAT_ID_]   )
         ,.unavailable_o       ( unavailable_o[_FLAT_ID_] )
     `endif // ifdef PITON_RV64_DEBUGUNIT
     `ifdef PITON_RV64_CLINT

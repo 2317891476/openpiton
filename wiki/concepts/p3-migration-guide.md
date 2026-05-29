@@ -381,6 +381,14 @@ During P3 hardware bring-up, the PDI is successfully programmed and Vivado repor
    - Since `m_axi_rdata` is connected to the 32-bit `core_axi_rdata` bus, its upper 32 bits are zero-extended. Shifting right by 40 bits discards the valid register data and returns `0x00`, locking the CPU in the THRE polling loop.
    - *Proposed Fix*: In `uart_top.v`, replicate the UART read data byte 0 across all 8 byte lanes of the bridge read bus (i.e., `.m_axi_rdata({8{core_axi_rdata[7:0]}})`), ensuring the bridge always receives the correct register byte regardless of the address offset lane.
 
+3. **Transition to SiFive UART (Build 40) & Instruction Fetch Hang Analysis**:
+   - To isolate the Xilinx AXI UART IP and custom bridge shifting complexity, Build 40 migrated the UART block to the SiFive Custom UART (TLUART) template.
+   - Hardware bring-up of Build 40 showed that `DONE` went HIGH, the AXI debug hub and ILAs were fully accessible, but no console output was produced.
+   - High-priority signals captured in `axis_ila_0` showed `top_status = 0xff02` (resets released, clocks stable) and `chip_seen = 0x750f` (resets released, core wake-up counter active, and some L1.5 cache activity).
+   - However, no transactions ever reached the SiFive UART registers. This rules out the UART peripheral block or board-level routing as the source of the hang, indicating instead that the Ariane core is stuck earlier in the boot sequence (e.g. instruction fetch from the bootrom or memory access).
+   - *Build 41 implementation*: keep the proven BD-owned debug hub path, but split the payload across three small ILAs instead of one wide post-synthesis probe. `axis_ila_0` captures heartbeat/top status/chipset seen/chip-tile seen. `axis_ila_1` captures a 64-bit core-side payload from `p3_debug_bus[63:0]`: last L1.5 request address `[39:0]`, request type, request size, Ariane wake/reset/interrupt flags, and live L1.5 handshake flags. `axis_ila_2` captures a 64-bit chipset-side payload from `p3_debug_bus[127:64]`: last chip-to-chipset NoC2 low data, last bootrom request low data, last bootrom response low data, and sticky bootrom/UART/AXI/NoC flags.
+   - Build 41 uses explicit BD ports `p3_dbg_b41_core_bus64_i` and `p3_dbg_b41_chipset_bus64_i` rather than reusing the Build 40 UART payload port. The P3 creation flow now forces a single-core Ariane PyHP context and Vivado defines (`PITON_ARIANE`, RV64 platform/debug/CLINT/PLIC, `WT_DCACHE`) so the debug build cannot silently synthesize a non-Ariane/default-tile configuration.
+
 ---
 
 ## 4. RTL Change List

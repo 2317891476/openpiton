@@ -142,6 +142,18 @@ module p3_top (
     wire [31:0]  p3_top_status;
     wire [63:0]  dbg_m_axi_araddr;
     wire [63:0]  dbg_m_axi_awaddr;
+`elsif P3_BD_UART_DEBUG_ILA
+    wire [127:0] p3_debug_bus;
+    wire [31:0]  p3_debug_seen;
+    wire [31:0]  p3_top_status;
+    wire [63:0]  dbg_m_axi_araddr;
+    wire [63:0]  dbg_m_axi_awaddr;
+`elsif P3_BD_BUILD41_DEBUG_ILA
+    wire [127:0] p3_debug_bus;
+    wire [31:0]  p3_debug_seen;
+    wire [31:0]  p3_top_status;
+    wire [63:0]  dbg_m_axi_araddr;
+    wire [63:0]  dbg_m_axi_awaddr;
 `else
     (* keep = "true", mark_debug = "true" *) wire [127:0] p3_debug_bus;
     (* keep = "true", mark_debug = "true" *) wire [31:0]  p3_debug_seen;
@@ -187,6 +199,37 @@ module p3_top (
     assign p3_dbg_top_status16     = p3_top_status[15:0];
     assign p3_dbg_chipset_seen16   = p3_debug_seen[31:16];
     assign p3_dbg_chipset_bus64    = p3_debug_bus[127:64];
+`endif
+`ifdef P3_BD_UART_DEBUG_ILA
+    (* keep = "true" *) wire        p3_dbg_heartbeat_bit;
+    (* keep = "true" *) wire [15:0] p3_dbg_top_status16;
+    (* keep = "true" *) wire [15:0] p3_dbg_uart_seen16;
+    (* keep = "true" *) wire [63:0] p3_dbg_uart_bus64;
+
+    assign p3_dbg_heartbeat_bit = p3_min_dbg_heartbeat[0];
+    assign p3_dbg_top_status16  = p3_top_status[15:0];
+    assign p3_dbg_uart_seen16   = p3_debug_seen[31:16];
+    assign p3_dbg_uart_bus64    = p3_debug_bus[127:64];
+`endif
+`ifdef P3_BD_SIFIVE_DEBUG_ILA
+    (* keep = "true" *) wire [15:0] p3_dbg_chip_seen16;
+
+    assign p3_dbg_chip_seen16 = p3_debug_seen[15:0];
+`endif
+`ifdef P3_BD_BUILD41_DEBUG_ILA
+    (* keep = "true" *) wire        p3_dbg_heartbeat_bit;
+    (* keep = "true" *) wire [15:0] p3_dbg_top_status16;
+    (* keep = "true" *) wire [15:0] p3_dbg_uart_seen16;
+    (* keep = "true" *) wire [15:0] p3_dbg_chip_seen16;
+    (* keep = "true" *) wire [63:0] p3_dbg_b41_core_bus64;
+    (* keep = "true" *) wire [63:0] p3_dbg_b41_chipset_bus64;
+
+    assign p3_dbg_heartbeat_bit = p3_min_dbg_heartbeat[0];
+    assign p3_dbg_top_status16  = p3_top_status[15:0];
+    assign p3_dbg_uart_seen16   = p3_debug_seen[31:16]; // Chipset seen
+    assign p3_dbg_chip_seen16   = p3_debug_seen[15:0];  // Chip/tile seen
+    assign p3_dbg_b41_core_bus64 = p3_debug_bus[63:0];
+    assign p3_dbg_b41_chipset_bus64 = p3_debug_bus[127:64];
 `endif
 `endif
 
@@ -241,6 +284,23 @@ module p3_top (
         .p3_dbg_top_status16_i  (p3_dbg_top_status16),
         .p3_dbg_chipset_seen16_i(p3_dbg_chipset_seen16),
         .p3_dbg_chipset_bus64_i (p3_dbg_chipset_bus64),
+`endif
+`ifdef P3_BD_UART_DEBUG_ILA
+        .p3_dbg_heartbeat_bit_i (p3_dbg_heartbeat_bit),
+        .p3_dbg_top_status16_i  (p3_dbg_top_status16),
+        .p3_dbg_uart_seen16_i   (p3_dbg_uart_seen16),
+        .p3_dbg_uart_bus64_i    (p3_dbg_uart_bus64),
+`endif
+`ifdef P3_BD_SIFIVE_DEBUG_ILA
+        .p3_dbg_chip_seen16_i   (p3_dbg_chip_seen16),
+`endif
+`ifdef P3_BD_BUILD41_DEBUG_ILA
+        .p3_dbg_heartbeat_bit_i (p3_dbg_heartbeat_bit),
+        .p3_dbg_top_status16_i  (p3_dbg_top_status16),
+        .p3_dbg_uart_seen16_i   (p3_dbg_uart_seen16),
+        .p3_dbg_chip_seen16_i   (p3_dbg_chip_seen16),
+        .p3_dbg_b41_core_bus64_i(p3_dbg_b41_core_bus64),
+        .p3_dbg_b41_chipset_bus64_i(p3_dbg_b41_chipset_bus64),
 `endif
         // AXI4 Slave (from OpenPiton master)
         .S_AXI_MEM_awid         (m_axi_awid),

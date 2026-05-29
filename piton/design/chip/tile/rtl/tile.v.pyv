@@ -190,6 +190,11 @@ print(s)
 ,   input   [1:0]                       irq_i          // level sensitive IR lines, mip & sip (async)
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
+
+`ifdef P3_RTL_DEBUG
+,   output wire [63:0]                  p3_tile_debug_bus
+,   output wire [15:0]                  p3_tile_debug_seen
+`endif
 );
     // clock gating
     wire clk_gated;
@@ -374,6 +379,19 @@ print(s)
     wire [31:0]                         config_system_tile_count;
     wire [`HOME_ALLOC_METHOD_WIDTH-1:0] config_home_alloc_method;
     wire [`L15_HMT_BASE_ADDR_WIDTH-1:0] config_hmt_base;
+
+`ifdef P3_RTL_DEBUG
+    wire [15:0]                         p3_ariane_debug_bus;
+    wire [63:0]                         p3_tile_bootaddr_debug;
+    reg [15:0]                          p3_tile_debug_seen_r;
+    reg [39:0]                          p3_last_l15_address_r;
+    reg [4:0]                           p3_last_l15_rqtype_r;
+    reg [2:0]                           p3_last_l15_size_r;
+`ifndef PITON_ARIANE
+    assign p3_ariane_debug_bus = 16'd0;
+    assign p3_tile_bootaddr_debug = 64'd0;
+`endif
+`endif
 
 
     // SRAM wrapper interfaces
@@ -1036,6 +1054,9 @@ if romIsPresent:
 print("    assign ariane_bootaddr  =  64'h%s;" % bootAddr)
 %>
 
+`ifdef P3_RTL_DEBUG
+    assign p3_tile_bootaddr_debug = ariane_bootaddr;
+`endif
 
     ariane_verilog_wrap #(
 <%
@@ -1063,14 +1084,71 @@ print(str)
         .debug_req_i ( debug_req_i            ),
         .l15_req_o   ( l15_req                ),
         .l15_rtrn_i  ( l15_rtrn               )
+`ifdef P3_RTL_DEBUG
+       ,.p3_ariane_debug_bus ( p3_ariane_debug_bus )
+`endif
     );
 
     assign unavailable_o = 1'b0;
 
 `endif // ifdef PITON_ARIANE
-  end
-  endgenerate
+	  end
+	  endgenerate
 
+`ifdef P3_RTL_DEBUG
+    always @(posedge clk_gated or negedge rst_n_f)
+    begin
+      if (~rst_n_f)
+      begin
+        p3_tile_debug_seen_r <= 16'd0;
+        p3_last_l15_address_r <= 40'd0;
+        p3_last_l15_rqtype_r <= 5'd0;
+        p3_last_l15_size_r <= 3'd0;
+      end
+      else
+      begin
+        p3_tile_debug_seen_r <= p3_tile_debug_seen_r |
+                                {(|l15_transducer_error),
+                                 router_processor_ready_noc3,
+                                 router_processor_ready_noc2,
+                                 router_processor_ready_noc1,
+                                 buffer_processor_valid_noc3,
+                                 buffer_processor_valid_noc2,
+                                 buffer_processor_valid_noc1,
+                                 processor_router_valid_noc3,
+                                 processor_router_valid_noc2,
+                                 processor_router_valid_noc1,
+                                 l15_transducer_ack,
+                                 l15_transducer_val,
+                                 transducer_l15_req_ack,
+                                 transducer_l15_val,
+                                 spc_grst_l,
+                                 rst_n_f};
+        if (transducer_l15_val)
+        begin
+          p3_last_l15_address_r <= transducer_l15_address[39:0];
+          p3_last_l15_rqtype_r <= transducer_l15_rqtype;
+          p3_last_l15_size_r <= transducer_l15_size;
+        end
+      end
+    end
+
+    assign p3_tile_debug_seen = p3_tile_debug_seen_r;
+    assign p3_tile_debug_bus = {p3_last_l15_address_r[39:24],
+                                p3_last_l15_address_r[23:8],
+                                p3_last_l15_address_r[7:0],
+                                p3_last_l15_rqtype_r[4:0],
+                                p3_last_l15_size_r[2:0],
+                                p3_ariane_debug_bus[15:8],
+                                transducer_l15_val,
+                                transducer_l15_req_ack,
+                                l15_transducer_val,
+                                l15_transducer_ack,
+                                |l15_transducer_error,
+                                rst_n_f,
+                                spc_grst_l,
+                                clk_en};
+`endif
 
     //////////
     // L1.5 //

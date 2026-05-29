@@ -89,14 +89,14 @@ module chipset_impl(
 
 `ifndef PITONSYS_NO_MC
 `ifdef PITON_FPGA_MC_DDR3
-`ifndef F1_BOARD
+`ifndef PITONSYS_AXI4_MEM
 `ifdef PITONSYS_DDR4
     input                                       mc_clk_p,
     input                                       mc_clk_n,
 `else  // PITONSYS_DDR4
     input                                       mc_clk,
 `endif // PITONSYS_DDR4
-`endif // ifndef F1_BOARD
+`endif // ifndef PITONSYS_AXI4_MEM
 `endif // endif PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
@@ -126,9 +126,7 @@ module chipset_impl(
 `ifdef PITON_FPGA_MC_DDR3
     ,
     output                                      init_calib_complete
-`ifndef F1_BOARD
-    // Generalized interface for any FPGA board we support.
-    // Not all signals will be used for all FPGA boards (see constraints)
+`ifndef PITONSYS_AXI4_MEM
 `ifdef PITONSYS_DDR4
     ,
     output                                      ddr_act_n,
@@ -161,7 +159,7 @@ module chipset_impl(
     output [`DDR3_DM_WIDTH-1:0]                 ddr_dm,
 `endif // PITONSYS_DDR4
     output [`DDR3_ODT_WIDTH-1:0]                ddr_odt
-`else // ifndef F1_BOARD
+`else // PITONSYS_AXI4_MEM
     // AXI Write Address Channel Signals
     ,
     input                                        mc_clk,
@@ -220,7 +218,7 @@ module chipset_impl(
     output wire                                   m_axi_bready, 
 
     input  wire                                   ddr_ready
-`endif // ifndef F1_BOARD
+`endif // PITONSYS_AXI4_MEM
 `endif // ifdef PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
@@ -291,6 +289,11 @@ module chipset_impl(
 ,   output [`PITON_NUM_TILES*2-1:0]             irq_o           // level sensitive IR lines, mip & sip (async)
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
+
+`ifdef P3_RTL_DEBUG
+,   output wire [63:0]                          p3_chipset_debug_bus
+,   output wire [15:0]                          p3_chipset_debug_seen
+`endif
 );
 
 ///////////////////////
@@ -329,6 +332,16 @@ wire                                            chip_filter_noc3_ready;
 
 wire                                            test_good_end;
 wire                                            test_bad_end;
+
+`ifdef P3_RTL_DEBUG
+wire [63:0]                                     p3_uart_debug_bus;
+wire [15:0]                                     p3_uart_debug_seen;
+reg [15:0]                                      p3_chipset_debug_seen_r;
+reg [15:0]                                      p3_last_intf_chipset_data_noc2_r;
+reg [15:0]                                      p3_last_bootrom_req_data_r;
+reg [15:0]                                      p3_last_bootrom_resp_data_r;
+reg [15:0]                                      p3_build41_chipset_flags_seen_r;
+`endif
 
 <%
 for i in range(len(devices)):
@@ -704,7 +717,7 @@ credit_to_valrdy noc3_xbar_to_%s(
 // Memory controller.  Either uses "fake" simulated
 // memory controller or FPGA memory controllers
 `ifdef PITON_FPGA_MC_DDR3
-    `ifdef F1_BOARD
+    `ifdef PITONSYS_AXI4_MEM
         f1_mc_top mc_top(
             .sys_clk(chipset_clk),
             .sys_rst_n(chipset_rst_n),
@@ -827,7 +840,7 @@ credit_to_valrdy noc3_xbar_to_%s(
         `endif // XUPP3R_BOARD
             .ddr_odt(ddr_odt)
         );
-    `endif // F1_BOARD
+    `endif // PITONSYS_AXI4_MEM
 
 `else
 
@@ -980,11 +993,16 @@ uart_top        uart_top (
     .xbar_uart_noc2_ready       ( filter_uart_noc2_ready                ),
 
     // input from noc3
-    .xbar_uart_noc3_valid       ( filter_uart_noc3_valid                ),
-    .xbar_uart_noc3_data        ( filter_uart_noc3_data                 ),
-    .uart_xbar_noc3_ready       ( uart_filter_noc3_ready                )
-);''' % (devices[i]["portnum"]))
-%>
+	    .xbar_uart_noc3_valid       ( filter_uart_noc3_valid                ),
+	    .xbar_uart_noc3_data        ( filter_uart_noc3_data                 ),
+	    .uart_xbar_noc3_ready       ( uart_filter_noc3_ready                )
+	`ifdef P3_RTL_DEBUG
+	    ,
+	    .p3_uart_debug_bus          ( p3_uart_debug_bus                     ),
+	    .p3_uart_debug_seen         ( p3_uart_debug_seen                    )
+	`endif
+	);''' % (devices[i]["portnum"]))
+	%>
 `else // ifndef PITONSYS_UART
     assign uart_interrupt = 1'b0;
     assign test_start = 1'b1;
@@ -1252,5 +1270,102 @@ print(str)
     assign ariane_plic_buf_noc3_valid    = 1'b0;
 
 `endif // ifdef PITON_RV64_PLATFORM
+
+`ifdef P3_RTL_DEBUG
+wire [15:0] p3_build41_chipset_flags = {chipset_rst_n,
+                                         intf_chipset_val_noc2,
+                                         intf_chipset_rdy_noc2,
+                                         chip_filter_noc2_valid,
+                                         filter_chip_noc2_ready,
+                                         buf_ariane_bootrom_noc2_valid,
+                                         ariane_bootrom_buf_noc2_ready,
+                                         ariane_bootrom_buf_noc3_valid,
+                                         buf_ariane_bootrom_noc3_ready,
+                                         buf_uart_noc2_valid,
+                                         uart_buf_noc2_ready,
+                                         (m_axi_arvalid | m_axi_awvalid),
+                                         invalid_access_o,
+                                         cpu_mem_traffic,
+                                         ariane_boot_sel,
+                                         (p3_uart_debug_seen[0] | p3_uart_debug_seen[3])};
+
+always @(posedge chipset_clk or negedge chipset_rst_n)
+begin
+    if (~chipset_rst_n)
+    begin
+        p3_chipset_debug_seen_r <= 16'd0;
+        p3_last_intf_chipset_data_noc2_r <= 16'd0;
+        p3_last_bootrom_req_data_r <= 16'd0;
+        p3_last_bootrom_resp_data_r <= 16'd0;
+        p3_build41_chipset_flags_seen_r <= 16'd0;
+    end
+    else
+    begin
+        p3_chipset_debug_seen_r <= p3_chipset_debug_seen_r |
+                                   {invalid_access_o,
+                                    (m_axi_arvalid | m_axi_awvalid),
+                                    buf_mem_noc2_valid,
+                                    p3_uart_debug_seen[3],
+                                    p3_uart_debug_seen[0],
+                                    uart_buf_noc2_ready,
+                                    buf_uart_noc2_valid,
+                                    buf_ariane_bootrom_noc3_ready,
+                                    ariane_bootrom_buf_noc3_valid,
+                                    ariane_bootrom_buf_noc2_ready,
+                                    buf_ariane_bootrom_noc2_valid,
+                                    filter_chip_noc2_ready,
+                                    chip_filter_noc2_valid,
+                                    intf_chipset_rdy_noc2,
+                                    intf_chipset_val_noc2,
+                                    chipset_rst_n};
+        p3_build41_chipset_flags_seen_r <= p3_build41_chipset_flags_seen_r |
+                                           p3_build41_chipset_flags;
+        if (intf_chipset_val_noc2 & intf_chipset_rdy_noc2)
+        begin
+            p3_last_intf_chipset_data_noc2_r <= intf_chipset_data_noc2[15:0];
+        end
+        if (buf_ariane_bootrom_noc2_valid & ariane_bootrom_buf_noc2_ready)
+        begin
+            p3_last_bootrom_req_data_r <= buf_ariane_bootrom_noc2_data[15:0];
+        end
+        if (ariane_bootrom_buf_noc3_valid & buf_ariane_bootrom_noc3_ready)
+        begin
+            p3_last_bootrom_resp_data_r <= ariane_bootrom_buf_noc3_data[15:0];
+        end
+    end
+end
+
+`ifdef P3_BD_UART_DEBUG_ILA
+assign p3_chipset_debug_seen = p3_uart_debug_seen;
+assign p3_chipset_debug_bus = p3_uart_debug_bus;
+`elsif P3_BD_BUILD41_DEBUG_ILA
+assign p3_chipset_debug_seen = p3_chipset_debug_seen_r;
+assign p3_chipset_debug_bus = {p3_last_intf_chipset_data_noc2_r,
+                               p3_last_bootrom_req_data_r,
+                               p3_last_bootrom_resp_data_r,
+                               p3_build41_chipset_flags_seen_r};
+`else
+assign p3_chipset_debug_seen = p3_chipset_debug_seen_r;
+assign p3_chipset_debug_bus = {intf_chipset_data_noc2[15:0],
+                               buf_ariane_bootrom_noc2_data[15:0],
+                               p3_uart_debug_bus[15:0],
+                               m_axi_arvalid,
+                               m_axi_awvalid,
+                               m_axi_wvalid,
+                               m_axi_rvalid,
+                               m_axi_bvalid,
+                               buf_mem_noc2_valid,
+                               mem_buf_noc2_ready,
+                               mem_buf_noc3_valid,
+                               buf_mem_noc3_ready,
+                               ariane_boot_sel,
+                               uart_boot_en,
+                               cpu_mem_traffic,
+                               invalid_access_o,
+                               buf_ariane_bootrom_noc2_valid,
+                               ariane_bootrom_buf_noc3_valid,
+                               buf_uart_noc2_valid};
+`endif
+`endif
 
 endmodule

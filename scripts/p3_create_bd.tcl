@@ -15,8 +15,20 @@
 # Verilog source files must be added to the project separately.
 
 set script_dir [file dirname [info script]]
-set proj_dir [file normalize "${script_dir}/../huaprop3_openpiton"]
-set proj_name "huaprop3_openpiton"
+if {![info exists P3_PROJECT_NAME]} {
+    set P3_PROJECT_NAME "huaprop3_openpiton"
+}
+if {![info exists P3_ENABLE_SIFIVE_UART]} {
+    set P3_ENABLE_SIFIVE_UART 0
+}
+if {![info exists P3_ENABLE_SIFIVE_DEBUG_ILA]} {
+    set P3_ENABLE_SIFIVE_DEBUG_ILA 0
+}
+if {![info exists P3_ENABLE_BUILD41_DEBUG_ILA]} {
+    set P3_ENABLE_BUILD41_DEBUG_ILA 0
+}
+set proj_dir [file normalize "${script_dir}/../${P3_PROJECT_NAME}"]
+set proj_name "${P3_PROJECT_NAME}"
 set bd_name "openpiton_top"
 set part "xcvp1902-vsva6865-1MP-e-S"
 
@@ -28,6 +40,9 @@ puts "=========================================="
 puts " P3 OpenPiton Block Design Creator"
 puts " Project: ${proj_dir}"
 puts " Part: ${part}"
+puts " SiFive UART: ${P3_ENABLE_SIFIVE_UART}"
+puts " SiFive debug ILA: ${P3_ENABLE_SIFIVE_DEBUG_ILA}"
+puts " Build 41 Fetch debug ILA: ${P3_ENABLE_BUILD41_DEBUG_ILA}"
 puts "=========================================="
 
 # ============================================================================
@@ -129,18 +144,63 @@ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0
 # Keep this ILA in the block design so Versal debug hub/address-path generation
 # follows the same BD-owned route as the validated huaprop3onecore reference.
 create_bd_cell -type ip -vlnv xilinx.com:ip:axis_ila:1.3 axis_ila_0
-set_property -dict [list \
-    CONFIG.C_MON_TYPE {Net_Probes} \
-    CONFIG.C_NUM_OF_PROBES {2} \
-    CONFIG.C_PROBE0_WIDTH {32} \
-    CONFIG.C_PROBE1_WIDTH {32} \
-    CONFIG.C_DATA_DEPTH {2048} \
-    CONFIG.C_EN_STRG_QUAL {0} \
-    CONFIG.C_ADV_TRIGGER {false} \
-    CONFIG.C_INPUT_PIPE_STAGES {0} \
-    CONFIG.ALL_PROBE_SAME_MU {true} \
-    CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
-] [get_bd_cells axis_ila_0]
+if {$P3_ENABLE_SIFIVE_DEBUG_ILA} {
+    set_property -dict [list \
+        CONFIG.C_MON_TYPE {Net_Probes} \
+        CONFIG.C_NUM_OF_PROBES {4} \
+        CONFIG.C_PROBE0_WIDTH {1} \
+        CONFIG.C_PROBE1_WIDTH {16} \
+        CONFIG.C_PROBE2_WIDTH {16} \
+        CONFIG.C_PROBE3_WIDTH {16} \
+        CONFIG.C_DATA_DEPTH {1024} \
+        CONFIG.C_EN_STRG_QUAL {0} \
+        CONFIG.C_ADV_TRIGGER {false} \
+        CONFIG.C_INPUT_PIPE_STAGES {0} \
+        CONFIG.ALL_PROBE_SAME_MU {true} \
+        CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+    ] [get_bd_cells axis_ila_0]
+
+    create_bd_cell -type ip -vlnv xilinx.com:ip:axis_ila:1.3 axis_ila_1
+    set_property -dict [list \
+        CONFIG.C_MON_TYPE {Net_Probes} \
+        CONFIG.C_NUM_OF_PROBES {1} \
+        CONFIG.C_PROBE0_WIDTH {64} \
+        CONFIG.C_DATA_DEPTH {1024} \
+        CONFIG.C_EN_STRG_QUAL {0} \
+        CONFIG.C_ADV_TRIGGER {false} \
+        CONFIG.C_INPUT_PIPE_STAGES {0} \
+        CONFIG.ALL_PROBE_SAME_MU {true} \
+        CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+    ] [get_bd_cells axis_ila_1]
+
+    if {$P3_ENABLE_BUILD41_DEBUG_ILA} {
+        create_bd_cell -type ip -vlnv xilinx.com:ip:axis_ila:1.3 axis_ila_2
+        set_property -dict [list \
+            CONFIG.C_MON_TYPE {Net_Probes} \
+            CONFIG.C_NUM_OF_PROBES {1} \
+            CONFIG.C_PROBE0_WIDTH {64} \
+            CONFIG.C_DATA_DEPTH {1024} \
+            CONFIG.C_EN_STRG_QUAL {0} \
+            CONFIG.C_ADV_TRIGGER {false} \
+            CONFIG.C_INPUT_PIPE_STAGES {0} \
+            CONFIG.ALL_PROBE_SAME_MU {true} \
+            CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+        ] [get_bd_cells axis_ila_2]
+    }
+} else {
+    set_property -dict [list \
+        CONFIG.C_MON_TYPE {Net_Probes} \
+        CONFIG.C_NUM_OF_PROBES {2} \
+        CONFIG.C_PROBE0_WIDTH {32} \
+        CONFIG.C_PROBE1_WIDTH {32} \
+        CONFIG.C_DATA_DEPTH {2048} \
+        CONFIG.C_EN_STRG_QUAL {0} \
+        CONFIG.C_ADV_TRIGGER {false} \
+        CONFIG.C_INPUT_PIPE_STAGES {0} \
+        CONFIG.ALL_PROBE_SAME_MU {true} \
+        CONFIG.ALL_PROBE_SAME_MU_CNT {2} \
+    ] [get_bd_cells axis_ila_0]
+}
 
 # ============================================================================
 # 9. Add OpenPiton Wrapper as Module Reference
@@ -183,6 +243,12 @@ connect_bd_net [get_bd_pins clk_wizard_0/chipset_clk] [get_bd_pins axi_noc_0/acl
 
 # Clock Wizard chipset_clk -> BD-owned ILA clock
 connect_bd_net [get_bd_pins clk_wizard_0/chipset_clk] [get_bd_pins axis_ila_0/clk]
+if {$P3_ENABLE_SIFIVE_DEBUG_ILA} {
+    connect_bd_net [get_bd_pins clk_wizard_0/chipset_clk] [get_bd_pins axis_ila_1/clk]
+    if {$P3_ENABLE_BUILD41_DEBUG_ILA} {
+        connect_bd_net [get_bd_pins clk_wizard_0/chipset_clk] [get_bd_pins axis_ila_2/clk]
+    }
+}
 
 # Versal clk_wizard does not expose a 'locked' pin like 7-series clk_wiz.
 # Tie dcm_locked to VCC so proc_sys_reset doesn't wait for lock.
@@ -218,6 +284,18 @@ set DV_ROOT "${piton_root}/piton"
 set BOARD "huaprop3"
 set BOARD_DIR "${DV_ROOT}/design/xilinx/${BOARD}"
 
+# Make the P3 flow self-contained for OpenPiton+Ariane PyHP preprocessing.
+# Without these environment variables, stale .tmp.v files can mask .pyv edits
+# or PyHP can fall back to the wrong 64-tile/default device context.
+set ::env(DV_ROOT) $DV_ROOT
+set ::env(PROTOSYN_RUNTIME_DESIGN_PATH) "${DV_ROOT}/design/xilinx"
+set ::env(PROTOSYN_RUNTIME_BOARD) $BOARD
+set ::env(PITON_X_TILES) 1
+set ::env(PITON_Y_TILES) 1
+set ::env(PITON_NUM_TILES) 1
+set ::env(PITON_ARIANE) 1
+set ::env(PITON_RV64_PLATFORM) 1
+
 source "${DV_ROOT}/tools/src/proto/common/rtl_setup.tcl"
 
 # Board-specific macros
@@ -232,6 +310,40 @@ set all_rtl_files [list]
 foreach f $SYSTEM_RTL_IMPL_FILES { lappend all_rtl_files $f }
 foreach f $CHIP_RTL_IMPL_FILES   { lappend all_rtl_files $f }
 foreach f $CHIPSET_RTL_IMPL_FILES { lappend all_rtl_files $f }
+
+if {$P3_ENABLE_SIFIVE_UART} {
+    foreach f [list \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/AsyncResetRegVec_w1_i0.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/IntSyncCrossingSource_n1x1.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/ram_8x8.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/Queue8_UInt8.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/UARTRx.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/UARTTx.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/TLUART.sv" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/plusarg_reader.v" \
+        "${DV_ROOT}/design/chipset/io_ctrl/rtl/sifive_uart/sifive_uart_axi_lite.sv" \
+    ] {
+        lappend all_rtl_files $f
+    }
+}
+
+proc p3_delete_stale_pyhp_tmp {files} {
+    foreach f $files {
+        set pyv_file "${f}.pyv"
+        if {![file exists $pyv_file]} {
+            continue
+        }
+
+        set tmp_file "[file rootname $f].tmp[file extension $f]"
+        if {[file exists $tmp_file] && [file mtime $pyv_file] > [file mtime $tmp_file]} {
+            puts "Info: Removing stale PyHP output ${tmp_file}"
+            file delete -force $tmp_file
+        }
+    }
+}
+
+p3_delete_stale_pyhp_tmp $all_rtl_files
+p3_delete_stale_pyhp_tmp $GLOBAL_INCLUDE_FILES
 
 set all_rtl_files [pyhp_preprocess $all_rtl_files]
 set ALL_INCLUDE_FILES [pyhp_preprocess $GLOBAL_INCLUDE_FILES]
@@ -317,25 +429,30 @@ set extra_inc_dirs [list \
 set all_inc_dirs [concat [split $GLOBAL_INCLUDE_DIRS] $extra_inc_dirs]
 set_property include_dirs $all_inc_dirs [current_fileset]
 
-# Add the Xilinx AXI UART 16550 IP used by uart_top.v when PITON_UART16550 is
-# enabled. Create it natively for the P3/VP1902 project; importing the old
-# genesys2 XCI locks the IP because it was customized for Vivado 2023.2/Artix-7.
-puts "Creating UART 16550 IP for P3"
-create_ip -name axi_uart16550 -vendor xilinx.com -library ip -version 2.0 -module_name uart_16550
-set uart16550_ip [get_ips uart_16550]
-set_property -dict [list \
-    CONFIG.C_S_AXI_ACLK_FREQ_HZ {30000000} \
-    CONFIG.C_S_AXI_ACLK_FREQ_HZ_d {30.000} \
-    CONFIG.C_IS_A_16550 {16550} \
-    CONFIG.C_USE_MODEM_PORTS {1} \
-    CONFIG.C_USE_USER_PORTS {1} \
-    CONFIG.C_HAS_EXTERNAL_XIN {0} \
-    CONFIG.C_HAS_EXTERNAL_RCLK {0} \
-    CONFIG.C_EXTERNAL_XIN_CLK_HZ {25000000} \
-] $uart16550_ip
-generate_target all $uart16550_ip
-export_ip_user_files -of_objects $uart16550_ip -no_script -sync -force -quiet
-puts "Added UART 16550 IP: ${uart16550_ip}"
+if {!$P3_ENABLE_SIFIVE_UART} {
+    # Add the Xilinx AXI UART 16550 IP used by uart_top.v when PITON_UART16550
+    # is enabled. Create it natively for the P3/VP1902 project; importing the
+    # old genesys2 XCI locks the IP because it was customized for Vivado
+    # 2023.2/Artix-7.
+    puts "Creating UART 16550 IP for P3"
+    create_ip -name axi_uart16550 -vendor xilinx.com -library ip -version 2.0 -module_name uart_16550
+    set uart16550_ip [get_ips uart_16550]
+    set_property -dict [list \
+        CONFIG.C_S_AXI_ACLK_FREQ_HZ {30000000} \
+        CONFIG.C_S_AXI_ACLK_FREQ_HZ_d {30.000} \
+        CONFIG.C_IS_A_16550 {16550} \
+        CONFIG.C_USE_MODEM_PORTS {1} \
+        CONFIG.C_USE_USER_PORTS {1} \
+        CONFIG.C_HAS_EXTERNAL_XIN {0} \
+        CONFIG.C_HAS_EXTERNAL_RCLK {0} \
+        CONFIG.C_EXTERNAL_XIN_CLK_HZ {25000000} \
+    ] $uart16550_ip
+    generate_target all $uart16550_ip
+    export_ip_user_files -of_objects $uart16550_ip -no_script -sync -force -quiet
+    puts "Added UART 16550 IP: ${uart16550_ip}"
+} else {
+    puts "Skipping UART 16550 IP creation; P3_SIFIVE_UART uses RTL TLUART."
+}
 
 # Set Verilog defines
 # P3 uses PITON_FULL_SYSTEM (enables PITONSYS_IOCTRL, PITONSYS_UART, PITONSYS_SPI)
@@ -343,8 +460,19 @@ puts "Added UART 16550 IP: ${uart16550_ip}"
 #   - undefs PITON_CHIPSET_CLKS_GEN (clocks from external BD, not internal MMCM)
 #   - defines PITONSYS_AXI4_MEM (AXI4 memory interface, not DDR pin interface)
 # PITON_FPGA_MC_DDR3 is still needed to enable the noc_axi4_bridge path.
-set DESIGN_DEFAULT_VERILOG_MACROS "PITON_FULL_SYSTEM PITON_FPGA_NO_DMBR MERGE_L1_DCACHE FPGA_SYN_1THREAD FPGA_FORCE_SRAM_ICACHE_TAG FPGA_FORCE_SRAM_LSU_ICACHE FPGA_FORCE_SRAM_DCACHE_TAG FPGA_FORCE_SRAM_LSU_DCACHE FPGA_FORCE_SRAM_RF16X160 FPGA_FORCE_SRAM_RF32X80 CONFIG_DISABLE_BIST_CLEAR"
-set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE PITONSYS_MEM_ZEROER PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT PITON_UART16550 PITONSYS_AXI4_MEM"
+set DESIGN_DEFAULT_VERILOG_MACROS "PITON_FULL_SYSTEM PITON_FPGA_NO_DMBR MERGE_L1_DCACHE FPGA_SYN_1THREAD FPGA_FORCE_SRAM_ICACHE_TAG FPGA_FORCE_SRAM_LSU_ICACHE FPGA_FORCE_SRAM_DCACHE_TAG FPGA_FORCE_SRAM_LSU_DCACHE FPGA_FORCE_SRAM_RF16X160 FPGA_FORCE_SRAM_RF32X80 CONFIG_DISABLE_BIST_CLEAR PITON_ARIANE PITON_RV64_PLATFORM PITON_RV64_DEBUGUNIT PITON_RV64_CLINT PITON_RV64_PLIC WT_DCACHE"
+if {$P3_ENABLE_SIFIVE_UART} {
+    set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE PITONSYS_MEM_ZEROER PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT P3_SIFIVE_UART PITONSYS_AXI4_MEM"
+} else {
+    set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE PITONSYS_MEM_ZEROER PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT PITON_UART16550 PITONSYS_AXI4_MEM"
+}
+if {$P3_ENABLE_SIFIVE_DEBUG_ILA} {
+    if {$P3_ENABLE_BUILD41_DEBUG_ILA} {
+        append PROTOSYN_VERILOG_MACROS " P3_RTL_DEBUG P3_BD_BUILD41_DEBUG_ILA P3_SIFIVE_UART_DEBUG_ILA"
+    } else {
+        append PROTOSYN_VERILOG_MACROS " P3_RTL_DEBUG P3_BD_UART_DEBUG_ILA P3_BD_SIFIVE_DEBUG_ILA P3_SIFIVE_UART_DEBUG_ILA"
+    }
+}
 set all_macros "${GLOBAL_DEFAULT_VERILOG_MACROS} ${DESIGN_DEFAULT_VERILOG_MACROS} ${BOARD_DEFAULT_VERILOG_MACROS} ${PROTOSYN_VERILOG_MACROS}"
 set defines_list [list]
 foreach m $all_macros {
@@ -373,8 +501,32 @@ connect_bd_net [get_bd_pins proc_sys_reset_0/peripheral_aresetn] [get_bd_ports p
 # Feed top-level minimal debug signals into the BD-owned ILA.
 create_bd_port -dir I -from 31 -to 0 p3_dbg_heartbeat_i
 create_bd_port -dir I -from 31 -to 0 p3_dbg_status_i
-connect_bd_net [get_bd_ports p3_dbg_heartbeat_i] [get_bd_pins axis_ila_0/probe0]
-connect_bd_net [get_bd_ports p3_dbg_status_i]    [get_bd_pins axis_ila_0/probe1]
+if {$P3_ENABLE_SIFIVE_DEBUG_ILA} {
+    create_bd_port -dir I -from 0  -to 0  p3_dbg_heartbeat_bit_i
+    create_bd_port -dir I -from 15 -to 0  p3_dbg_top_status16_i
+    create_bd_port -dir I -from 15 -to 0  p3_dbg_uart_seen16_i
+    create_bd_port -dir I -from 15 -to 0  p3_dbg_chip_seen16_i
+    if {$P3_ENABLE_BUILD41_DEBUG_ILA} {
+        create_bd_port -dir I -from 63 -to 0  p3_dbg_b41_core_bus64_i
+        create_bd_port -dir I -from 63 -to 0  p3_dbg_b41_chipset_bus64_i
+    } else {
+        create_bd_port -dir I -from 63 -to 0  p3_dbg_uart_bus64_i
+    }
+
+    connect_bd_net [get_bd_ports p3_dbg_heartbeat_bit_i] [get_bd_pins axis_ila_0/probe0]
+    connect_bd_net [get_bd_ports p3_dbg_top_status16_i]  [get_bd_pins axis_ila_0/probe1]
+    connect_bd_net [get_bd_ports p3_dbg_uart_seen16_i]   [get_bd_pins axis_ila_0/probe2]
+    connect_bd_net [get_bd_ports p3_dbg_chip_seen16_i]   [get_bd_pins axis_ila_0/probe3]
+    if {$P3_ENABLE_BUILD41_DEBUG_ILA} {
+        connect_bd_net [get_bd_ports p3_dbg_b41_core_bus64_i]    [get_bd_pins axis_ila_1/probe0]
+        connect_bd_net [get_bd_ports p3_dbg_b41_chipset_bus64_i] [get_bd_pins axis_ila_2/probe0]
+    } else {
+        connect_bd_net [get_bd_ports p3_dbg_uart_bus64_i]    [get_bd_pins axis_ila_1/probe0]
+    }
+} else {
+    connect_bd_net [get_bd_ports p3_dbg_heartbeat_i] [get_bd_pins axis_ila_0/probe0]
+    connect_bd_net [get_bd_ports p3_dbg_status_i]    [get_bd_pins axis_ila_0/probe1]
+}
 
 # Create AXI4 Slave port on BD for OpenPiton to connect to
 # This connects to AXI NoC S00_AXI
