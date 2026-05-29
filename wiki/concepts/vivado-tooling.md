@@ -398,6 +398,8 @@ vivado -mode batch -source scripts/p3_build39_sifive_uart.tcl -tclargs -jobs 1
 
 For software payload validation, rebuild BBL with `scripts/p3_rebuild_sifive_bbl.sh` after the DTS and riscv-pk SiFive UART changes are in place. The first hardware success criterion is still bootrom text on `/dev/ttyUSB0` at 115200; BBL/Linux console output is the second gate.
 
+Build 39 completed on 2026-05-29 with exit code 0. It published `huaprop3_sifive_uart/debug_build/p3_top_build39_sifive_uart.pdi` and `p3_top_build39_sifive_uart.ltx`. Final route status was clean with 0 failed, unrouted, partially routed, or overlapping nets. Post-route timing met all user constraints with `WNS` 9.084 ns, `TNS` 0, `WHS` 0.019 ns, `THS` 0, `WPWS` 0.063 ns, and `TPWS` 0. The next step is to program the PDI and capture `/dev/ttyUSB0` at 115200 with serial capture started before programming.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

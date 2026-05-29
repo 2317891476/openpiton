@@ -5,6 +5,7 @@ Strategies and issues for meeting timing constraints as core count increases.
 ## Current State
 
 - AX7203 (1-core): 50 MHz core clock, 30 MHz chipset clock. Timing closes with margin.
+- P3 / VP1902 Build 39 (1 OpenPiton/Ariane tile with RTL SiFive TLUART and one BD-owned ILA): routed on 2026-05-29 with clean route status and all user constraints met. Post-route timing reported `WNS` 9.084 ns, `TNS` 0, `WHS` 0.019 ns, `THS` 0, `WPWS` 0.063 ns, and `TPWS` 0.
 - P3 / VP1902 Build 37 (1 OpenPiton/Ariane tile with two BD-owned live-narrow UART ILAs): routed on 2026-05-29 with clean route status and all user constraints met. Post-route timing reported `WNS` 8.964 ns, `TNS` 0, `WHS` 0.020 ns, and `THS` 0.
 - P3 / VP1902 Build 36 (1 OpenPiton/Ariane tile with two BD-owned narrow UART last-write ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 9.015 ns, `TNS` 0, `WHS` 0.022 ns, and `THS` 0.
 - P3 / VP1902 Build 35 (1 OpenPiton/Ariane tile with two BD-owned UART last-write ILAs): routed on 2026-05-28 with clean route status and all user constraints met. Post-route timing reported `WNS` 8.871 ns, `TNS` 0, `WHS` 0.014 ns, and `THS` 0.
@@ -37,3 +38,4 @@ Strategies and issues for meeting timing constraints as core count increases.
 - Build 36 still timed out during hardware AxisILA access despite clean timing and routing. Timing closure alone is therefore insufficient to validate the Versal debug runtime path; each new ILA payload must be checked on hardware against a known-good image such as Build 34.
 - Build 37 confirmed that returning from registered last-write capture to a live-narrow UART payload still closes route with large timing margin. Its first failure occurred after route during Versal PLM/BSP PDI generation, so timing data remains valid even though PDI recovery is required before hardware validation.
 - Build 37 also passed hardware ILA capture after PDI recovery, proving that a clean route plus Build 34-style live payload preserves runtime debug access. Build 35/36 remain design-specific runtime failures tied to their registered last-write instrumentation, not generic timing or debug hub closure failures.
+- Build 39 confirmed that replacing the P3 UART peripheral with the RTL SiFive/Chipyard `TLUART` and a narrow AXI4-Lite to TileLink-UL bridge does not create timing pressure in the single-core image. It routes with a much smaller debug footprint than Builds 34-37 because it uses one BD-owned ILA and removes the `axi_uart16550` IP/debug payload.
