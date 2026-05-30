@@ -148,6 +148,12 @@ module p3_top (
     wire [31:0]  p3_top_status;
     wire [63:0]  dbg_m_axi_araddr;
     wire [63:0]  dbg_m_axi_awaddr;
+`elsif P3_BD_DDR_DEBUG_ILA
+    wire [127:0] p3_debug_bus;
+    wire [31:0]  p3_debug_seen;
+    wire [31:0]  p3_top_status;
+    wire [63:0]  dbg_m_axi_araddr;
+    wire [63:0]  dbg_m_axi_awaddr;
 `elsif P3_BD_BUILD41_DEBUG_ILA
     wire [127:0] p3_debug_bus;
     wire [31:0]  p3_debug_seen;
@@ -210,6 +216,80 @@ module p3_top (
     assign p3_dbg_top_status16  = p3_top_status[15:0];
     assign p3_dbg_uart_seen16   = p3_debug_seen[31:16];
     assign p3_dbg_uart_bus64    = p3_debug_bus[127:64];
+`endif
+`ifdef P3_BD_DDR_DEBUG_ILA
+    (* keep = "true" *) wire        p3_dbg_heartbeat_bit;
+    (* keep = "true" *) wire [15:0] p3_dbg_top_status16;
+    (* keep = "true" *) wire [15:0] p3_dbg_ddr_seen16;
+    (* keep = "true" *) wire [63:0] p3_dbg_ddr_bus64;
+
+    reg [15:0] p3_ddr_seen16_r;
+    reg [29:0] p3_ddr_last_addr30_r;
+    reg [7:0]  p3_ddr_last_wdata8_r;
+    reg [7:0]  p3_ddr_last_rdata8_r;
+    reg [1:0]  p3_ddr_last_bresp_r;
+    reg [1:0]  p3_ddr_last_rresp_r;
+
+    wire p3_ddr_aw_fire = m_axi_awvalid & m_axi_awready;
+    wire p3_ddr_w_fire  = m_axi_wvalid  & m_axi_wready;
+    wire p3_ddr_b_fire  = m_axi_bvalid  & m_axi_bready;
+    wire p3_ddr_ar_fire = m_axi_arvalid & m_axi_arready;
+    wire p3_ddr_r_fire  = m_axi_rvalid  & m_axi_rready;
+
+    always @(posedge chipset_clk or negedge peripheral_aresetn) begin
+        if (!peripheral_aresetn) begin
+            p3_ddr_seen16_r       <= 16'd0;
+            p3_ddr_last_addr30_r  <= 30'd0;
+            p3_ddr_last_wdata8_r  <= 8'd0;
+            p3_ddr_last_rdata8_r  <= 8'd0;
+            p3_ddr_last_bresp_r   <= 2'd0;
+            p3_ddr_last_rresp_r   <= 2'd0;
+        end else begin
+            p3_ddr_seen16_r <= p3_ddr_seen16_r |
+                               {m_axi_awready,
+                                (p3_ddr_ar_fire & (m_axi_araddr[31:24] == 8'h84)),
+                                (p3_ddr_aw_fire & (m_axi_awaddr[31:24] == 8'h84)),
+                                (p3_ddr_r_fire & (m_axi_rresp != 2'b00)),
+                                p3_ddr_r_fire,
+                                m_axi_rvalid,
+                                p3_ddr_ar_fire,
+                                m_axi_arvalid,
+                                (p3_ddr_b_fire & (m_axi_bresp != 2'b00)),
+                                p3_ddr_b_fire,
+                                m_axi_bvalid,
+                                p3_ddr_w_fire,
+                                m_axi_wvalid,
+                                p3_ddr_aw_fire,
+                                m_axi_awvalid,
+                                peripheral_aresetn};
+
+            if (p3_ddr_aw_fire) begin
+                p3_ddr_last_addr30_r <= m_axi_awaddr[31:2];
+            end else if (p3_ddr_ar_fire) begin
+                p3_ddr_last_addr30_r <= m_axi_araddr[31:2];
+            end
+            if (p3_ddr_w_fire) begin
+                p3_ddr_last_wdata8_r <= m_axi_wdata[7:0];
+            end
+            if (p3_ddr_r_fire) begin
+                p3_ddr_last_rdata8_r <= m_axi_rdata[7:0];
+                p3_ddr_last_rresp_r  <= m_axi_rresp;
+            end
+            if (p3_ddr_b_fire) begin
+                p3_ddr_last_bresp_r <= m_axi_bresp;
+            end
+        end
+    end
+
+    assign p3_dbg_heartbeat_bit = p3_min_dbg_heartbeat[0];
+    assign p3_dbg_top_status16  = p3_top_status[15:0];
+    assign p3_dbg_ddr_seen16    = p3_ddr_seen16_r;
+    assign p3_dbg_ddr_bus64     = {p3_ddr_last_addr30_r,
+                                   p3_ddr_last_wdata8_r,
+                                   p3_ddr_last_rdata8_r,
+                                   p3_ddr_last_bresp_r,
+                                   p3_ddr_last_rresp_r,
+                                   p3_ddr_seen16_r[13:0]};
 `endif
 `ifdef P3_BD_SIFIVE_DEBUG_ILA
     (* keep = "true" *) wire [15:0] p3_dbg_chip_seen16;
@@ -290,6 +370,12 @@ module p3_top (
         .p3_dbg_top_status16_i  (p3_dbg_top_status16),
         .p3_dbg_uart_seen16_i   (p3_dbg_uart_seen16),
         .p3_dbg_uart_bus64_i    (p3_dbg_uart_bus64),
+`endif
+`ifdef P3_BD_DDR_DEBUG_ILA
+        .p3_dbg_heartbeat_bit_i (p3_dbg_heartbeat_bit),
+        .p3_dbg_top_status16_i  (p3_dbg_top_status16),
+        .p3_dbg_ddr_seen16_i    (p3_dbg_ddr_seen16),
+        .p3_dbg_ddr_bus64_i     (p3_dbg_ddr_bus64),
 `endif
 `ifdef P3_BD_SIFIVE_DEBUG_ILA
         .p3_dbg_chip_seen16_i   (p3_dbg_chip_seen16),

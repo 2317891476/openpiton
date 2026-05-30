@@ -83,16 +83,20 @@ def decode_uart(path):
         raise ValueError(f"expected one axis_ila_1 probe, found {len(values)}")
     name, raw_text = next(iter(values.items()))
     raw = parse_hex(raw_text)
+    status_byte = raw & 0xff
+    payload = raw
+    if (raw >> 56) != 0 and status_byte in (0xf9, 0xfb, 0xfd, 0xff):
+        payload = raw >> 8
 
-    s_wdata = (raw >> 48) & 0xff
-    s_wstrb = (raw >> 44) & 0xf
-    s_awaddr_low = (raw >> 36) & 0xff
-    core_wdata = (raw >> 28) & 0xff
-    core_wstrb = (raw >> 24) & 0xf
-    core_awaddr_low = (raw >> 16) & 0xff
-    s_bresp = (raw >> 14) & 0x3
-    core_bresp = (raw >> 12) & 0x3
-    flags = raw & 0xfff
+    s_wdata = (payload >> 48) & 0xff
+    s_wstrb = (payload >> 44) & 0xf
+    s_awaddr_low = (payload >> 36) & 0xff
+    core_wdata = (payload >> 28) & 0xff
+    core_wstrb = (payload >> 24) & 0xf
+    core_awaddr_low = (payload >> 16) & 0xff
+    s_bresp = (payload >> 14) & 0x3
+    core_bresp = (payload >> 12) & 0x3
+    flags = payload & 0xfff
     flag_names = [
         "uart_noc3_valid_seen",
         "uart_noc2_valid_seen",
@@ -111,6 +115,9 @@ def decode_uart(path):
     print(f"axis_ila_1 uart: {path}")
     print(f"  samples={samples} unique={len(uniques[name])}")
     print(f"  {name}=0x{raw:016x}")
+    if payload != raw:
+        print(f"  wrapper_status=0x{status_byte:02x}")
+        print(f"  decoded_payload=0x{payload:014x}")
     print(f"  s_axi_wdata=0x{s_wdata:02x} ({chr(s_wdata) if 32 <= s_wdata < 127 else '.'})")
     print(f"  s_axi_wstrb=0x{s_wstrb:x}")
     print(f"  s_axi_awaddr_low=0x{s_awaddr_low:02x}")

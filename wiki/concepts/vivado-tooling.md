@@ -416,6 +416,23 @@ python3 scripts/p3_decode_build43_ila_csv.py huaprop3_build43_asm_uart16550/debu
 
 The expected decision point is simple: visible serial output proves the complete Ariane bootrom to original AXI16550 physical TX path. If serial remains silent, decode the Build 43 live-narrow UART ILA to separate missing core-side writes, missing UART-side writes, bad response/strobe/address, and a configured UART IP that still never toggles `uart_tx`.
 
+Hardware validation closed this decision point. Build 43 programmed successfully and a later serial capture on `/dev/ttyUSB0` at 115200 observed continuous `A` output. The corrected decoder must account for the `chipset.v` status-byte wrapper on `p3_dbg_uart_bus64_i`: decode `p3_uart_debug_bus[55:0]` from `raw >> 8`, not from the unshifted 64-bit CSV value. With that correction, the captured payload showed UART/core writes of `0x41`, `WSTRB=1`, `AWADDR[7:0]=0x00`, and OKAY B responses, with `uart_tx_low_seen=1`.
+
+### P3 Build 44 AXI16550 No-Stack DDR Probe
+
+Build 44 keeps the proven original AXI16550 path from Build 43 and adds the smallest DDR access that can isolate stack/DDR failures. It compiles `startup_asm_uart16550_ddrprobe.S` through `BOOTROM_MODE=asm_uart16550_ddrprobe`. The bootrom initializes UART, prints `B44 DDR`, prints `W`, stores `0x1122334455667788` to `0x84000000`, executes `fence rw,rw`, prints `w`, prints `R`, loads the same address, executes another fence, then prints `rP` on compare success or `F`/`E` on compare/trap failure. The image still avoids stack setup, C calls, SD, BBL, and Linux.
+
+Build 44 adds `P3_BD_DDR_DEBUG_ILA` in `p3_top.v` and uses a BD-owned two-ILA shape: heartbeat/top-status/`p3_dbg_ddr_seen16_i` on `axis_ila_0`, and a compact 64-bit DDR AXI snapshot on `axis_ila_1`. The snapshot records the last AW/AR low address, last W/R low data byte, last B/R response, and sticky AW/W/B/AR/R fire flags. This makes the next decision explicit: if UART prints through `rP`, the DDR path handled the minimal access and the normal bootrom failure is higher-level software/cache/stack sequencing; if output stops after `W` or `R`, use the ILA to distinguish missing AXI ready/valid, missing B/R return, or an error response from the DDR/AXI NoC path.
+
+Build and validate with:
+
+```bash
+vivado -mode batch -source scripts/p3_build44_asm_uart16550_ddr.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build44_asm_uart16550_ddr/debug_build/p3_top_build44_asm_uart16550_ddr.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build44_asm_uart16550_ddr.tcl
+python3 scripts/p3_decode_build44_ila_csv.py huaprop3_build44_asm_uart16550_ddr/debug_build
+```
+
 ### P3 Build 39 SiFive UART Project Variant
 
 Build 39 creates a separate `huaprop3_sifive_uart` Vivado project instead of modifying the known Build 38 `huaprop3_openpiton` project in place. The project is generated with `scripts/p3_create_bd_sifive_uart.tcl`, which delegates to the normal P3 BD creator while setting `P3_ENABLE_SIFIVE_UART=1`.
