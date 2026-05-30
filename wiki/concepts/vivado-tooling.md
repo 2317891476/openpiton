@@ -60,6 +60,12 @@ Current build status:
 | 2026-05-25 | Direct `uart_tx/uart_rx` | Serial verified | `DIRECT` observed after programming `huaprop3_uart_direct/p3_uart_direct.runs/impl_1/p3_uart_direct_top.pdi`, WNS 7.242 ns, 0 routing errors |
 | 2026-05-25 | BD `uart_txd/uart_rxd` | Serial verified | `BDPATH` observed after programming `huaprop3_uart_bd/p3_uart_bd.runs/impl_1/p3_uart_bd_wrapper.pdi`, WNS 7.603 ns, 0 routing errors |
 
+### P3 Standalone AXI UART16550 Interaction Test
+
+The standalone UART16550 interaction test isolates the exact UART IP used by the OpenPiton P3 path. It excludes OpenPiton, Ariane, DDR, SD, NoC, bootrom, and LEDs, then instantiates the native Xilinx `axi_uart16550` with the same 30 MHz AXI clock and register mapping used in `uart_top.v`.
+
+The testbench hardware is a small AXI-Lite master FSM. It initializes the 16550 registers with the project settings (`DLL=16`, `DLM=0`, `LCR=0x03`, `FCR=0x07`, `MCR=0x00`), sends a ready banner, polls `LSR[0]` for received bytes, reads `RBR`, waits for `LSR[5]`, and writes the byte back to `THR`. A BD-owned ILA captures sticky status, the latest AXI transaction snapshot, `LSR`, and UART RX/TX levels so the serial echo result can be correlated with the IP-level AXI handshakes.
+
 ### P3 Build 24 RTL Debug Flow
 
 Build 24 adds `P3_RTL_DEBUG`, which exports deterministic RTL debug buses to the P3 top level before synthesis. This replaces the Build 23 strategy of probing internal post-synthesis net names such as `chip_rst_n`, which proved unreliable after optimization and hierarchy changes.
