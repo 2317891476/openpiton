@@ -462,6 +462,20 @@ Build 42-A completed on hardware on 2026-05-30. The image routed cleanly, produc
 
 Decoded ILAs showed heartbeat activity, `top_status=0xff03`, UART sticky seen `0xffff`, chip/tile sticky seen `0x7fff`, and raw UART live bus `0x000000f008000000`. In the current decoder this means the sampled live raw bus is idle (`uart_tx=1`, no TX-low or TX-transition, no live AXI/TL pending/valid) even though the sticky UART seen vector latched activity. Do not treat Build 42-A as proof of a DDR stack failure: the no-stack assembly image does not touch DDR and still cannot print. The next build should improve the raw UART bridge probes or fix the AXI4-Lite to TileLink address/data retention path before attempting the BRAM-stack Build 42-B branch as a DDR isolation test.
 
+### P3 Build 42-B BRAM Stack Control
+
+Build 42-B is a control experiment for the normal C bootrom with a P3-only on-chip stack window. Rebuild, build, program, capture, and decode with:
+
+```bash
+scripts/p3_rebuild_build42b_bram_stack.sh
+vivado -mode batch -source scripts/p3_build42b_bram_stack.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build42b_bram_stack/debug_build/p3_top_build42b_bram_stack.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build42b_bram_stack.tcl
+python3 scripts/p3_decode_build42b_ila_csv.py huaprop3_build42b_bram_stack/debug_build
+```
+
+The hardware path is intentionally not a BD address-map rewrite. `P3_BUILD42B_BRAM_STACK` inserts `p3_axi_stack_bram` between `openpiton_wrapper` and the BD AXI NoC. The interposer responds only to AXI `0x03ff0000..0x04000000`, which corresponds to CPU `0x83ff0000..0x84000000` after OpenPiton subtracts `0x80000000` from DDR addresses. CPU `0x80000000` remains routed to DDR so the existing SD/BBL load buffer is not hidden by the stack experiment.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
