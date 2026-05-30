@@ -5,7 +5,7 @@
 #   vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -jobs 1
 #   vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -skip_create -skip_prepare -reuse_synth -jobs 1
 #
-# By default this build uses C:/p3b43 as the Vivado work directory to avoid
+# By default this build uses D:/p3b43 as the Vivado work directory to avoid
 # Windows 260-byte path failures in Versal debug child-IP generation. Override
 # with P3_BUILD43_WORK_DIR if needed. Published PDI/LTX files still land under
 # the repository's huaprop3_build43_asm_uart16550/debug_build directory.
@@ -17,7 +17,7 @@ set output_project_dir [file normalize "${repo_dir}/${project_name}"]
 if {[info exists env(P3_BUILD43_WORK_DIR)] && $env(P3_BUILD43_WORK_DIR) ne ""} {
     set project_dir [file normalize $env(P3_BUILD43_WORK_DIR)]
 } else {
-    set project_dir [file normalize "C:/p3b43"]
+    set project_dir [file normalize "D:/p3b43"]
 }
 set output_dir "${output_project_dir}/debug_build"
 set create_tcl [file normalize "${script_dir}/p3_create_bd_build43_asm_uart16550.tcl"]
