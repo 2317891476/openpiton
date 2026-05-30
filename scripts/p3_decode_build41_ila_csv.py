@@ -100,10 +100,16 @@ def decode_core(path):
 def decode_chipset(path):
     values, uniques, samples = read_last_values(path)
     value = parse_hex(next(iter(values.values())))
-    intf_data = (value >> 48) & 0xffff
-    boot_req = (value >> 32) & 0xffff
-    boot_resp = (value >> 16) & 0xffff
-    flags = value & 0xffff
+    status = value & 0xff
+    inner = value >> 8
+
+    # chipset.v wraps the implementation bus as {impl_debug_bus[55:0], status[7:0]}.
+    # Build 41's impl_debug_bus is {intf_low16, boot_req16, boot_resp16, flags16},
+    # so the top-level ILA can only retain the low byte of intf_low16.
+    intf_data_low8 = (inner >> 48) & 0xff
+    boot_req = (inner >> 32) & 0xffff
+    boot_resp = (inner >> 16) & 0xffff
+    flags = inner & 0xffff
     flag_names = [
         "uart_activity_seen",
         "ariane_boot_sel",
@@ -126,7 +132,9 @@ def decode_chipset(path):
     print(f"axis_ila_2 chipset: {path}")
     print(f"  samples={samples} unique={len(next(iter(uniques.values())))}")
     print(f"  raw=0x{value:016x}")
-    print(f"  last_intf_chipset_data_noc2_low16=0x{intf_data:04x}")
+    print(f"  wrapper_status=0x{status:02x} bits={set_bits(status, 8)}")
+    print(f"  inner_payload_56=0x{inner:014x}")
+    print(f"  last_intf_chipset_data_noc2_low8=0x{intf_data_low8:02x}")
     print(f"  last_bootrom_req_data_low16=0x{boot_req:04x}")
     print(f"  last_bootrom_resp_data_low16=0x{boot_resp:04x}")
     print(f"  sticky_flags=0x{flags:04x} bits={set_bits(flags, 16)}")
