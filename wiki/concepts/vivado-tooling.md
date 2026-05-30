@@ -456,6 +456,8 @@ The Build 42-A Vivado flow defines `P3_BD_UART_RAW_DEBUG_ILA`, so `axis_ila_1` c
 
 When this flow is launched through the local Windows Vivado wrapper from WSL, Tcl may see project paths as `Z:/home/...`. Any subprocess call back into WSL bash must translate that path form back to `/home/...`; `scripts/p3_build42a_asm_uart.tcl` does this before invoking `p3_rebuild_build42a_asm_uart.sh`.
 
+The same subprocess also redirects stderr into stdout. Tcl `exec` treats any unredirected stderr output as an error even when the child exits successfully, which is too strict for the bootrom rebuild because WSL path notices and `dtc` warnings can appear on stderr during an otherwise valid image generation.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

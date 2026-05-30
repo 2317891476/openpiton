@@ -173,7 +173,7 @@ if {![file exists $bootrom_rebuild_sh]} {
 puts "Regenerating Build 42-A bootrom before Vivado project creation..."
 set bootrom_rebuild_exec_path [p3_to_wsl_path $bootrom_rebuild_sh]
 puts "Bootrom rebuild script path for bash: ${bootrom_rebuild_exec_path}"
-if {[catch {exec bash $bootrom_rebuild_exec_path} bootrom_rebuild_log]} {
+if {[catch {exec bash $bootrom_rebuild_exec_path 2>@1} bootrom_rebuild_log]} {
     puts $bootrom_rebuild_log
     puts "ERROR: Build 42-A bootrom regeneration failed"
     exit 1
