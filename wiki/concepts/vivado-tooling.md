@@ -454,6 +454,8 @@ The bootrom mode `BOOTROM_MODE=asm_uart` only compiles `startup_asm_uart.S`. The
 
 The Build 42-A Vivado flow defines `P3_BD_UART_RAW_DEBUG_ILA`, so `axis_ila_1` captures the raw SiFive UART debug payload instead of the normal chipset status-byte wrapper. Decode fields are last AXI address byte, last write byte, last read byte, write strobe, pending/valid flags, UART TX, TX-low sticky, TX-transition sticky, and interrupt.
 
+When this flow is launched through the local Windows Vivado wrapper from WSL, Tcl may see project paths as `Z:/home/...`. Any subprocess call back into WSL bash must translate that path form back to `/home/...`; `scripts/p3_build42a_asm_uart.tcl` does this before invoking `p3_rebuild_build42a_asm_uart.sh`.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

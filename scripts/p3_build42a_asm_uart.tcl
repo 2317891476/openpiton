@@ -106,6 +106,20 @@ proc p3_use_ariane_unread_vivado_shim {shim_src} {
     puts "Using Vivado unread implementation shim: $shim_src"
 }
 
+proc p3_to_wsl_path {path} {
+    set norm [string map {"\\" "/"} $path]
+    if {[regexp {^[A-Za-z]:/(home/.*)$} $norm -> rest]} {
+        return "/$rest"
+    }
+    if {[regexp {^//wsl\.localhost/[^/]+(/.*)$} $norm -> rest]} {
+        return $rest
+    }
+    if {[regexp {^//wsl\$/[^/]+(/.*)$} $norm -> rest]} {
+        return $rest
+    }
+    return $norm
+}
+
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {
     set pdi_src [p3_find_latest_file $run_dir "*.pdi"]
     set ltx_src [p3_find_latest_file $run_dir "*.ltx"]
@@ -157,7 +171,9 @@ if {![file exists $bootrom_rebuild_sh]} {
     exit 1
 }
 puts "Regenerating Build 42-A bootrom before Vivado project creation..."
-if {[catch {exec bash $bootrom_rebuild_sh} bootrom_rebuild_log]} {
+set bootrom_rebuild_exec_path [p3_to_wsl_path $bootrom_rebuild_sh]
+puts "Bootrom rebuild script path for bash: ${bootrom_rebuild_exec_path}"
+if {[catch {exec bash $bootrom_rebuild_exec_path} bootrom_rebuild_log]} {
     puts $bootrom_rebuild_log
     puts "ERROR: Build 42-A bootrom regeneration failed"
     exit 1
