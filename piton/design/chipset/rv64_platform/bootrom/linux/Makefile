@@ -18,6 +18,9 @@ INCLUDES = -I./ -I./src
 ifeq ($(BOOTROM_MODE),asm_uart)
 SRCS_C =
 SRCS_ASM = startup_asm_uart.S
+else ifeq ($(BOOTROM_MODE),asm_uart16550)
+SRCS_C =
+SRCS_ASM = startup_asm_uart16550.S
 else
 SRCS_C = src/main.c src/uart.c src/spi.c src/sd.c src/gpt.c
 SRCS_ASM = startup.S
@@ -63,7 +66,7 @@ rv64_platform.dts: FORCE
 	@echo "PYTHON >= $(MAIN_SV)"
 
 clean:
-	$(RM) $(OBJS_C) $(OBJS_S) $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
+	$(RM) $(OBJS_C) $(OBJS_S) startup_asm_uart.o startup_asm_uart16550.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
 
 all: $(MAIN) $(MAIN_BIN) $(MAIN_IMG) $(MAIN_SV)
 	@echo "zero stage bootloader has been compiled!"
