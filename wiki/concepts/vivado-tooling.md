@@ -66,6 +66,8 @@ The standalone UART16550 interaction test isolates the exact UART IP used by the
 
 The testbench hardware is a small AXI-Lite master FSM. It initializes the 16550 registers with the project settings (`DLL=16`, `DLM=0`, `LCR=0x03`, `FCR=0x07`, `MCR=0x00`), sends a ready banner, polls `LSR[0]` for received bytes, reads `RBR`, waits for `LSR[5]`, and writes the byte back to `THR`. A BD-owned ILA captures sticky status, the latest AXI transaction snapshot, `LSR`, and UART RX/TX levels so the serial echo result can be correlated with the IP-level AXI handshakes.
 
+Implementation note: keep this standalone project in a very short Windows-visible work directory. The default script path is `C:/p3u16550`, and it can be overridden with `P3_UART16550_WORK_DIR`. The first run used `%TEMP%/openpiton_p3_uart16550_ila_interact`; synthesis passed, but `impl_1/opt_design` failed when Vivado generated the Versal `axi_dbg_hub` and debug AXI NoC child project because the nested path exceeded Windows' 260-byte limit.
+
 ### P3 Build 24 RTL Debug Flow
 
 Build 24 adds `P3_RTL_DEBUG`, which exports deterministic RTL debug buses to the P3 top level before synthesis. This replaces the Build 23 strategy of probing internal post-synthesis net names such as `chip_rst_n`, which proved unreliable after optimization and hierarchy changes.
