@@ -1,5 +1,39 @@
 #include "uart.h"
 
+#ifdef PITON_SIFIVE_UART
+void write_reg_u32(uintptr_t addr, uint32_t value)
+{
+    volatile uint32_t *loc_addr = (volatile uint32_t *)addr;
+    *loc_addr = value;
+}
+
+uint32_t read_reg_u32(uintptr_t addr)
+{
+    return *(volatile uint32_t *)addr;
+}
+
+int is_transmit_full()
+{
+    return read_reg_u32(SIFIVE_UART_TXDATA) & 0x80000000;
+}
+
+void write_serial(char a)
+{
+    while (is_transmit_full()) {};
+
+    write_reg_u32(SIFIVE_UART_TXDATA, (uint8_t)a);
+}
+
+void init_uart(uint32_t freq, uint32_t baud)
+{
+    uint32_t div = (freq / baud) - 1;
+
+    write_reg_u32(SIFIVE_UART_DIV, div);
+    write_reg_u32(SIFIVE_UART_TXCTRL, 0x01);
+    write_reg_u32(SIFIVE_UART_RXCTRL, 0x01);
+    write_reg_u32(SIFIVE_UART_IE, 0x00);
+}
+#else
 void write_reg_u8(uintptr_t addr, uint8_t value)
 {
     volatile uint8_t *loc_addr = (volatile uint8_t *)addr;
@@ -34,6 +68,7 @@ void init_uart(uint32_t freq, uint32_t baud)
     write_reg_u8(UART_LINE_CONTROL, 0x03);     // 8 bits, no parity, one stop bit
     write_reg_u8(UART_MODEM_CONTROL, 0x00);    // Disable autoflow mode
 }
+#endif
 
 // returns number of characters printed
 int print_uart(const char *str)

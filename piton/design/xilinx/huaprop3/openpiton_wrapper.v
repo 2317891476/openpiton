@@ -89,6 +89,12 @@ module openpiton_wrapper (
 
     // LEDs
     output wire [3:0]  leds
+`ifdef P3_RTL_DEBUG
+    ,
+    output wire [127:0] p3_debug_bus,
+    output wire [31:0]  p3_debug_seen,
+    output wire [31:0]  p3_top_status
+`endif
 );
 
 system system_inst (
@@ -175,6 +181,12 @@ system system_inst (
 
     // LEDs
     .leds               (leds)
+`ifdef P3_RTL_DEBUG
+    ,
+    .p3_debug_bus       (p3_debug_bus),
+    .p3_debug_seen      (p3_debug_seen),
+    .p3_top_status      (p3_top_status)
+`endif
 );
 
 endmodule

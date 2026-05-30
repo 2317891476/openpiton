@@ -134,6 +134,10 @@ reg [LINE_CNTR_WIDTH-1:0]   char_cnt;
 wire          ar_sent;
 wire          tx_sent;
 wire          launch_writer;
+wire          state_wait_tx;
+wire          state_send_d;
+wire          rresp_tx_emp;
+wire          rresp_tx_no_emp;
 wire  [7:0]   curr_char;
 wire  [LINE_CNTR_WIDTH-1:0]   curr_line_len;
 
@@ -169,17 +173,30 @@ always @(posedge axi_clk) begin
 end
 
 // processing of RRESP
+`ifdef P3_SIFIVE_UART
+assign rresp_tx_emp     = m_axi_rvalid & ~m_axi_rdata[`SIFIVE_UART_FULL];
+assign rresp_tx_no_emp  = m_axi_rvalid &  m_axi_rdata[`SIFIVE_UART_FULL];
+`else
 assign rresp_tx_emp     = m_axi_rvalid & m_axi_rdata[`LSR_TEMT];
 assign rresp_tx_no_emp  = m_axi_rvalid & ~m_axi_rdata[`LSR_TEMT];
+`endif
 
 
 assign m_axi_arvalid    = writer_active & state_wait_tx;
+`ifdef P3_SIFIVE_UART
+assign m_axi_araddr     = `SIFIVE_UART_TXDATA;
+`else
 assign m_axi_araddr     = `UART_LSR;
+`endif
 
 assign m_axi_wvalid     = writer_active & state_send_d;
 assign m_axi_wdata      = curr_char;
 assign m_axi_awvalid    = writer_active & state_send_d;
+`ifdef P3_SIFIVE_UART
+assign m_axi_awaddr     = `SIFIVE_UART_TXDATA;
+`else
 assign m_axi_awaddr     = `UART_THR;
+`endif
 assign m_axi_wstrb      = 4'hf;
 
 always @(posedge axi_clk) begin
@@ -194,6 +211,22 @@ always @(posedge axi_clk) begin
           state <= WAIT_RRESP;
       WAIT_RRESP: 
         if (rresp_tx_emp) 
+          state <= SEND_DATA;
+        else if (rresp_tx_no_emp)
+          state <= WAIT_TX;
+      SEND_DATA:
+        if (tx_sent)
+          state <= WAIT_TX;
+      default:
+        state <= state;
+    endcase
+  `elsif P3_SIFIVE_UART
+    case (state)
+      WAIT_TX:
+        if (ar_sent)
+          state <= WAIT_RRESP;
+      WAIT_RRESP:
+        if (rresp_tx_emp)
           state <= SEND_DATA;
         else if (rresp_tx_no_emp)
           state <= WAIT_TX;

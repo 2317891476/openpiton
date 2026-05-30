@@ -438,6 +438,22 @@ Decode the chipset payload through the outer `chipset.v` wrapper: `{p3_chipset_i
 
 Serial validation still failed: two `/dev/ttyUSB0` captures at 115200, including a 480-second capture opened before reprogramming, produced no output. Treat this as evidence against reset-held, dead-clock, and missing-bootrom-fetch explanations. The next probe should expose the exact SiFive UART write/read address, write data, write strobe, and TX low/transition state again, now correlated with the proven bootrom fetch/response path.
 
+### P3 Build 42-A No-Stack ASM UART
+
+Build 42-A is a no-stack SiFive UART smoke image for the full OpenPiton/Ariane path. Rebuild the bootrom, build the PDI, program, capture serial, and decode ILAs with:
+
+```bash
+scripts/p3_rebuild_build42a_asm_uart.sh
+vivado -mode batch -source scripts/p3_build42a_asm_uart.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build42a_asm_uart/debug_build/p3_top_build42a_asm_uart.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build42a_asm_uart.tcl
+python3 scripts/p3_decode_build42a_ila_csv.py huaprop3_build42a_asm_uart/debug_build
+```
+
+The bootrom mode `BOOTROM_MODE=asm_uart` only compiles `startup_asm_uart.S`. The image does not set `sp`, does not call C, and does not touch DDR or the SMP barrier. It initializes the SiFive UART with `DIV=259`, enables TX/RX, polls `TXDATA[31]`, and repeatedly writes ASCII `A`.
+
+The Build 42-A Vivado flow defines `P3_BD_UART_RAW_DEBUG_ILA`, so `axis_ila_1` captures the raw SiFive UART debug payload instead of the normal chipset status-byte wrapper. Decode fields are last AXI address byte, last write byte, last read byte, write strobe, pending/valid flags, UART TX, TX-low sticky, TX-transition sticky, and interrupt.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

@@ -556,15 +556,17 @@ assign init_calib_complete = ddr_ready;
 assign mc_ui_clk_sync_rst = ~mc_rst_n;
 
 
+`ifdef HUAPROP3_ILA_DEBUG
 ila_0 noc_piton_bus (
-    .clk(sys_clk), // input wire clk
-    .probe0(mc_flit_in_val), // input wire [0:0]  probe0  
-    .probe1(mc_flit_in_data), // input wire [63:0]  probe1 
-    .probe2(mc_flit_in_rdy), // input wire [0:0]  probe2 
-    .probe3(mc_flit_out_val), // input wire [0:0]  probe3 
-    .probe4(mc_flit_out_data), // input wire [63:0]  probe4 
-    .probe5(mc_flit_out_rdy) // input wire [0:0]  probe5
+    .clk(sys_clk),
+    .probe0(mc_flit_in_val),
+    .probe1(mc_flit_in_data),
+    .probe2(mc_flit_in_rdy),
+    .probe3(mc_flit_out_val),
+    .probe4(mc_flit_out_data),
+    .probe5(mc_flit_out_rdy)
     );
+`endif
 
 
 endmodule 

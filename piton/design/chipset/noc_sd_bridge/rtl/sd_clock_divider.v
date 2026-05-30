@@ -75,12 +75,24 @@ module sd_clock_divider (
         end
     end
 
+`ifdef HUAPROP3_BOARD
+    // Versal: BUFGMUX with two fabric clocks triggers DRC BFGINP-1.
+    reg sd_clk_r;
+    always @(posedge CLK or posedge RST) begin
+        if (RST)
+            sd_clk_r <= 1'b0;
+        else
+            sd_clk_r <= (DIVIDER == 0) ? fast_clk : slow_clk;
+    end
+    assign SD_CLK = sd_clk_r;
+`else
     BUFGMUX sd_clk_bufgmux(
         .I0(slow_clk),
         .I1(fast_clk),
         .S(DIVIDER == 0),
         .O(SD_CLK)
         );
+`endif
 
 endmodule
 

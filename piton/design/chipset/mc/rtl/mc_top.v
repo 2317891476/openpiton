@@ -933,6 +933,7 @@ axi4_zeroer axi4_zeroer(
 `endif // PITONSYS_MEM_ZEROER
 
 `ifdef PITONSYS_DDR4
+`ifndef PITONSYS_AXI4_MEM
 
 ddr4_axi4 ddr_axi4 (
   .sys_rst                   ( ~sys_rst_n                ),
@@ -1022,8 +1023,9 @@ ddr4_axi4 ddr_axi4 (
   .c0_ddr4_s_axi_rdata(m_axi_rdata)                 // output wire [511 : 0] c0_ddr4_s_axi_rdata
 );
 
+`endif // ifndef PITONSYS_AXI4_MEM (ddr4_axi4)
 `else // PITONSYS_DDR4
-
+`ifndef PITONSYS_AXI4_MEM
 
 mig_7series_axi4 u_mig_7series_axi4 (
 
@@ -1106,7 +1108,15 @@ mig_7series_axi4 u_mig_7series_axi4 (
     .sys_rst                        (sys_rst_n) // input sys_rst
 );
 
+`endif // ifndef PITONSYS_AXI4_MEM (mig_7series)
 `endif // PITONSYS_DDR4
+
+`ifdef PITONSYS_AXI4_MEM
+// AXI4_MEM: DDR controller is external (in BD). No MIG IP needed.
+// Use sys_clk as ui_clk; assert init_calib_complete since DDR init is external.
+assign ui_clk = sys_clk;
+assign ui_clk_sync_rst = ~sys_rst_n;
+assign init_calib_complete = 1'b1;
 `endif // PITONSYS_AXI4_MEM
 
 `ifdef PITON_PROTO

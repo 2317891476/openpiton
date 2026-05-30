@@ -29,4 +29,14 @@
 `define UART_THR        32'h1000
 `define UART_RBR        32'h1000
 `define LSR_TEMT        6         // bit number
-`define LSR_DR          0         // bit number    
+`define LSR_DR          0         // bit number
+
+`define SIFIVE_UART_TXDATA  32'h0000
+`define SIFIVE_UART_RXDATA  32'h0004
+`define SIFIVE_UART_TXCTRL  32'h0008
+`define SIFIVE_UART_RXCTRL  32'h000c
+`define SIFIVE_UART_IE      32'h0010
+`define SIFIVE_UART_IP      32'h0014
+`define SIFIVE_UART_DIV     32'h0018
+`define SIFIVE_UART_FULL    31
+`define SIFIVE_UART_EMPTY   31

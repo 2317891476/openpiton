@@ -418,6 +418,12 @@ module system(
 `else
     output [7:0]                                leds
 `endif
+`ifdef P3_RTL_DEBUG
+    ,
+    output wire [127:0]                         p3_debug_bus,
+    output wire [31:0]                          p3_debug_seen,
+    output wire [31:0]                          p3_top_status
+`endif
 );
 
 ///////////////////////
@@ -441,7 +447,7 @@ wire                io_clk_loopback;
 reg                 sys_rst_n_rect;
 
 // Chip resets derived from sys_rst_n and passthru output reset
-reg                 chip_rst_n;
+(* mark_debug = "true" *) reg                 chip_rst_n;
 
 // JTAG and PLL resets derived from inputs and passthru output resets
 reg                 jtag_rst_n_full;
@@ -551,6 +557,29 @@ wire  [`PITON_NUM_TILES*2-1:0] irq;         // level sensitive IR lines, mip & s
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
 
+`ifdef P3_RTL_DEBUG
+wire [63:0]         p3_chip_debug_bus;
+wire [15:0]         p3_chip_debug_seen;
+wire [63:0]         p3_chipset_debug_bus;
+wire [15:0]         p3_chipset_debug_seen;
+wire                p3_debug_test_start;
+wire                p3_debug_uart_rst_out_n;
+reg [31:0]          p3_system_debug_seen_r;
+reg [15:0]          p3_debug_heartbeat;
+
+`ifdef PITONSYS_UART_BOOT
+assign p3_debug_test_start = test_start;
+`else
+assign p3_debug_test_start = 1'b1;
+`endif
+
+`ifdef PITONSYS_UART_RESET
+assign p3_debug_uart_rst_out_n = uart_rst_out_n;
+`else
+assign p3_debug_uart_rst_out_n = 1'b1;
+`endif
+`endif
+
 //////////////////////
 // Sequential Logic //
 //////////////////////
@@ -572,6 +601,43 @@ end
 assign rtc = rtc_div[6];
 
 `endif // ifdef PITON_RV64_CLINT
+
+`ifdef P3_RTL_DEBUG
+always @(posedge chipset_clk or negedge sys_rst_n_rect)
+begin
+    if (~sys_rst_n_rect)
+    begin
+        p3_system_debug_seen_r <= 32'd0;
+        p3_debug_heartbeat <= 16'd0;
+    end
+    else
+    begin
+        p3_system_debug_seen_r <= p3_system_debug_seen_r |
+                                  {p3_chipset_debug_seen, p3_chip_debug_seen};
+        p3_debug_heartbeat <= p3_debug_heartbeat + 16'd1;
+    end
+end
+
+assign p3_debug_bus = {p3_chipset_debug_bus, p3_chip_debug_bus};
+assign p3_debug_seen = p3_system_debug_seen_r;
+assign p3_top_status = {p3_debug_heartbeat,
+                        sys_rst_n,
+                        sys_rst_n_rect,
+                        chip_rst_n,
+                        chipset_rst_n,
+                        p3_debug_test_start,
+                        p3_debug_uart_rst_out_n,
+                        uart_tx,
+                        uart_rx,
+                        processor_offchip_noc2_valid,
+                        offchip_processor_noc3_valid,
+                        m_axi_awvalid,
+                        m_axi_arvalid,
+                        m_axi_rvalid,
+                        m_axi_bvalid,
+                        p3_chipset_debug_seen[5],
+                        p3_chipset_debug_seen[12]};
+`endif
 
 
 /////////////////////////
@@ -646,6 +712,13 @@ assign passthru_pll_rst_n = 1'b1;
     assign td_i    = 1'b0;
 `endif
 `ifdef A7203X_BOARD
+    wire tck_i, tms_i, trst_ni, td_i, td_o;
+    assign tck_i   = 1'b0;
+    assign tms_i   = 1'b0;
+    assign trst_ni = 1'b0;
+    assign td_i    = 1'b0;
+`endif
+`ifdef HUAPROP3_BOARD
     wire tck_i, tms_i, trst_ni, td_i, td_o;
     assign tck_i   = 1'b0;
     assign tms_i   = 1'b0;
@@ -859,6 +932,10 @@ chip chip(
     ,.irq_i                         ( irq                        )  // level sensitive IR lines, mip & sip (async)
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
+`ifdef P3_RTL_DEBUG
+    ,.p3_chip_debug_bus             ( p3_chip_debug_bus          )
+    ,.p3_chip_debug_seen            ( p3_chip_debug_seen         )
+`endif
 );
 
 
@@ -1281,6 +1358,10 @@ chipset chipset(
     ,.irq_o                         ( irq                        ) // level sensitive IR lines, mip & sip (async)
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
+`ifdef P3_RTL_DEBUG
+    ,.p3_chipset_debug_bus          ( p3_chipset_debug_bus       )
+    ,.p3_chipset_debug_seen         ( p3_chipset_debug_seen      )
+`endif
 
 );
 

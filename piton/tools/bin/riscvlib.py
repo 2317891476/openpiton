@@ -124,6 +124,7 @@ def _reg_fmt(addrBase, addrLen, addrCells, sizeCells):
 def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, timeStamp):
 
     assert nCpus >= 1
+    use_sifive_uart = os.environ.get('PITON_SIFIVE_UART', '0') == '1'
 
     # get UART base
     uartBase = 0xDEADBEEF
@@ -255,7 +256,20 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
         if devices[i]["name"] == "uart":
             addrBase = devices[i]["base"]
             addrLen  = devices[i]["length"]
-            tmpStr += '''
+            if use_sifive_uart:
+                tmpStr += '''
+        uart0: uart@%08x {
+            u-boot,dm-pre-reloc;
+            compatible = "sifive,uart0";
+            reg = <%s>;
+            clock-frequency = <%d>;
+            current-speed = <115200>;
+            interrupt-parent = <&PLIC0>;
+            interrupts = <%d>;
+        };
+            ''' % (addrBase, _reg_fmt(addrBase, addrLen, 2, 2), periphFreq, ioDeviceNr)
+            else:
+                tmpStr += '''
         uart0: uart@%08x {
             u-boot,dm-pre-reloc;
             compatible = "ns16550";

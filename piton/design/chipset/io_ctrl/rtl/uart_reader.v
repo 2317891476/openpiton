@@ -103,6 +103,7 @@ wire            rresp_rx_not_rdy;
 wire            r_sent;
 wire            state_rd_stop;
 wire            state_test_rxrd;
+wire            state_wait_rxrd_resp;
 wire            state_read_data;
 wire            state_wait_data;
 wire            gr_state_idle;
@@ -111,6 +112,7 @@ wire            gr_state_blk_num;
 wire            gr_state_blk;
 wire            gr_end;
 wire    [7:0]   rdata;
+wire            rdata_val;
 wire            end_detected;
 wire            storage_msg_ready;
 
@@ -142,17 +144,27 @@ assign m_axi_rready = 1'b1;
 
 assign launch = start & ~start_r;
 
+`ifdef P3_SIFIVE_UART
+assign rresp_rx_rdy     = m_axi_rvalid & ~m_axi_rdata[`SIFIVE_UART_EMPTY];
+assign rresp_rx_not_rdy = m_axi_rvalid &  m_axi_rdata[`SIFIVE_UART_EMPTY];
+`else
 assign rresp_rx_rdy     = m_axi_rvalid & m_axi_rdata[`LSR_DR];
 assign rresp_rx_not_rdy = m_axi_rvalid & ~m_axi_rdata[`LSR_DR];
+`endif
 
 assign r_sent        = m_axi_arvalid & m_axi_arready;
 
 assign state_rd_stop       = rd_state == IDLE;
 assign state_test_rxrd  = rd_state == TEST_RXRD;
+assign state_wait_rxrd_resp = rd_state == WAIT_RXRD_RESP;
 assign state_read_data  = rd_state == READ_DATA;
 assign state_wait_data  = rd_state == WAIT_DATA;
 
+`ifdef P3_SIFIVE_UART
+assign rdata_val        = m_axi_rvalid & state_wait_rxrd_resp & ~m_axi_rdata[`SIFIVE_UART_EMPTY];
+`else
 assign rdata_val        = m_axi_rvalid & state_wait_data;
+`endif
 assign rdata            = m_axi_rdata[7:0];
 
 assign gr_state_idle    = gr_state == IDLE;
@@ -229,6 +241,23 @@ always @(posedge axi_clk) begin
       default: begin
       end
     endcase
+  `elsif P3_SIFIVE_UART
+    case (rd_state)
+      RD_STOP: begin
+        if (launch)
+          rd_state <= TEST_RXRD;
+      end
+      TEST_RXRD: begin
+        if (r_sent)
+          rd_state <= WAIT_RXRD_RESP;
+      end
+      WAIT_RXRD_RESP: begin
+        if (rresp_rx_rdy || rresp_rx_not_rdy)
+          rd_state <= finish ? RD_STOP : TEST_RXRD;
+      end
+      default: begin
+      end
+    endcase
   `else   // PITON_UART16550
     case(rd_state)
       RD_STOP: begin
@@ -246,11 +275,16 @@ always @(posedge axi_clk) begin
   end
 end
 
-// Interface with UART16550
+// Interface with UART
+`ifdef P3_SIFIVE_UART
+assign m_axi_arvalid  = active & state_test_rxrd;
+assign m_axi_araddr   = `SIFIVE_UART_RXDATA;
+`else
 assign m_axi_arvalid  = (active & state_test_rxrd) |
                         (active & state_read_data) ;
 
 assign m_axi_araddr   = (active & state_test_rxrd) ? `UART_LSR : `UART_RBR;
+`endif
 
 // Group processing
 always @(posedge axi_clk) begin

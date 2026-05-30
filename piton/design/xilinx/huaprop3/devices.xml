@@ -1,0 +1,33 @@
+<!--
+HuaPro P3 (Versal VP1902) board device map for SPARC core.
+-->
+<devices>
+    <port>
+        <name>chip</name>
+        <noc2in/>
+    </port>
+    <port>
+        <name>mem</name>
+        <base>0x80000000</base>
+        <!-- 2 GB DDR4 -->
+        <length>0x80000000</length>
+    </port>
+    <port>
+        <name>iob</name>
+        <base>0x9f00000000</base>
+        <length>0x10</length>
+        <noc2in/>
+    </port>
+    <port>
+        <name>sd</name>
+        <base>0xf000000000</base>
+        <length>0xff0300000</length>
+    </port>
+    <port>
+        <name>uart</name>
+        <base>0xfff0c2c000</base>
+        <length>0xd4000</length>
+        <noc2in/>
+        <stream_accessible/>
+    </port>
+</devices>

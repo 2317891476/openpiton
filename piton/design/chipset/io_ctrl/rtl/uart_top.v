@@ -67,6 +67,11 @@ module uart_top (
     input                                   xbar_uart_noc3_valid,
     input [`NOC_DATA_WIDTH-1:0]             xbar_uart_noc3_data,     
     output                                  uart_xbar_noc3_ready
+`ifdef P3_RTL_DEBUG
+    ,
+    output wire [63:0]                      p3_uart_debug_bus,
+    output wire [15:0]                      p3_uart_debug_seen
+`endif
 );
 
 wire  uart16550_tx;
@@ -164,10 +169,233 @@ wire                               core_axi_rready;
 (* DONT_TOUCH = "yes" *)wire    [`NOC_DATA_WIDTH-1:0]  core_axi_awaddr_unmasked;
 (* DONT_TOUCH = "yes" *)wire    [`NOC_DATA_WIDTH-1:0]  core_axi_araddr_unmasked;
 
+`ifdef P3_SIFIVE_UART_DEBUG_ILA
+wire [63:0] p3_sifive_debug_bus;
+wire [15:0] p3_sifive_debug_seen;
+`endif
+
+`ifdef P3_SIFIVE_UART
+assign core_axi_awaddr = core_axi_awaddr_unmasked[12:0];
+assign core_axi_araddr = core_axi_araddr_unmasked[12:0];
+`else
 assign core_axi_awaddr = (core_axi_awaddr_unmasked[12:0] << 2)  | 13'h1000;
 assign core_axi_araddr = (core_axi_araddr_unmasked[12:0] << 2)  | 13'h1000;
+`endif
 
 assign uart_xbar_noc3_ready = 1'b1;
+
+`ifdef P3_RTL_DEBUG
+reg [15:0] p3_uart_debug_seen_r;
+wire       p3_s_axi_aw_fire    = s_axi_awvalid & s_axi_awready;
+wire       p3_s_axi_w_fire     = s_axi_wvalid  & s_axi_wready;
+wire       p3_s_axi_b_fire     = s_axi_bvalid  & s_axi_bready;
+wire       p3_core_axi_aw_fire = core_axi_awvalid & core_axi_awready;
+wire       p3_core_axi_w_fire  = core_axi_wvalid  & core_axi_wready;
+wire       p3_core_axi_b_fire  = core_axi_bvalid  & core_axi_bready;
+
+`ifdef P3_BD_UART_WR_DEBUG_ILA
+reg [12:0] p3_last_s_axi_awaddr;
+reg [7:0]  p3_last_s_axi_wdata;
+reg [3:0]  p3_last_s_axi_wstrb;
+reg [1:0]  p3_last_s_axi_bresp;
+reg [12:0] p3_last_core_axi_awaddr;
+reg [7:0]  p3_last_core_axi_wdata;
+reg [3:0]  p3_last_core_axi_wstrb;
+reg [1:0]  p3_last_core_axi_bresp;
+reg        p3_uart_tx_q;
+reg        p3_uart_tx_low_seen;
+reg        p3_uart_tx_transition_seen;
+`ifdef P3_BD_UART_WR_NARROW_DEBUG_ILA
+(* keep = "true" *) reg [55:0] p3_uart_wr_debug_bus_s0;
+(* keep = "true" *) reg [55:0] p3_uart_wr_debug_bus_s1;
+`endif
+`endif
+
+always @(posedge axi_clk or negedge rst_n)
+begin
+  if (~rst_n)
+  begin
+    p3_uart_debug_seen_r <= 16'd0;
+`ifdef P3_BD_UART_WR_DEBUG_ILA
+    p3_last_s_axi_awaddr       <= 13'd0;
+    p3_last_s_axi_wdata        <= 8'd0;
+    p3_last_s_axi_wstrb        <= 4'd0;
+    p3_last_s_axi_bresp        <= 2'd0;
+    p3_last_core_axi_awaddr    <= 13'd0;
+    p3_last_core_axi_wdata     <= 8'd0;
+    p3_last_core_axi_wstrb     <= 4'd0;
+    p3_last_core_axi_bresp     <= 2'd0;
+    p3_uart_tx_q               <= 1'b1;
+    p3_uart_tx_low_seen        <= 1'b0;
+    p3_uart_tx_transition_seen <= 1'b0;
+`ifdef P3_BD_UART_WR_NARROW_DEBUG_ILA
+    p3_uart_wr_debug_bus_s0    <= 56'd0;
+    p3_uart_wr_debug_bus_s1    <= 56'd0;
+`endif
+`endif
+  end
+  else
+  begin
+    p3_uart_debug_seen_r <= p3_uart_debug_seen_r |
+                            {(s_axi_rvalid & s_axi_rready),
+                             p3_s_axi_b_fire,
+                             p3_s_axi_w_fire,
+                             p3_s_axi_aw_fire,
+                             (core_axi_rvalid & core_axi_rready),
+                             (core_axi_arvalid & core_axi_arready),
+                             p3_core_axi_b_fire,
+                             p3_core_axi_w_fire,
+                             test_start,
+                             core_axi_wvalid,
+                             uart_xbar_noc3_valid,
+                             xbar_uart_noc2_valid,
+                             ~uart16550_tx,
+                             (s_axi_arvalid & s_axi_arready),
+                             (p3_s_axi_aw_fire & p3_s_axi_w_fire),
+                             p3_core_axi_aw_fire};
+`ifdef P3_BD_UART_WR_DEBUG_ILA
+    p3_uart_tx_q <= uart16550_tx;
+    if (p3_s_axi_aw_fire)
+    begin
+      p3_last_s_axi_awaddr <= s_axi_awaddr;
+    end
+    if (p3_s_axi_w_fire)
+    begin
+      p3_last_s_axi_wdata <= s_axi_wdata[7:0];
+      p3_last_s_axi_wstrb <= s_axi_wstrb;
+    end
+    if (p3_s_axi_b_fire)
+    begin
+      p3_last_s_axi_bresp <= s_axi_bresp;
+    end
+    if (p3_core_axi_aw_fire)
+    begin
+      p3_last_core_axi_awaddr <= core_axi_awaddr;
+    end
+    if (p3_core_axi_w_fire)
+    begin
+      p3_last_core_axi_wdata <= core_axi_wdata[7:0];
+      p3_last_core_axi_wstrb <= core_axi_wstrb;
+    end
+    if (p3_core_axi_b_fire)
+    begin
+      p3_last_core_axi_bresp <= core_axi_bresp;
+    end
+    if (~uart16550_tx)
+    begin
+      p3_uart_tx_low_seen <= 1'b1;
+    end
+    if (p3_uart_tx_q ^ uart16550_tx)
+    begin
+      p3_uart_tx_transition_seen <= 1'b1;
+    end
+`ifdef P3_BD_UART_WR_NARROW_DEBUG_ILA
+    p3_uart_wr_debug_bus_s0 <= {p3_last_s_axi_wdata[7:0],
+                                p3_last_s_axi_wstrb[3:0],
+                                p3_last_s_axi_awaddr[7:0],
+                                p3_last_core_axi_wdata[7:0],
+                                p3_last_core_axi_wstrb[3:0],
+                                p3_last_core_axi_awaddr[7:0],
+                                p3_last_s_axi_bresp[1:0],
+                                p3_last_core_axi_bresp[1:0],
+                                p3_uart_debug_seen_r[12],
+                                p3_uart_debug_seen_r[13],
+                                p3_uart_debug_seen_r[14],
+                                p3_uart_debug_seen_r[0],
+                                p3_uart_debug_seen_r[8],
+                                p3_uart_debug_seen_r[9],
+                                uart16550_tx,
+                                p3_uart_tx_low_seen,
+                                p3_uart_tx_transition_seen,
+                                test_start,
+                                p3_uart_debug_seen_r[4],
+                                p3_uart_debug_seen_r[5]};
+    p3_uart_wr_debug_bus_s1 <= p3_uart_wr_debug_bus_s0;
+`endif
+`endif
+  end
+end
+
+`ifdef P3_SIFIVE_UART_DEBUG_ILA
+assign p3_uart_debug_seen = p3_uart_debug_seen_r | p3_sifive_debug_seen;
+`else
+assign p3_uart_debug_seen = p3_uart_debug_seen_r;
+`endif
+`ifdef P3_SIFIVE_UART_DEBUG_ILA
+assign p3_uart_debug_bus = p3_sifive_debug_bus;
+`elsif P3_BD_UART_WR_NARROW_DEBUG_ILA
+assign p3_uart_debug_bus = {8'd0, p3_uart_wr_debug_bus_s1};
+`elsif P3_BD_UART_WR_DEBUG_ILA
+assign p3_uart_debug_bus = {p3_last_s_axi_wdata[7:0],
+                            p3_last_s_axi_wstrb[3:0],
+                            p3_last_s_axi_awaddr[12:0],
+                            p3_last_core_axi_wdata[7:0],
+                            p3_last_core_axi_wstrb[3:0],
+                            p3_last_core_axi_awaddr[12:0],
+                            p3_last_s_axi_bresp[1:0],
+                            p3_last_core_axi_bresp[1:0],
+                            p3_uart_debug_seen_r[12],
+                            p3_uart_debug_seen_r[13],
+                            p3_uart_debug_seen_r[14],
+                            p3_uart_debug_seen_r[0],
+                            p3_uart_debug_seen_r[8],
+                            p3_uart_debug_seen_r[9],
+	                            uart16550_tx,
+	                            p3_uart_tx_low_seen,
+	                            p3_uart_tx_transition_seen,
+	                            test_start};
+`elsif P3_BD_UART_LIVE_NARROW_DEBUG_ILA
+assign p3_uart_debug_bus = {8'd0,
+                            s_axi_wdata[7:0],
+                            s_axi_wstrb[3:0],
+                            s_axi_awaddr[7:0],
+                            core_axi_wdata[7:0],
+                            core_axi_wstrb[3:0],
+                            core_axi_awaddr[7:0],
+                            s_axi_bresp[1:0],
+                            core_axi_bresp[1:0],
+                            p3_uart_debug_seen_r[12],
+                            p3_uart_debug_seen_r[13],
+                            p3_uart_debug_seen_r[14],
+                            p3_uart_debug_seen_r[0],
+                            p3_uart_debug_seen_r[8],
+                            p3_uart_debug_seen_r[9],
+                            uart16550_tx,
+                            p3_uart_debug_seen_r[3],
+                            (p3_s_axi_aw_fire | p3_s_axi_w_fire),
+                            test_start,
+                            p3_uart_debug_seen_r[4],
+                            p3_uart_debug_seen_r[5]};
+	`else
+	assign p3_uart_debug_bus = {s_axi_wdata[7:0],
+	                            s_axi_wstrb[3:0],
+                            core_axi_wstrb[3:0],
+                            s_axi_awready,
+                            s_axi_wready,
+                            s_axi_bvalid,
+                            s_axi_bready,
+                            s_axi_arready,
+                            s_axi_rvalid,
+                            s_axi_rready,
+                            core_axi_awready,
+                            core_axi_wready,
+                            core_axi_bvalid,
+                            core_axi_bready,
+                            core_axi_arready,
+                            core_axi_rvalid,
+                            core_axi_rready,
+                            uart_interrupt,
+                            uart16550_tx,
+                            s_axi_awaddr[12:0],
+                            s_axi_araddr[12:0],
+                            core_axi_awvalid,
+                            core_axi_wvalid,
+                            core_axi_arvalid,
+                            s_axi_awvalid,
+                            s_axi_wvalid,
+                            s_axi_arvalid};
+`endif
+`endif
 
 noc_axilite_bridge #(
     .SLAVE_RESP_BYTEWIDTH   (1)
@@ -221,28 +449,32 @@ assign uart16550_rx   = uart_rx;
 `else   // PITON_BOARD
   `ifndef PITON_FPGA_MC_SIM
     `ifdef PITONSYS_UART_BOOT
-      atg_uart_init  atg_uart_init (
-        .s_axi_aclk               (axi_clk          ),  // input wire s_axi_aclk
-        .s_axi_aresetn            (rst_n            ),  // input wire s_axi_aresetn
+      `ifdef PITONSYS_AXI4_MEM
+        assign init_done = 1'b1;
+      `else
+        atg_uart_init  atg_uart_init (
+          .s_axi_aclk               (axi_clk          ),  // input wire s_axi_aclk
+          .s_axi_aresetn            (rst_n            ),  // input wire s_axi_aresetn
 
-        .m_axi_lite_ch1_awaddr    (init_axi_awaddr  ),  // output wire [31 : 0] m_axi_lite_ch1_awaddr
-        .m_axi_lite_ch1_awprot    (  ),  // output wire [2 : 0] m_axi_lite_ch1_awprot
-        .m_axi_lite_ch1_awvalid   (init_axi_awvalid ),  // output wire m_axi_lite_ch1_awvalid
-        .m_axi_lite_ch1_awready   (init_axi_awready ),  // input wire m_axi_lite_ch1_awready
-        
-        .m_axi_lite_ch1_wdata     (init_axi_wdata   ),  // output wire [31 : 0] m_axi_lite_ch1_wdata
-        .m_axi_lite_ch1_wstrb     (init_axi_wstrb   ),  // output wire [3 : 0] m_axi_lite_ch1_wstrb
-        .m_axi_lite_ch1_wvalid    (init_axi_wvalid  ),  // output wire m_axi_lite_ch1_wvalid
-        .m_axi_lite_ch1_wready    (init_axi_wready  ),  // input wire m_axi_lite_ch1_wready
-        
-        .m_axi_lite_ch1_bresp     (init_axi_bresp   ),  // input wire [1 : 0] m_axi_lite_ch1_bresp
-        .m_axi_lite_ch1_bvalid    (init_axi_bvalid  ),  // input wire m_axi_lite_ch1_bvalid
-        .m_axi_lite_ch1_bready    (init_axi_bready  ),  // output wire m_axi_lite_ch1_bready
-        
-        .done                     (atg_init_done    ),  // output wire done
-        .status                   ()   // output wire [31 : 0] status
-      );
-      assign init_done = atg_init_done & init_calib_complete;
+          .m_axi_lite_ch1_awaddr    (init_axi_awaddr  ),  // output wire [31 : 0] m_axi_lite_ch1_awaddr
+          .m_axi_lite_ch1_awprot    (  ),  // output wire [2 : 0] m_axi_lite_ch1_awprot
+          .m_axi_lite_ch1_awvalid   (init_axi_awvalid ),  // output wire m_axi_lite_ch1_awvalid
+          .m_axi_lite_ch1_awready   (init_axi_awready ),  // input wire m_axi_lite_ch1_awready
+
+          .m_axi_lite_ch1_wdata     (init_axi_wdata   ),  // output wire [31 : 0] m_axi_lite_ch1_wdata
+          .m_axi_lite_ch1_wstrb     (init_axi_wstrb   ),  // output wire [3 : 0] m_axi_lite_ch1_wstrb
+          .m_axi_lite_ch1_wvalid    (init_axi_wvalid  ),  // output wire m_axi_lite_ch1_wvalid
+          .m_axi_lite_ch1_wready    (init_axi_wready  ),  // input wire m_axi_lite_ch1_wready
+
+          .m_axi_lite_ch1_bresp     (init_axi_bresp   ),  // input wire [1 : 0] m_axi_lite_ch1_bresp
+          .m_axi_lite_ch1_bvalid    (init_axi_bvalid  ),  // input wire m_axi_lite_ch1_bvalid
+          .m_axi_lite_ch1_bready    (init_axi_bready  ),  // output wire m_axi_lite_ch1_bready
+
+          .done                     (atg_init_done    ),  // output wire done
+          .status                   ()   // output wire [31 : 0] status
+        );
+        assign init_done = atg_init_done & init_calib_complete;
+      `endif  // PITONSYS_AXI4_MEM
     `else   // PITONSYS_UART_BOOT
       assign init_done = 1'b1;
     `endif  // PITONSYS_UART_BOOT
@@ -467,7 +699,43 @@ uart_mux   uart_mux (
       .SOut           (uart16550_tx       )
   );
 `else   // PITON_BOARD
-  `ifdef PITON_UART16550
+  `ifdef P3_SIFIVE_UART
+    sifive_uart_axi_lite sifive_uart_axi_lite (
+      .s_axi_aclk       (axi_clk          ),
+      .s_axi_aresetn    (rst_n            ),
+      .ip2intc_irpt     (uart_interrupt   ),
+
+      .s_axi_awaddr     (s_axi_awaddr     ),
+      .s_axi_awvalid    (s_axi_awvalid    ),
+      .s_axi_awready    (s_axi_awready    ),
+
+      .s_axi_wdata      (s_axi_wdata      ),
+      .s_axi_wstrb      (s_axi_wstrb      ),
+      .s_axi_wvalid     (s_axi_wvalid     ),
+      .s_axi_wready     (s_axi_wready     ),
+
+      .s_axi_bresp      (s_axi_bresp      ),
+      .s_axi_bvalid     (s_axi_bvalid     ),
+      .s_axi_bready     (s_axi_bready     ),
+
+      .s_axi_araddr     (s_axi_araddr     ),
+      .s_axi_arvalid    (s_axi_arvalid    ),
+      .s_axi_arready    (s_axi_arready    ),
+
+      .s_axi_rdata      (s_axi_rdata      ),
+      .s_axi_rresp      (s_axi_rresp      ),
+      .s_axi_rvalid     (s_axi_rvalid     ),
+      .s_axi_rready     (s_axi_rready     ),
+
+      .uart_rx          (uart16550_rx      ),
+      .uart_tx          (uart16550_tx      )
+`ifdef P3_SIFIVE_UART_DEBUG_ILA
+      ,
+      .p3_sifive_debug_bus  (p3_sifive_debug_bus ),
+      .p3_sifive_debug_seen (p3_sifive_debug_seen)
+`endif
+    );
+  `elsif PITON_UART16550
     `ifdef PITON_FPGA_MC_SIM
       assign s_axi_awready = 1'b1;
       assign s_axi_wready = 1'b1;

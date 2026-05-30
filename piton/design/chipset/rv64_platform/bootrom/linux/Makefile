@@ -1,17 +1,27 @@
 UART_FREQ ?= 30000000
 MAX_HARTS ?= 1
+PITON_SIFIVE_UART ?= 0
+BOOTROM_MODE ?= normal
 CROSSCOMPILE ?= riscv64-unknown-elf-
 CC = ${CROSSCOMPILE}gcc
 PYTHON=python3
 
 CFLAGS = -DMAX_HARTS=$(MAX_HARTS) -DUART_FREQ=$(UART_FREQ) -Os -ggdb -march=rv64imac -mabi=lp64 -Wall -mcmodel=medany -mexplicit-relocs
+ifeq ($(PITON_SIFIVE_UART),1)
+CFLAGS += -DPITON_SIFIVE_UART
+endif
 CCASFLAGS = -mcmodel=medany -mexplicit-relocs
 LDFLAGS = -nostdlib -nodefaultlibs -nostartfiles
 
 INCLUDES = -I./ -I./src
 
+ifeq ($(BOOTROM_MODE),asm_uart)
+SRCS_C =
+SRCS_ASM = startup_asm_uart.S
+else
 SRCS_C = src/main.c src/uart.c src/spi.c src/sd.c src/gpt.c
 SRCS_ASM = startup.S
+endif
 OBJS_C = $(SRCS_C:.c=.o)
 OBJS_S = $(SRCS_ASM:.S=.o)
 

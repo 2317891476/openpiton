@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Princeton University
+# Copyright (c) 2016 Princeton University
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -22,13 +22,19 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# Format:
-# BoardID           ToolID
-genesys2            vivado
-a7203x              vivado
-vc707               vivado
-nexysVideo          vivado
-f1                  vivado
-vcu118              vivado
-xupp3r              vivado
-huaprop3            vivado
+
+#
+# HuaPro P3 (Versal VP1902) board specific variables
+# Not intended to be run standalone
+#
+
+set BOARD_PART ""
+set FPGA_PART "xcvp1902-vsva6865-1MP-e-S"
+set VIVADO_FLOW_PERF_OPT 0
+set BOARD_DEFAULT_VERILOG_MACROS "HUAPROP3_BOARD"
+
+# No IP fallback -- Versal IPs are incompatible with 7-series
+set BOARD_DISABLED_IP_PATTERNS [list \
+    "*mac_eth_axi_lite*" \
+    "*mig_7series*" \
+]

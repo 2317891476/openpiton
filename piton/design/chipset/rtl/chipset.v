@@ -526,6 +526,11 @@ module chipset(
 `endif // ifdef PITON_RV64_PLIC
 `endif // ifdef PITON_RV64_PLATFORM
 
+`ifdef P3_RTL_DEBUG
+,    output  [63:0]                                          p3_chipset_debug_bus
+,    output  [15:0]                                          p3_chipset_debug_seen
+`endif
+
 );
 
 ///////////////////////
@@ -579,6 +584,12 @@ reg                                             chipset_rst_n_ff;
 // UART boot stuff
 wire                                            uart_boot_en;
 wire                                            uart_timeout_en;
+
+`ifdef P3_RTL_DEBUG
+wire [63:0]                                     p3_chipset_impl_debug_bus;
+wire [15:0]                                     p3_chipset_impl_debug_seen;
+reg [15:0]                                      p3_chipset_debug_seen_r;
+`endif
 
 // NoC power test hop count from switches if enabled
 wire  [3:0]                                     noc_power_test_hop_count;
@@ -717,6 +728,59 @@ begin
     chipset_rst_n_f <= chipset_rst_n;
     chipset_rst_n_ff <= chipset_rst_n_f;
 end
+
+`ifdef P3_RTL_DEBUG
+always @(posedge chipset_clk)
+begin
+    if (~rst_n_rect)
+    begin
+        p3_chipset_debug_seen_r <= 16'd0;
+    end
+    else
+    begin
+        p3_chipset_debug_seen_r <= p3_chipset_debug_seen_r |
+                                   {8'd0,
+                                    init_calib_complete,
+                                    clk_locked,
+                                    chipset_rst_n_ff,
+                                    chipset_rst_n,
+                                    uart_boot_en,
+                                    uart_timeout_en,
+                                    rst_n_rect,
+                                    ~piton_ready_n};
+    end
+end
+
+`ifdef P3_BD_UART_RAW_DEBUG_ILA
+assign p3_chipset_debug_seen = p3_chipset_impl_debug_seen;
+assign p3_chipset_debug_bus = p3_chipset_impl_debug_bus;
+`elsif P3_BD_UART_WR_NARROW_DEBUG_ILA
+assign p3_chipset_debug_seen = p3_chipset_debug_seen_r | p3_chipset_impl_debug_seen;
+assign p3_chipset_debug_bus = {p3_chipset_impl_debug_bus[55:0],
+                               rst_n_rect,
+                               chipset_rst_n,
+                               chipset_rst_n_f,
+                               chipset_rst_n_ff,
+                               clk_locked,
+                               uart_boot_en,
+                               uart_timeout_en,
+                               init_calib_complete};
+`elsif P3_BD_UART_WR_DEBUG_ILA
+assign p3_chipset_debug_seen = p3_chipset_impl_debug_seen;
+assign p3_chipset_debug_bus = p3_chipset_impl_debug_bus;
+`else
+assign p3_chipset_debug_seen = p3_chipset_debug_seen_r | p3_chipset_impl_debug_seen;
+assign p3_chipset_debug_bus = {p3_chipset_impl_debug_bus[55:0],
+                               rst_n_rect,
+                               chipset_rst_n,
+                               chipset_rst_n_f,
+                               chipset_rst_n_ff,
+                               clk_locked,
+                               uart_boot_en,
+                               uart_timeout_en,
+                               init_calib_complete};
+`endif
+`endif
 
 `ifdef A7203X_BOARD
 always @ (posedge chipset_clk)
@@ -1554,6 +1618,10 @@ chipset_impl_noc_power_test  chipset_impl (
         ,.irq_o                  ( irq_o         )
     `endif // ifdef PITON_RV64_PLIC
     `endif // ifdef PITON_RV64_PLATFORM
+    `ifdef P3_RTL_DEBUG
+        ,.p3_chipset_debug_bus   ( p3_chipset_impl_debug_bus  )
+        ,.p3_chipset_debug_seen  ( p3_chipset_impl_debug_seen )
+    `endif
 );
 
 

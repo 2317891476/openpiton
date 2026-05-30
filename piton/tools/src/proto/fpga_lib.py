@@ -53,6 +53,7 @@ STORAGE_BLOCK_BIT_WIDTH         =   {   "ddr":  {   "vc707":512,
                                                     "genesys2":256,
                                                     "a7203x":256,
                                                     "nexysVideo":128,
+                                                    "huaprop3":512,
                                                     "f1":512
                                                 },
                                         "bram": {   "vc707":512,
@@ -63,6 +64,7 @@ STORAGE_BLOCK_BIT_WIDTH         =   {   "ddr":  {   "vc707":512,
                                                     "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
+                                                    "huaprop3":512,
                                                     "f1":512
                                                 },
                                         "dmw":  {   "vc707":512,
@@ -73,6 +75,7 @@ STORAGE_BLOCK_BIT_WIDTH         =   {   "ddr":  {   "vc707":512,
                                                     "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
+                                                    "huaprop3":512,
                                                     "f1":512
                                                 }
                                     }
@@ -84,6 +87,7 @@ STORAGE_ADDRESSABLE_BIT_WIDTH   =   {   "ddr":  {   "vc707":64,
                                                     "genesys2":32,
                                                     "a7203x":32,
                                                     "nexysVideo":16,
+                                                    "huaprop3":64,
                                                     "f1":64
                                                 },
                                         "bram": {   "vc707":512,
@@ -94,6 +98,7 @@ STORAGE_ADDRESSABLE_BIT_WIDTH   =   {   "ddr":  {   "vc707":64,
                                                     "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
+                                                    "huaprop3":512,
                                                     "f1":512
                                                 },
                                         "dmw": {    "vc707":512,
@@ -104,6 +109,7 @@ STORAGE_ADDRESSABLE_BIT_WIDTH   =   {   "ddr":  {   "vc707":64,
                                                     "a7203x":512,
                                                     "nexysVideo":512,
                                                     "piton_board":512,
+                                                    "huaprop3":512,
                                                     "f1":512
                                                 }
                                     }
@@ -115,6 +121,7 @@ STORAGE_BIT_SIZE                =   {   "ddr":  {   "vc707":8*2**30,
                                                     "genesys2":8*2**30,
                                                     "a7203x":8*2**30,
                                                     "nexysVideo":8*512*2**20,
+                                                    "huaprop3":2*8*2**30,
                                                     "f1":8*4*2**30
                                                 },
                                         "bram": {   "vc707":16384*512,
@@ -125,6 +132,7 @@ STORAGE_BIT_SIZE                =   {   "ddr":  {   "vc707":8*2**30,
                                                     "a7203x":16384*512,
                                                     "nexysVideo":16384*512,
                                                     "piton_board":256*512,
+                                                    "huaprop3":16384*512,
                                                     "f1":256*512
                                                 },
                                         "dmw":  {   "vc707":8*2**30,
@@ -134,6 +142,7 @@ STORAGE_BIT_SIZE                =   {   "ddr":  {   "vc707":8*2**30,
                                                     "genesys2":8*2**30,
                                                     "a7203x":8*2**30,
                                                     "nexysVideo":8*512*2**20,
+                                                    "huaprop3":2*8*2**30,
                                                     "f1":8*4*2**30
                                                 }
                                     }
