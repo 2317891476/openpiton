@@ -121,7 +121,7 @@ OpenPiton NoC → noc_axi4_bridge → AXI4 master port → [BD boundary] → axi
 
 OpenPiton already has `noc_axi4_bridge` (`piton/design/chipset/noc_axi4_bridge/rtl/`). The key is to use `PITONSYS_AXI4_MEM` define instead of the MIG path (`PITONSYS_DDR4`/`PITONSYS_NO_MC`). This bridge presents a standard AXI4 interface that can connect to the Versal AXI NoC in the Block Design.
 
-Bring-up note from Build 44: do not assume the P3 BD always sees DDR addresses after subtracting `0x80000000`. The Build 44 top-level ILA observed the BD-facing AXI address `0x84000000` for a bootrom load/store to CPU physical `0x84000000`. A BD DDR segment at offset `0x00000000` therefore leaves this traffic outside the `C0_DDR_LOW0` aperture. Build 45 tests the physical-address interpretation by mapping the BD DDR segment at `0x80000000` and disabling the legacy memory zeroer, which otherwise issues writes from AXI address `0x0`.
+Bring-up note from Builds 44-46: do not assume the P3 BD always sees DDR addresses after subtracting `0x80000000`. The Build 44 top-level ILA observed the BD-facing AXI address `0x84000000` for a bootrom load/store to CPU physical `0x84000000`, while the BD DDR segment was at offset `0x00000000`. Build 45 tried to move the BD DDR segment to `0x80000000`, but Vivado rejected that because the Versal AXI NoC DDR slave only exposes a valid `0x00000000 [2G]` aperture in this BD. Build 46 therefore keeps the BD aperture at `0x0` and adds a gated `P3_AXI_DDR_ADDR_TRANSLATE` path in `p3_top.v` to fold CPU physical DDR addresses into the legal BD low window before `S_AXI_MEM`.
 
 #### 1.4 ODDR Primitive
 

@@ -450,7 +450,23 @@ vivado -mode batch -source scripts/p3_ila_capture_build45_axi_phys_ddr.tcl
 python3 scripts/p3_decode_build45_ila_csv.py huaprop3_build45_axi_phys_ddr/debug_build
 ```
 
-Expected outcome: if Build 45 observes R valid/fire and serial reaches `rP` or loops `A`, the Build 44 hang was the BD DDR aperture, not a broken AXI UART, bootrom fetch path, or DDR PHY. If R still does not return, the next build should add visibility inside the AXI NoC/DDRMC read path rather than changing UART or bootrom software again.
+Build 45 failed during BD creation before synthesis. Vivado reported that `0x80000000 [2G]` does not fit an available aperture for `axi_noc_0/S00_AXI/C0_DDR_LOW0`; the valid aperture in this P3 BD is only `0x00000000 [2G]`. This means the address-map fix must be done before the BD AXI NoC boundary, not by moving the BD DDR segment.
+
+### P3 Build 46 RTL DDR Address Translation Probe
+
+Build 46 is the corrected retry after Build 45. It keeps the BD DDR segment at the legal `0x00000000 [2G]` aperture, disables `PITONSYS_MEM_ZEROER`, and enables `P3_AXI_DDR_ADDR_TRANSLATE` in `p3_top.v`. That RTL path translates CPU physical DDR AW/AR addresses with bit 31 set into the BD low window before connecting to `S_AXI_MEM_awaddr/araddr`.
+
+Build and validate with:
+
+```bash
+vivado -mode batch -source scripts/p3_build46_axi_translated_ddr.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build46_axi_translated_ddr/debug_build/p3_top_build46_axi_translated_ddr.pdi
+python3 scripts/p3_serial.py --capture 60
+vivado -mode batch -source scripts/p3_ila_capture_build46_axi_translated_ddr.tcl
+python3 scripts/p3_decode_build46_ila_csv.py huaprop3_build46_axi_translated_ddr/debug_build
+```
+
+Expected outcome: the sticky address bits should still prove the bootrom issued physical `0x84xxxxxx` DDR traffic, while the compact bus snapshot should retain a low BD-facing address such as `0x04000000`. If R valid/fire appears and serial reaches `rP`, the Build 44 failure was the missing physical-to-BD address translation. If the translated address still gets no R return, the next build should probe inside the AXI NoC/DDRMC read-return path.
 
 ### P3 Build 39 SiFive UART Project Variant
 

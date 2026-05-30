@@ -110,6 +110,28 @@ module p3_top (
     wire         m_axi_bvalid;
     wire         m_axi_bready;
 
+`ifdef P3_AXI_DDR_ADDR_TRANSLATE
+    wire         p3_axi_ddr_awaddr_translate;
+    wire         p3_axi_ddr_araddr_translate;
+    wire [63:0]  bd_m_axi_awaddr;
+    wire [63:0]  bd_m_axi_araddr;
+
+    assign p3_axi_ddr_awaddr_translate = (m_axi_awaddr[63:32] == 32'h0000_0000) &&
+                                          m_axi_awaddr[31];
+    assign p3_axi_ddr_araddr_translate = (m_axi_araddr[63:32] == 32'h0000_0000) &&
+                                          m_axi_araddr[31];
+    assign bd_m_axi_awaddr = p3_axi_ddr_awaddr_translate ? {32'h0000_0000, m_axi_awaddr[30:0]} :
+                                                              m_axi_awaddr;
+    assign bd_m_axi_araddr = p3_axi_ddr_araddr_translate ? {32'h0000_0000, m_axi_araddr[30:0]} :
+                                                              m_axi_araddr;
+`else
+    wire [63:0]  bd_m_axi_awaddr;
+    wire [63:0]  bd_m_axi_araddr;
+
+    assign bd_m_axi_awaddr = m_axi_awaddr;
+    assign bd_m_axi_araddr = m_axi_araddr;
+`endif
+
     (* keep = "true" *) reg  [31:0]  p3_min_dbg_heartbeat = 32'h0000_0000;
     (* keep = "true" *) wire [31:0]  p3_min_dbg_status;
 
@@ -264,9 +286,9 @@ module p3_top (
                                 peripheral_aresetn};
 
             if (p3_ddr_aw_fire) begin
-                p3_ddr_last_addr30_r <= m_axi_awaddr[31:2];
+                p3_ddr_last_addr30_r <= bd_m_axi_awaddr[31:2];
             end else if (p3_ddr_ar_fire) begin
-                p3_ddr_last_addr30_r <= m_axi_araddr[31:2];
+                p3_ddr_last_addr30_r <= bd_m_axi_araddr[31:2];
             end
             if (p3_ddr_w_fire) begin
                 p3_ddr_last_wdata8_r <= m_axi_wdata[7:0];
@@ -390,7 +412,7 @@ module p3_top (
 `endif
         // AXI4 Slave (from OpenPiton master)
         .S_AXI_MEM_awid         (m_axi_awid),
-        .S_AXI_MEM_awaddr       (m_axi_awaddr),
+        .S_AXI_MEM_awaddr       (bd_m_axi_awaddr),
         .S_AXI_MEM_awlen        (m_axi_awlen),
         .S_AXI_MEM_awsize       (m_axi_awsize),
         .S_AXI_MEM_awburst      (m_axi_awburst),
@@ -407,7 +429,7 @@ module p3_top (
         .S_AXI_MEM_wvalid       (m_axi_wvalid),
         .S_AXI_MEM_wready       (m_axi_wready),
         .S_AXI_MEM_arid         (m_axi_arid),
-        .S_AXI_MEM_araddr       (m_axi_araddr),
+        .S_AXI_MEM_araddr       (bd_m_axi_araddr),
         .S_AXI_MEM_arlen        (m_axi_arlen),
         .S_AXI_MEM_arsize       (m_axi_arsize),
         .S_AXI_MEM_arburst      (m_axi_arburst),
