@@ -458,6 +458,10 @@ When this flow is launched through the local Windows Vivado wrapper from WSL, Tc
 
 The same subprocess also redirects stderr into stdout. Tcl `exec` treats any unredirected stderr output as an error even when the child exits successfully, which is too strict for the bootrom rebuild because WSL path notices and `dtc` warnings can appear on stderr during an otherwise valid image generation.
 
+Build 42-A completed on hardware on 2026-05-30. The image routed cleanly, produced `p3_top_build42a_asm_uart.pdi/.ltx`, programmed with `DONE bit: HIGH`, and refreshed both ILAs through debug hub `0x3ffc0000000`. The 480-second `/dev/ttyUSB0` capture still produced no output.
+
+Decoded ILAs showed heartbeat activity, `top_status=0xff03`, UART sticky seen `0xffff`, chip/tile sticky seen `0x7fff`, and raw UART live bus `0x000000f008000000`. In the current decoder this means the sampled live raw bus is idle (`uart_tx=1`, no TX-low or TX-transition, no live AXI/TL pending/valid) even though the sticky UART seen vector latched activity. Do not treat Build 42-A as proof of a DDR stack failure: the no-stack assembly image does not touch DDR and still cannot print. The next build should improve the raw UART bridge probes or fix the AXI4-Lite to TileLink address/data retention path before attempting the BRAM-stack Build 42-B branch as a DDR isolation test.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
