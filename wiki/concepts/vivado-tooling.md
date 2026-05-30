@@ -397,6 +397,21 @@ The failure was the same PLM/BSP path class as Build 32, not an implementation f
 
 Hardware validation passed after recovery. Build 37 programmed with `DONE bit: HIGH`, refreshed the debug hub at `0x3ffc0000000`, enumerated both BD-owned ILAs, and exported CSVs for both immediate triggers. The capture showed `p3_dbg_top_status16_i = 0xff03`, `p3_dbg_uart_seen16_i = 0x73f3`, and `p3_dbg_uart_bus64_i = 0x20110201100fe7f9`. Decoding the live-narrow payload gives UART-side and core-side `wdata=0x20`, `wstrb=1`, `awaddr_low=0x10`, OKAY B responses, `uart_tx=1`, and no TX-low sticky event. This isolates the Build 35/36 hardware timeout to the registered last-write payload path while keeping the no-UART-output debug focused on ns16550 register mapping/configuration/initialization.
 
+### P3 Build 43 AXI16550 No-DDR BootROM
+
+Build 43 is the original-UART no-stack bootrom test. It keeps `PITON_UART16550`, explicitly rejects the SiFive/TLUART macros, and compiles only `startup_asm_uart16550.S` through `BOOTROM_MODE=asm_uart16550`. The bootrom initializes the ns16550 registers through CPU-visible byte offsets at `0xfff0c2c000`, polls `LSR[5]`, prints `B43 AXI16550\r\n`, then repeatedly transmits `A`.
+
+Build and validate with:
+
+```bash
+vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build43_asm_uart16550/debug_build/p3_top_build43_asm_uart16550.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build43_asm_uart16550.tcl
+python3 scripts/p3_decode_build43_ila_csv.py huaprop3_build43_asm_uart16550/debug_build
+```
+
+The expected decision point is simple: visible serial output proves the complete Ariane bootrom to original AXI16550 physical TX path. If serial remains silent, decode the Build 43 live-narrow UART ILA to separate missing core-side writes, missing UART-side writes, bad response/strobe/address, and a configured UART IP that still never toggles `uart_tx`.
+
 ### P3 Build 39 SiFive UART Project Variant
 
 Build 39 creates a separate `huaprop3_sifive_uart` Vivado project instead of modifying the known Build 38 `huaprop3_openpiton` project in place. The project is generated with `scripts/p3_create_bd_sifive_uart.tcl`, which delegates to the normal P3 BD creator while setting `P3_ENABLE_SIFIVE_UART=1`.
