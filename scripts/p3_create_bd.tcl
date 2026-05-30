@@ -27,6 +27,15 @@ if {![info exists P3_ENABLE_SIFIVE_DEBUG_ILA]} {
 if {![info exists P3_ENABLE_BUILD41_DEBUG_ILA]} {
     set P3_ENABLE_BUILD41_DEBUG_ILA 0
 }
+if {![info exists P3_DDR_AXI_OFFSET]} {
+    set P3_DDR_AXI_OFFSET 0x00000000
+}
+if {![info exists P3_DDR_AXI_RANGE]} {
+    set P3_DDR_AXI_RANGE 2G
+}
+if {![info exists P3_DISABLE_MEM_ZEROER]} {
+    set P3_DISABLE_MEM_ZEROER 0
+}
 if {[info exists P3_PROJECT_DIR] && $P3_PROJECT_DIR ne ""} {
     set proj_dir [file normalize $P3_PROJECT_DIR]
 } else {
@@ -47,6 +56,9 @@ puts " Part: ${part}"
 puts " SiFive UART: ${P3_ENABLE_SIFIVE_UART}"
 puts " SiFive debug ILA: ${P3_ENABLE_SIFIVE_DEBUG_ILA}"
 puts " Build 41 Fetch debug ILA: ${P3_ENABLE_BUILD41_DEBUG_ILA}"
+puts " DDR AXI offset: ${P3_DDR_AXI_OFFSET}"
+puts " DDR AXI range: ${P3_DDR_AXI_RANGE}"
+puts " Disable memory zeroer: ${P3_DISABLE_MEM_ZEROER}"
 puts "=========================================="
 
 # ============================================================================
@@ -482,10 +494,14 @@ if {!$P3_ENABLE_SIFIVE_UART} {
 #   - defines PITONSYS_AXI4_MEM (AXI4 memory interface, not DDR pin interface)
 # PITON_FPGA_MC_DDR3 is still needed to enable the noc_axi4_bridge path.
 set DESIGN_DEFAULT_VERILOG_MACROS "PITON_FULL_SYSTEM PITON_FPGA_NO_DMBR MERGE_L1_DCACHE FPGA_SYN_1THREAD FPGA_FORCE_SRAM_ICACHE_TAG FPGA_FORCE_SRAM_LSU_ICACHE FPGA_FORCE_SRAM_DCACHE_TAG FPGA_FORCE_SRAM_LSU_DCACHE FPGA_FORCE_SRAM_RF16X160 FPGA_FORCE_SRAM_RF32X80 CONFIG_DISABLE_BIST_CLEAR PITON_ARIANE PITON_RV64_PLATFORM PITON_RV64_DEBUGUNIT PITON_RV64_CLINT PITON_RV64_PLIC WT_DCACHE"
+set p3_mem_zeroer_define ""
+if {!$P3_DISABLE_MEM_ZEROER} {
+    set p3_mem_zeroer_define " PITONSYS_MEM_ZEROER"
+}
 if {$P3_ENABLE_SIFIVE_UART} {
-    set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE PITONSYS_MEM_ZEROER PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT P3_SIFIVE_UART PITONSYS_AXI4_MEM"
+    set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE${p3_mem_zeroer_define} PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT P3_SIFIVE_UART PITONSYS_AXI4_MEM"
 } else {
-    set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE PITONSYS_MEM_ZEROER PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT PITON_UART16550 PITONSYS_AXI4_MEM"
+    set PROTOSYN_VERILOG_MACROS "NO_RTL_CSM PITON_FPGA_MC_DDR3 PITON_NO_CHIP_BRIDGE${p3_mem_zeroer_define} PITON_FPGA_SD_BOOT PITONSYS_UART_BOOT PITON_UART16550 PITONSYS_AXI4_MEM"
 }
 if {$P3_ENABLE_SIFIVE_DEBUG_ILA} {
     if {$P3_ENABLE_BUILD41_DEBUG_ILA} {
@@ -565,12 +581,11 @@ connect_bd_intf_net [get_bd_intf_ports S_AXI_MEM] [get_bd_intf_pins axi_noc_0/S0
 # ============================================================================
 # 15. Address Map
 # ============================================================================
-# OpenPiton's storage_addr_trans_unified subtracts 0x80000000 from CPU addresses
-# before outputting on AXI, so AXI-side DDR starts at 0x0.
-# Map to DDR_LOW0 in AXI NoC at offset 0x0, range 2 GB.
+# The P3 flow can choose whether the BD AXI NoC decodes translated DDR
+# addresses (offset 0) or CPU physical DDR addresses (offset 0x80000000).
 assign_bd_address [get_bd_addr_segs {axi_noc_0/S00_AXI/C0_DDR_LOW0}]
-set_property offset 0x00000000 [get_bd_addr_segs {S_AXI_MEM/SEG_axi_noc_0_C0_DDR_LOW0}]
-set_property range 2G [get_bd_addr_segs {S_AXI_MEM/SEG_axi_noc_0_C0_DDR_LOW0}]
+set_property offset ${P3_DDR_AXI_OFFSET} [get_bd_addr_segs {S_AXI_MEM/SEG_axi_noc_0_C0_DDR_LOW0}]
+set_property range ${P3_DDR_AXI_RANGE} [get_bd_addr_segs {S_AXI_MEM/SEG_axi_noc_0_C0_DDR_LOW0}]
 
 # ============================================================================
 # 16. Final Validate and Save
@@ -639,7 +654,7 @@ puts "=========================================="
 puts " Block Design '${bd_name}' complete."
 puts " RTL sources: ${added_count} files added"
 puts " Top module: p3_top (BD infra + OpenPiton)"
-puts " DDR map: 0x00000000, 2 GB (DDR_LOW0)"
+puts " DDR map: ${P3_DDR_AXI_OFFSET}, ${P3_DDR_AXI_RANGE} (DDR_LOW0)"
 puts ""
 puts " NEXT STEPS:"
 puts " 1. Open project in Vivado GUI: open_project ${proj_dir}/${proj_name}.xpr"

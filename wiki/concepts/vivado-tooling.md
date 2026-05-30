@@ -433,6 +433,25 @@ vivado -mode batch -source scripts/p3_ila_capture_build44_asm_uart16550_ddr.tcl
 python3 scripts/p3_decode_build44_ila_csv.py huaprop3_build44_asm_uart16550_ddr/debug_build
 ```
 
+Hardware validation of Build 44 showed that the build and debug path were healthy, but the DDR access did not complete. The key ILA result was `p3_dbg_ddr_seen16=0xc37f`: AW/W/B and AR all fired, the write response was OKAY, but no R valid/fire was observed. The compact snapshot retained last AXI address `0x84000000`. That address is outside the original BD `C0_DDR_LOW0` master segment at `0x00000000..0x7fffffff`, so the next retry treats this as a BD address-map mismatch before blaming the DDR4 PHY.
+
+### P3 Build 45 Physical DDR Address-Map Probe
+
+Build 45 reuses the Build 44 bootrom and DDR ILA payload, but changes the BD address decode to match the physical address seen at the P3 top-level AXI boundary. The project wrapper sets `P3_DDR_AXI_OFFSET=0x80000000` and `P3_DDR_AXI_RANGE=2G`, so CPU physical DDR addresses `0x80000000..0xffffffff` decode to `C0_DDR_LOW0`.
+
+Build 45 also sets `P3_DISABLE_MEM_ZEROER=1`. This is necessary because the legacy AXI zeroer starts issuing writes at AXI address `0x0`; once the BD DDR aperture moves to `0x80000000`, that zeroer traffic would be outside the DDR segment and could block the probe before the no-stack bootrom runs.
+
+Build and validate with:
+
+```bash
+vivado -mode batch -source scripts/p3_build45_axi_phys_ddr.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build45_axi_phys_ddr/debug_build/p3_top_build45_axi_phys_ddr.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build45_axi_phys_ddr.tcl
+python3 scripts/p3_decode_build45_ila_csv.py huaprop3_build45_axi_phys_ddr/debug_build
+```
+
+Expected outcome: if Build 45 observes R valid/fire and serial reaches `rP` or loops `A`, the Build 44 hang was the BD DDR aperture, not a broken AXI UART, bootrom fetch path, or DDR PHY. If R still does not return, the next build should add visibility inside the AXI NoC/DDRMC read path rather than changing UART or bootrom software again.
+
 ### P3 Build 39 SiFive UART Project Variant
 
 Build 39 creates a separate `huaprop3_sifive_uart` Vivado project instead of modifying the known Build 38 `huaprop3_openpiton` project in place. The project is generated with `scripts/p3_create_bd_sifive_uart.tcl`, which delegates to the normal P3 BD creator while setting `P3_ENABLE_SIFIVE_UART=1`.
