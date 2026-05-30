@@ -4,8 +4,15 @@
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
-set project_name "huaprop3_build43_asm_uart16550"
-set project_dir [file normalize "${repo_dir}/${project_name}"]
+if {![info exists P3_PROJECT_NAME] || $P3_PROJECT_NAME eq ""} {
+    set P3_PROJECT_NAME "huaprop3_build43_asm_uart16550"
+}
+set project_name $P3_PROJECT_NAME
+if {[info exists P3_PROJECT_DIR] && $P3_PROJECT_DIR ne ""} {
+    set project_dir [file normalize $P3_PROJECT_DIR]
+} else {
+    set project_dir [file normalize "${repo_dir}/${project_name}"]
+}
 set bd_name "openpiton_top"
 set bd_file "${project_dir}/${project_name}.srcs/sources_1/bd/${bd_name}/${bd_name}.bd"
 set tmp_dir "Z:/tmp"

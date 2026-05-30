@@ -4,12 +4,22 @@
 # Usage:
 #   vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -jobs 1
 #   vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -skip_create -skip_prepare -reuse_synth -jobs 1
+#
+# By default this build uses C:/p3b43 as the Vivado work directory to avoid
+# Windows 260-byte path failures in Versal debug child-IP generation. Override
+# with P3_BUILD43_WORK_DIR if needed. Published PDI/LTX files still land under
+# the repository's huaprop3_build43_asm_uart16550/debug_build directory.
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
 set project_name "huaprop3_build43_asm_uart16550"
-set project_dir [file normalize "${repo_dir}/${project_name}"]
-set output_dir "${project_dir}/debug_build"
+set output_project_dir [file normalize "${repo_dir}/${project_name}"]
+if {[info exists env(P3_BUILD43_WORK_DIR)] && $env(P3_BUILD43_WORK_DIR) ne ""} {
+    set project_dir [file normalize $env(P3_BUILD43_WORK_DIR)]
+} else {
+    set project_dir [file normalize "C:/p3b43"]
+}
+set output_dir "${output_project_dir}/debug_build"
 set create_tcl [file normalize "${script_dir}/p3_create_bd_build43_asm_uart16550.tcl"]
 set prepare_tcl [file normalize "${script_dir}/p3_prepare_build43_uart_live_narrow_ila.tcl"]
 set bootrom_rebuild_sh [file normalize "${script_dir}/p3_rebuild_build43_asm_uart16550.sh"]
@@ -93,16 +103,16 @@ proc p3_unique_dir_append {var_name dir} {
     }
 }
 
-proc p3_seed_project_ip_cache {label project_dir project_name cache_rel required_files} {
+proc p3_seed_project_ip_cache {label project_dir project_name repo_dir cache_rel required_files} {
     set project_cache_dir "${project_dir}/${project_name}.cache/ip/${cache_rel}"
     set candidate_dirs {}
 
     p3_unique_dir_append candidate_dirs $project_cache_dir
-    p3_unique_dir_append candidate_dirs "${project_dir}/../.cache/ip/${cache_rel}"
-    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_build42a_asm_uart/huaprop3_build42a_asm_uart.cache/ip/${cache_rel}"
-    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_build42b_bram_stack/huaprop3_build42b_bram_stack.cache/ip/${cache_rel}"
-    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_build41_debug/huaprop3_build41_debug.cache/ip/${cache_rel}"
-    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_openpiton/huaprop3_openpiton.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${repo_dir}/.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build42a_asm_uart/huaprop3_build42a_asm_uart.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build42b_bram_stack/huaprop3_build42b_bram_stack.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build41_debug/huaprop3_build41_debug.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_openpiton/huaprop3_openpiton.cache/ip/${cache_rel}"
 
     set source_cache_dir ""
     foreach dir $candidate_dirs {
@@ -135,8 +145,8 @@ proc p3_seed_project_ip_cache {label project_dir project_name cache_rel required
     return 1
 }
 
-proc p3_seed_build43_impl_caches {project_dir project_name} {
-    p3_seed_project_ip_cache "DDR PHY" $project_dir $project_name \
+proc p3_seed_build43_impl_caches {project_dir project_name repo_dir} {
+    p3_seed_project_ip_cache "DDR PHY" $project_dir $project_name $repo_dir \
         "2024.2.2/f/1/f19a7ef233cf09e1" \
         [list bd_c5b9_MC0_ddrc_0_phy.dcp f19a7ef233cf09e1.xci]
 
@@ -243,7 +253,8 @@ proc p3_copy_run_output {run_dir output_dir pdi_basename} {
 
 puts "=========================================="
 puts " Build 43: P3 no-stack AXI16550 ASM UART"
-puts " Project: ${project_dir}/${project_name}.xpr"
+puts " Work project: ${project_dir}/${project_name}.xpr"
+puts " Output dir: ${output_dir}"
 puts " Jobs: ${jobs}"
 puts " Reuse synth: ${reuse_synth}"
 puts " Prepare BD/ILA: ${run_prepare}"
@@ -264,12 +275,16 @@ if {[catch {exec bash $bootrom_rebuild_exec_path 2>@1} bootrom_rebuild_log]} {
 puts $bootrom_rebuild_log
 
 if {$run_create} {
+    set P3_PROJECT_NAME $project_name
+    set P3_PROJECT_DIR $project_dir
     source $create_tcl
 } else {
     puts "Skipping project creation step."
 }
 
 if {$run_prepare} {
+    set P3_PROJECT_NAME $project_name
+    set P3_PROJECT_DIR $project_dir
     source $prepare_tcl
 } else {
     puts "Skipping Build 43 prepare step."
@@ -340,7 +355,7 @@ if {$reuse_synth} {
     p3_runmgr_check_status $synth_run "Synthesis"
 }
 
-p3_seed_build43_impl_caches $project_dir $project_name
+p3_seed_build43_impl_caches $project_dir $project_name $repo_dir
 
 reset_run $impl_run
 launch_runs $impl_run -to_step write_device_image -jobs $jobs

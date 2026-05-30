@@ -27,7 +27,11 @@ if {![info exists P3_ENABLE_SIFIVE_DEBUG_ILA]} {
 if {![info exists P3_ENABLE_BUILD41_DEBUG_ILA]} {
     set P3_ENABLE_BUILD41_DEBUG_ILA 0
 }
-set proj_dir [file normalize "${script_dir}/../${P3_PROJECT_NAME}"]
+if {[info exists P3_PROJECT_DIR] && $P3_PROJECT_DIR ne ""} {
+    set proj_dir [file normalize $P3_PROJECT_DIR]
+} else {
+    set proj_dir [file normalize "${script_dir}/../${P3_PROJECT_NAME}"]
+}
 set proj_name "${P3_PROJECT_NAME}"
 set bd_name "openpiton_top"
 set part "xcvp1902-vsva6865-1MP-e-S"
