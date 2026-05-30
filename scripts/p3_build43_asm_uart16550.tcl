@@ -3,6 +3,7 @@
 #
 # Usage:
 #   vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -jobs 1
+#   vivado -mode batch -source scripts/p3_build43_asm_uart16550.tcl -tclargs -skip_create -skip_prepare -reuse_synth -jobs 1
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
@@ -17,6 +18,7 @@ set synth_run "synth_1"
 set impl_run "impl_1"
 set pdi_basename "p3_top_build43_asm_uart16550"
 set run_create 1
+set run_prepare 1
 set reuse_synth 0
 set jobs 1
 
@@ -25,6 +27,9 @@ for {set i 0} {$i < [llength $argv]} {incr i} {
     switch -- $arg {
         -skip_create {
             set run_create 0
+        }
+        -skip_prepare {
+            set run_prepare 0
         }
         -reuse_synth {
             set reuse_synth 1
@@ -67,6 +72,87 @@ proc p3_find_latest_file {dir pattern} {
         }
     }
     return $best
+}
+
+proc p3_dir_has_files {dir required_files} {
+    foreach required_file $required_files {
+        if {![file exists "${dir}/${required_file}"]} {
+            return 0
+        }
+    }
+    return 1
+}
+
+proc p3_unique_dir_append {var_name dir} {
+    upvar 1 $var_name dirs
+    if {$dir eq ""} {
+        return
+    }
+    if {[lsearch -exact $dirs $dir] < 0} {
+        lappend dirs $dir
+    }
+}
+
+proc p3_seed_project_ip_cache {label project_dir project_name cache_rel required_files} {
+    set project_cache_dir "${project_dir}/${project_name}.cache/ip/${cache_rel}"
+    set candidate_dirs {}
+
+    p3_unique_dir_append candidate_dirs $project_cache_dir
+    p3_unique_dir_append candidate_dirs "${project_dir}/../.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_build42a_asm_uart/huaprop3_build42a_asm_uart.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_build42b_bram_stack/huaprop3_build42b_bram_stack.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_build41_debug/huaprop3_build41_debug.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${project_dir}/../huaprop3_openpiton/huaprop3_openpiton.cache/ip/${cache_rel}"
+
+    set source_cache_dir ""
+    foreach dir $candidate_dirs {
+        if {[p3_dir_has_files $dir $required_files]} {
+            set source_cache_dir $dir
+            break
+        }
+    }
+
+    if {$source_cache_dir eq ""} {
+        puts "WARNING: ${label} IP cache ${cache_rel} not found; implementation may regenerate this child IP."
+        puts "         Expected cache files:"
+        foreach required_file $required_files {
+            puts "           ${required_file}"
+        }
+        return 0
+    }
+
+    if {$source_cache_dir ne $project_cache_dir} {
+        puts "Seeding ${label} IP cache:"
+        puts "  source: $source_cache_dir"
+        puts "  target: $project_cache_dir"
+        file mkdir [file dirname $project_cache_dir]
+        file delete -force $project_cache_dir
+        file copy -force $source_cache_dir $project_cache_dir
+    } else {
+        puts "${label} IP cache already present: $project_cache_dir"
+    }
+
+    return 1
+}
+
+proc p3_seed_build43_impl_caches {project_dir project_name} {
+    p3_seed_project_ip_cache "DDR PHY" $project_dir $project_name \
+        "2024.2.2/f/1/f19a7ef233cf09e1" \
+        [list bd_c5b9_MC0_ddrc_0_phy.dcp f19a7ef233cf09e1.xci]
+
+    if {[catch {current_project} current_project_name] == 0 && $current_project_name ne ""} {
+        set project_ip_repo "${project_dir}/${project_name}.cache/ip"
+        puts "Using project IP output repo for implementation child IP cache: $project_ip_repo"
+        set_property ip_output_repo $project_ip_repo [current_project]
+        set_property ip_cache_permissions {read write} [current_project]
+    }
+
+    foreach param [list synth.maxThreads synth.maxClusterJobsRunCount] {
+        if {[catch {get_param $param} old_value] == 0} {
+            puts "Build 43 setting ${param} from ${old_value} to 1 for implementation child IP generation."
+            catch {set_param $param 1}
+        }
+    }
 }
 
 proc p3_set_run_property_if_present {run prop value} {
@@ -160,6 +246,7 @@ puts " Build 43: P3 no-stack AXI16550 ASM UART"
 puts " Project: ${project_dir}/${project_name}.xpr"
 puts " Jobs: ${jobs}"
 puts " Reuse synth: ${reuse_synth}"
+puts " Prepare BD/ILA: ${run_prepare}"
 puts "=========================================="
 
 if {![file exists $bootrom_rebuild_sh]} {
@@ -182,7 +269,11 @@ if {$run_create} {
     puts "Skipping project creation step."
 }
 
-source $prepare_tcl
+if {$run_prepare} {
+    source $prepare_tcl
+} else {
+    puts "Skipping Build 43 prepare step."
+}
 
 open_project "${project_dir}/${project_name}.xpr"
 
@@ -228,6 +319,11 @@ if {[lsearch -exact $defs "P3_SIFIVE_UART"] >= 0 ||
 p3_use_ariane_unread_vivado_shim $ariane_unread_impl_src
 update_compile_order -fileset sources_1
 
+if {$reuse_synth && $run_prepare} {
+    puts "ERROR: -reuse_synth requires -skip_prepare because prepare regenerates synth_1 scripts and resets the run."
+    exit 1
+}
+
 if {$reuse_synth} {
     set synth_progress [get_property PROGRESS [get_runs $synth_run]]
     puts "Reusing existing synthesis run ${synth_run}; progress=${synth_progress}"
@@ -243,6 +339,8 @@ if {$reuse_synth} {
     wait_on_run $synth_run
     p3_runmgr_check_status $synth_run "Synthesis"
 }
+
+p3_seed_build43_impl_caches $project_dir $project_name
 
 reset_run $impl_run
 launch_runs $impl_run -to_step write_device_image -jobs $jobs
