@@ -70,6 +70,8 @@ Implementation note: keep this standalone project in a very short Windows-visibl
 
 Hardware result: the short-path build completed and published `huaprop3_uart16550_ila_interact/debug_build/p3_uart16550_ila_interact.pdi` plus `.ltx`. Programming reported `DONE bit: HIGH`; Hardware Manager reached the debug hub at `0x3ffc0000000`, armed/uploaded `u_bd/p3_uart16550_dbg_bd_i/axis_ila_0`, and exported CSV. The host sent `P3UART?\r\n` through `/dev/ttyUSB0` at 115200 and received the same bytes back. The decoder reported `PASS` with initialized 16550 state, RX read activity, TX write activity, and no AXI error. This isolates the physical UART and Xilinx `axi_uart16550` path as good, so mainline OpenPiton no-output debug should focus on integration and software sequencing rather than CW58/CW59 or FTDI hardware.
 
+Validation harness note: `scripts/p3_uart16550_ila_interact_validate.py` does not store lab SSH credentials. It uses SSH key authentication by default, or the `P3_REMOTE_PASS` environment variable if password auth is required. `P3_REMOTE_HOST`, `P3_REMOTE_USER`, `P3_UART_DEVICE`, and `P3_UART_BAUD` can override the defaults.
+
 ### P3 Build 24 RTL Debug Flow
 
 Build 24 adds `P3_RTL_DEBUG`, which exports deterministic RTL debug buses to the P3 top level before synthesis. This replaces the Build 23 strategy of probing internal post-synthesis net names such as `chip_rst_n`, which proved unreliable after optimization and hierarchy changes.
