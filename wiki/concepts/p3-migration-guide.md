@@ -135,6 +135,8 @@ Build 48 implementation completed successfully from `D:/p3b48`: route status rep
 
 Build 48 hardware validation printed the normal banner through AXI16550, then produced no additional serial output in a later 600-second capture. Two ILA captures taken about 18 minutes apart were identical. The last L1.5 address was `0xfff101057c`, which maps to `sd_copy+0xcc` (`bne a1,a4,10570`) in the bootrom block-copy loop. UART-side state showed a final THR write of `0x29` after an LSR read of `0x20`, and DDR-side state showed an OKAY read at translated low address `0x03fffd00` with no DDR write-channel sticky bits. This moves the fault from reset/fetch/UART bring-up to early SD/GPT block-copy progress and cache/DDR write visibility. Build 49 should expose live boot progress or PC plus SD-mapped read and DDR write-channel activity, so a stopped `sd_copy` loop can be separated from a missing SD return, a cached store/writeback issue, or a UART transmitter state issue after the banner.
 
+Build 49 starts with a narrower software experiment before another full normal-boot image: `BOOTROM_MODE=sd_smoke` keeps `startup.S` and the original AXI16550 UART driver, but replaces the normal GPT/payload-copy C path with direct reads from the SD mapped window. It prints LBA0, LBA1/GPT header fields, partition-entry fields, and the first qword of the first partition only after range checks. A valid `EFI PART` signature and sane partition fields would shift the next fault search toward BBL/payload contents and copy/cache/writeback behavior; a bad or missing signature keeps the focus on SD card image preparation or the SD mapped-read path.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
