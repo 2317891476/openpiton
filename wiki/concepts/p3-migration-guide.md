@@ -137,6 +137,8 @@ Build 48 hardware validation printed the normal banner through AXI16550, then pr
 
 Build 49 starts with a narrower software experiment before another full normal-boot image: `BOOTROM_MODE=sd_smoke` keeps `startup.S` and the original AXI16550 UART driver, but replaces the normal GPT/payload-copy C path with direct reads from the SD mapped window. It prints LBA0, LBA1/GPT header fields, partition-entry fields, and the first qword of the first partition only after range checks. A valid `EFI PART` signature and sane partition fields would shift the next fault search toward BBL/payload contents and copy/cache/writeback behavior; a bad or missing signature keeps the focus on SD card image preparation or the SD mapped-read path.
 
+Build 49 hardware validation narrowed the stop before any SD-sector data returns. The SD-smoke bootrom printed `B49 SD SMOKE AXI16550`, `mode: direct SD mapped reads, no payload copy`, and stopped after `read lba0[0]`. The four BD-owned ILAs remained accessible through `PMC_AXI_NOC0`; decode showed `top_status=0xff03`, `core_seen=0x7fff`, `sd_seen=0x7f2b`, and `ddr_seen=0xcf01`. The important SD bits were `buf_sd_noc2_valid=1` with `sd_buf_noc2_ready=0`, `sd_req_fire=0`, `sd_buf_noc3_valid=0`, and `sd_resp_fire=0`. DDR read traffic still completed with OKAY response. This does not support "SD card lacks a standard BBL" as the current first failure: the CPU is blocked before the SD path accepts the first mapped LBA0 read, so the next debug target is SD bridge ready/backpressure/reset/clock/address decode rather than GPT/BBL image contents.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
