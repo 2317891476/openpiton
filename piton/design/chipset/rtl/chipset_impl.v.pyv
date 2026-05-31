@@ -341,6 +341,10 @@ reg [15:0]                                      p3_last_intf_chipset_data_noc2_r
 reg [15:0]                                      p3_last_bootrom_req_data_r;
 reg [15:0]                                      p3_last_bootrom_resp_data_r;
 reg [15:0]                                      p3_build41_chipset_flags_seen_r;
+reg [15:0]                                      p3_sd_smoke_seen_r;
+reg [15:0]                                      p3_last_sd_req_addr16_r;
+reg [15:0]                                      p3_last_sd_req_data16_r;
+reg [15:0]                                      p3_last_sd_resp_data16_r;
 `endif
 
 <%
@@ -1289,6 +1293,13 @@ wire [15:0] p3_build41_chipset_flags = {chipset_rst_n,
                                          ariane_boot_sel,
                                          (p3_uart_debug_seen[0] | p3_uart_debug_seen[3])};
 
+`ifdef P3_BD_SD_SMOKE_ILA
+wire p3_sd_smoke_req_fire  = buf_sd_noc2_valid  & sd_buf_noc2_ready;
+wire p3_sd_smoke_resp_fire = sd_buf_noc3_valid  & buf_sd_noc3_ready;
+wire p3_sd_smoke_mem_req_fire  = buf_mem_noc2_valid & mem_buf_noc2_ready;
+wire p3_sd_smoke_mem_resp_fire = mem_buf_noc3_valid & buf_mem_noc3_ready;
+`endif
+
 always @(posedge chipset_clk or negedge chipset_rst_n)
 begin
     if (~chipset_rst_n)
@@ -1298,6 +1309,12 @@ begin
         p3_last_bootrom_req_data_r <= 16'd0;
         p3_last_bootrom_resp_data_r <= 16'd0;
         p3_build41_chipset_flags_seen_r <= 16'd0;
+`ifdef P3_BD_SD_SMOKE_ILA
+        p3_sd_smoke_seen_r <= 16'd0;
+        p3_last_sd_req_addr16_r <= 16'd0;
+        p3_last_sd_req_data16_r <= 16'd0;
+        p3_last_sd_resp_data16_r <= 16'd0;
+`endif
     end
     else
     begin
@@ -1332,12 +1349,46 @@ begin
         begin
             p3_last_bootrom_resp_data_r <= ariane_bootrom_buf_noc3_data[15:0];
         end
+`ifdef P3_BD_SD_SMOKE_ILA
+        p3_sd_smoke_seen_r <= p3_sd_smoke_seen_r |
+                              {invalid_access_o,
+                               cpu_mem_traffic,
+                               (m_axi_arvalid | m_axi_awvalid),
+                               p3_sd_smoke_mem_resp_fire,
+                               mem_buf_noc3_valid,
+                               buf_mem_noc3_ready,
+                               p3_sd_smoke_mem_req_fire,
+                               buf_mem_noc2_valid,
+                               p3_sd_smoke_resp_fire,
+                               sd_buf_noc3_valid,
+                               buf_sd_noc3_ready,
+                               p3_sd_smoke_req_fire,
+                               buf_sd_noc2_valid,
+                               sd_buf_noc2_ready,
+                               (p3_uart_debug_seen[0] | p3_uart_debug_seen[3]),
+                               chipset_rst_n};
+        if (p3_sd_smoke_req_fire)
+        begin
+            p3_last_sd_req_addr16_r <= buf_sd_noc2_data[`MSG_ADDR_HI_:`MSG_ADDR_HI_-15];
+            p3_last_sd_req_data16_r <= buf_sd_noc2_data[15:0];
+        end
+        if (p3_sd_smoke_resp_fire)
+        begin
+            p3_last_sd_resp_data16_r <= sd_buf_noc3_data[15:0];
+        end
+`endif
     end
 end
 
 `ifdef P3_BD_UART_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_uart_debug_seen;
 assign p3_chipset_debug_bus = p3_uart_debug_bus;
+`elsif P3_BD_SD_SMOKE_ILA
+assign p3_chipset_debug_seen = p3_sd_smoke_seen_r;
+assign p3_chipset_debug_bus = {p3_last_sd_req_addr16_r,
+                               p3_last_sd_req_data16_r,
+                               p3_last_sd_resp_data16_r,
+                               p3_sd_smoke_seen_r};
 `elsif P3_BD_BOOT_PROGRESS_ILA
 assign p3_chipset_debug_seen = p3_uart_debug_seen;
 assign p3_chipset_debug_bus = p3_uart_debug_bus;

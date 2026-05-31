@@ -570,7 +570,26 @@ set_output_delay -clock [get_clocks sd_clk_out] -max -add_delay  8.000 [get_port
 
 The exact `-source` paths depend on the final Clock Wizard configuration and will be determined after initial synthesis.
 
+### 6.6 Build 49 SD Ready Hang and init_done Analysis
+
+**Problem Description (Build 49)**:
+During the SD-smoke test (`BOOTROM_MODE=sd_smoke`), the console output prints the banner but hangs at `read lba0[0]`. ILA captures show `buf_sd_noc2_valid=1` but `sd_buf_noc2_ready=0` (corresponding to the internal `sd_splitter_rdy=0`), blocking the AXI/NoC request from firing (`sd_req_fire=0`).
+
+**Detailed Comparison & Root Causes**:
+1. **Controller Architecture Difference**:
+   - *Reference Project (Chipyard)*: Communicates with the SD card (or SPI Flash on the daughter card) using an **SPI controller** in **SPI mode**. It maps `sdio_spi_cs` to `DB57` and `sdio_spi_dat_0` to `DC56`.
+   - *Our Project (OpenPiton)*: Uses a native **4-bit SD controller (`sdc_controller.v`)** with bidirectional CMD/DAT lines.
+2. **The `init_done` Reset Lock**:
+   - In OpenPiton's `piton_sd_top.v`, the data-path controller (`sd_core_ctrl`) and cache manager are held in reset using `.rst (~init_done | rst)`.
+   - `init_done` is asserted by the hardware initializer `piton_sd_init.v` only after it successfully completes the physical SD card initialization sequence (CMD0, CMD8, ACMD41, etc.).
+   - Since `init_done` remains `0` (initialization fails), the core controller remains in reset and drives `sd_splitter_rdy` (NoC2 ready) to `0` permanently, backpressuring the CPU's NoC request.
+3. **Physical-Layer Discrepancies causing Initialization Failure**:
+   - **Card Detect Polarity**: The reset signal is defined as `rst = sys_rst | sd_cd`. Since `SD_CD#` (DC61) is active-low (0 when card is present), if the signal is read as 1 (due to constraints or card presence sensing), the entire init block is held in reset.
+   - **SD Clock Generation**: Direct wire assignment `assign sd_clk_out = sd_clk_out_internal` without an ODDR primitive on Versal can cause clock skew/duty-cycle issues, preventing the physical SD card from responding to command sequences.
+   - **Tristate Bidirectional Buffer Delay**: The `inout` `sd_cmd`/`sd_dat` lines rely on inferred `IOBUF`s. On Versal, the bidirectional direction switching must be carefully timed to avoid bus contention with the card.
+
 ---
+
 
 ## 7. Device Tree and Bootrom Changes
 

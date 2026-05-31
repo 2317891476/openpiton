@@ -5,6 +5,15 @@
 // Connects BD infrastructure outputs to OpenPiton inputs, and routes
 // board-level IO (UART, SD, LEDs) directly.
 
+`ifdef P3_BD_BOOT_PROGRESS_ILA
+`define P3_BD_BOOT_PROGRESS_PORTS_ILA
+`endif
+`ifdef P3_BD_SD_SMOKE_ILA
+`ifndef P3_BD_BOOT_PROGRESS_PORTS_ILA
+`define P3_BD_BOOT_PROGRESS_PORTS_ILA
+`endif
+`endif
+
 module p3_top (
     // Differential system clock (100 MHz LVDS15)
     input  wire        diff_sysclock_clk_p,
@@ -182,7 +191,7 @@ module p3_top (
     wire [31:0]  p3_top_status;
     wire [63:0]  dbg_m_axi_araddr;
     wire [63:0]  dbg_m_axi_awaddr;
-`elsif P3_BD_BOOT_PROGRESS_ILA
+`elsif P3_BD_BOOT_PROGRESS_PORTS_ILA
     wire [127:0] p3_debug_bus;
     wire [31:0]  p3_debug_seen;
     wire [31:0]  p3_top_status;
@@ -330,7 +339,7 @@ module p3_top (
 
     assign p3_dbg_uart_seen16 = p3_debug_seen[31:16];
 `endif
-`ifdef P3_BD_BOOT_PROGRESS_ILA
+`ifdef P3_BD_BOOT_PROGRESS_PORTS_ILA
     (* keep = "true" *) wire        p3_dbg_heartbeat_bit;
     (* keep = "true" *) wire [15:0] p3_dbg_top_status16;
     (* keep = "true" *) wire [15:0] p3_dbg_core_seen16;
@@ -505,7 +514,7 @@ module p3_top (
 `ifdef P3_BD_BOOT_DEBUG_ILA
         .p3_dbg_uart_seen16_i   (p3_dbg_uart_seen16),
 `endif
-`ifdef P3_BD_BOOT_PROGRESS_ILA
+`ifdef P3_BD_BOOT_PROGRESS_PORTS_ILA
         .p3_dbg_heartbeat_bit_i (p3_dbg_heartbeat_bit),
         .p3_dbg_top_status16_i  (p3_dbg_top_status16),
         .p3_dbg_core_seen16_i   (p3_dbg_core_seen16),
@@ -644,3 +653,7 @@ module p3_top (
     );
 
 endmodule
+
+`ifdef P3_BD_BOOT_PROGRESS_PORTS_ILA
+`undef P3_BD_BOOT_PROGRESS_PORTS_ILA
+`endif
