@@ -127,6 +127,8 @@ Build 46 hardware validation confirmed that this translation is functional: the 
 
 Build 47 carries the same address-translation baseline into the normal C bootrom while returning to the original AXI16550 UART path. Its two small BD-owned ILAs observe DDR sticky flags, a compact DDR transaction snapshot, and UART sticky activity so the next failure point can be separated between C stack/DDR responses, UART logging, SD probing, and payload loading without changing the DDRMC/NoC BD aperture.
 
+Build 47 hardware validation confirmed the corrected baseline: a serial capture window that spans the full PDI programming interval and post-DONE runtime prints the normal OpenPiton+Ariane bootrom banner through the original AXI16550 path. A shorter 90-second capture had ended before the PDI reprogramming completed and should not be used as evidence of UART failure. After Build 47, the active debug target is no longer physical UART or UART IP bring-up; it is the later normal bootrom path where banner output stops before the full platform info and before clear SD/GPT progress.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
