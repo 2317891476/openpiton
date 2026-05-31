@@ -125,6 +125,8 @@ Bring-up note from Builds 44-46: do not assume the P3 BD always sees DDR address
 
 Build 46 hardware validation confirmed that this translation is functional: the no-stack DDR probe still issued a physical `0x84xxxxxx` read, but the BD-facing snapshot retained `0x04000000`, and the AXI R channel returned with OKAY response. Treat the address translation as part of the P3 OpenPiton memory integration baseline; later boot failures should first be checked at the C bootrom, SD, cache, or payload-loading layer before reopening DDR PHY/IP bring-up.
 
+Build 47 carries the same address-translation baseline into the normal C bootrom while returning to the original AXI16550 UART path. Its two small BD-owned ILAs observe DDR sticky flags, a compact DDR transaction snapshot, and UART sticky activity so the next failure point can be separated between C stack/DDR responses, UART logging, SD probing, and payload loading without changing the DDRMC/NoC BD aperture.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**

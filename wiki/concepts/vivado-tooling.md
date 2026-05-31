@@ -470,6 +470,31 @@ Hardware validation completed on 2026-05-31. Build 46 built and programmed succe
 
 The Build 46 decoder returned non-zero only because the immediate trigger window did not include AW/W/B write-channel events. That does not invalidate the DDR read result. The decisive comparison is Build 44's missing R channel at BD-facing `0x84000000` versus Build 46's returned R channel at translated `0x04000000`. Therefore the next normal-boot build should keep `P3_AXI_DDR_ADDR_TRANSLATE` enabled and move on to C-stack, UART logging, SD, and payload-load progress.
 
+### P3 Build 47 Normal AXI16550 BootROM With Translated DDR
+
+Build 47 moves from the no-stack Build 46 DDR probe to the normal C bootrom while preserving the proven hardware baseline: original Xilinx AXI16550 UART, BD DDR aperture `0x00000000 [2G]`, and top-level `P3_AXI_DDR_ADDR_TRANSLATE`. It deliberately keeps `PITONSYS_MEM_ZEROER` disabled for this run so early C stack, UART initialization, SD scan, and payload-load traffic are easier to separate from automatic zeroer writes.
+
+Use the Build 47 script from the repository root:
+
+```bash
+vivado -mode batch -source scripts/p3_build47_normal_boot_translated_ddr.tcl -tclargs -jobs 1
+```
+
+The flow regenerates the bootrom with `BOOTROM_MODE=normal PITON_SIFIVE_UART=0`, checks for the expected C symbols, creates the Vivado project under `D:/p3b47` by default, and publishes the generated PDI/LTX under `huaprop3_build47_normal_boot_translated_ddr/debug_build`. For implementation-only recovery after a completed synthesis run, use:
+
+```bash
+vivado -mode batch -source scripts/p3_build47_normal_boot_translated_ddr.tcl -tclargs -skip_create -skip_prepare -reuse_synth -jobs 1
+```
+
+Build 47 uses two BD-owned net-probe ILAs clocked by `clk_wizard_0/chipset_clk`. `axis_ila_0` captures heartbeat, top status, DDR sticky flags, and UART sticky flags; `axis_ila_1` captures the compact DDR transaction snapshot. After programming, capture and decode with:
+
+```bash
+vivado -mode batch -source scripts/p3_ila_capture_build47_normal_boot.tcl
+python3 scripts/p3_decode_build47_ila_csv.py huaprop3_build47_normal_boot_translated_ddr/debug_build
+```
+
+The decision tree is intentionally narrow. UART output with OKAY DDR responses moves debug to SD/payload/OS boot. DDR response errors or missing response flags become the next build target with the captured normal-boot transaction sequence. UART sticky writes without serial output would reopen the UART transaction details, but Builds 43 and 46 already proved the physical AXI16550 path.
+
 ### P3 Build 39 SiFive UART Project Variant
 
 Build 39 creates a separate `huaprop3_sifive_uart` Vivado project instead of modifying the known Build 38 `huaprop3_openpiton` project in place. The project is generated with `scripts/p3_create_bd_sifive_uart.tcl`, which delegates to the normal P3 BD creator while setting `P3_ENABLE_SIFIVE_UART=1`.

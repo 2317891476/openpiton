@@ -176,6 +176,12 @@ module p3_top (
     wire [31:0]  p3_top_status;
     wire [63:0]  dbg_m_axi_araddr;
     wire [63:0]  dbg_m_axi_awaddr;
+`elsif P3_BD_BOOT_DEBUG_ILA
+    wire [127:0] p3_debug_bus;
+    wire [31:0]  p3_debug_seen;
+    wire [31:0]  p3_top_status;
+    wire [63:0]  dbg_m_axi_araddr;
+    wire [63:0]  dbg_m_axi_awaddr;
 `elsif P3_BD_BUILD41_DEBUG_ILA
     wire [127:0] p3_debug_bus;
     wire [31:0]  p3_debug_seen;
@@ -313,6 +319,11 @@ module p3_top (
                                    p3_ddr_last_rresp_r,
                                    p3_ddr_seen16_r[13:0]};
 `endif
+`ifdef P3_BD_BOOT_DEBUG_ILA
+    (* keep = "true" *) wire [15:0] p3_dbg_uart_seen16;
+
+    assign p3_dbg_uart_seen16 = p3_debug_seen[31:16];
+`endif
 `ifdef P3_BD_SIFIVE_DEBUG_ILA
     (* keep = "true" *) wire [15:0] p3_dbg_chip_seen16;
 
@@ -398,6 +409,9 @@ module p3_top (
         .p3_dbg_top_status16_i  (p3_dbg_top_status16),
         .p3_dbg_ddr_seen16_i    (p3_dbg_ddr_seen16),
         .p3_dbg_ddr_bus64_i     (p3_dbg_ddr_bus64),
+`endif
+`ifdef P3_BD_BOOT_DEBUG_ILA
+        .p3_dbg_uart_seen16_i   (p3_dbg_uart_seen16),
 `endif
 `ifdef P3_BD_SIFIVE_DEBUG_ILA
         .p3_dbg_chip_seen16_i   (p3_dbg_chip_seen16),
