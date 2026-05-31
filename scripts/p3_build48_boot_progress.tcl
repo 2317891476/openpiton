@@ -218,6 +218,38 @@ proc p3_to_wsl_path {path} {
     return $norm
 }
 
+proc p3_regenerate_pyhp_tmp {repo_dir} {
+    set repo_wsl [p3_to_wsl_path $repo_dir]
+    set pyhp_wsl "${repo_wsl}/piton/tools/bin/pyhp.py"
+    set pyhp_pairs [list \
+        "${repo_dir}/piton/design/chip/rtl/chip.v.pyv" \
+        "${repo_dir}/piton/design/chip/rtl/chip.tmp.v" \
+        "${repo_dir}/piton/design/chipset/rtl/chipset_impl.v.pyv" \
+        "${repo_dir}/piton/design/chipset/rtl/chipset_impl.tmp.v" \
+    ]
+
+    for {set i 0} {$i < [llength $pyhp_pairs]} {incr i 2} {
+        set src [lindex $pyhp_pairs $i]
+        set dst [lindex $pyhp_pairs [expr {$i + 1}]]
+        set src_wsl [p3_to_wsl_path $src]
+        set dst_wsl [p3_to_wsl_path $dst]
+        puts "Regenerating PyHP output: ${src_wsl} -> ${dst_wsl}"
+        set cmd "set -e; export PITON_ROOT=${repo_wsl}; export DV_ROOT=${repo_wsl}/piton; export PROTOSYN_RUNTIME_DESIGN_PATH=${repo_wsl}/piton/design/xilinx; export PROTOSYN_RUNTIME_BOARD=huaprop3; export PITON_X_TILES=1; export PITON_Y_TILES=1; export PITON_NUM_TILES=1; export PITON_ARIANE=1; export PITON_RV64_PLATFORM=1; python3 ${pyhp_wsl} ${src_wsl} > ${dst_wsl}"
+        if {[catch {exec bash -lc $cmd 2>@1} pyhp_log]} {
+            puts $pyhp_log
+            puts "ERROR: Build 48 PyHP regeneration failed for ${src_wsl}"
+            exit 1
+        }
+        if {$pyhp_log ne ""} {
+            puts $pyhp_log
+        }
+        if {![file exists $dst] || [file size $dst] == 0} {
+            puts "ERROR: Build 48 PyHP output is missing or empty: ${dst}"
+            exit 1
+        }
+    }
+}
+
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {
     set pdi_src [p3_find_latest_file $run_dir "*.pdi"]
     set ltx_src [p3_find_latest_file $run_dir "*.ltx"]
@@ -280,6 +312,8 @@ if {[catch {exec bash $bootrom_rebuild_exec_path 2>@1} bootrom_rebuild_log]} {
     exit 1
 }
 puts $bootrom_rebuild_log
+
+p3_regenerate_pyhp_tmp $repo_dir
 
 if {$run_create} {
     set P3_PROJECT_NAME $project_name
