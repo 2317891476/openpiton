@@ -198,10 +198,16 @@ reg [12:0] p3_last_s_axi_awaddr;
 reg [7:0]  p3_last_s_axi_wdata;
 reg [3:0]  p3_last_s_axi_wstrb;
 reg [1:0]  p3_last_s_axi_bresp;
+reg [12:0] p3_last_s_axi_araddr;
+reg [7:0]  p3_last_s_axi_rdata;
+reg [1:0]  p3_last_s_axi_rresp;
 reg [12:0] p3_last_core_axi_awaddr;
 reg [7:0]  p3_last_core_axi_wdata;
 reg [3:0]  p3_last_core_axi_wstrb;
 reg [1:0]  p3_last_core_axi_bresp;
+reg [12:0] p3_last_core_axi_araddr;
+reg [7:0]  p3_last_core_axi_rdata;
+reg [1:0]  p3_last_core_axi_rresp;
 reg        p3_uart_tx_q;
 reg        p3_uart_tx_low_seen;
 reg        p3_uart_tx_transition_seen;
@@ -221,10 +227,16 @@ begin
     p3_last_s_axi_wdata        <= 8'd0;
     p3_last_s_axi_wstrb        <= 4'd0;
     p3_last_s_axi_bresp        <= 2'd0;
+    p3_last_s_axi_araddr       <= 13'd0;
+    p3_last_s_axi_rdata        <= 8'd0;
+    p3_last_s_axi_rresp        <= 2'd0;
     p3_last_core_axi_awaddr    <= 13'd0;
     p3_last_core_axi_wdata     <= 8'd0;
     p3_last_core_axi_wstrb     <= 4'd0;
     p3_last_core_axi_bresp     <= 2'd0;
+    p3_last_core_axi_araddr    <= 13'd0;
+    p3_last_core_axi_rdata     <= 8'd0;
+    p3_last_core_axi_rresp     <= 2'd0;
     p3_uart_tx_q               <= 1'b1;
     p3_uart_tx_low_seen        <= 1'b0;
     p3_uart_tx_transition_seen <= 1'b0;
@@ -268,6 +280,15 @@ begin
     begin
       p3_last_s_axi_bresp <= s_axi_bresp;
     end
+    if (s_axi_arvalid & s_axi_arready)
+    begin
+      p3_last_s_axi_araddr <= s_axi_araddr;
+    end
+    if (s_axi_rvalid & s_axi_rready)
+    begin
+      p3_last_s_axi_rdata <= s_axi_rdata[7:0];
+      p3_last_s_axi_rresp <= s_axi_rresp;
+    end
     if (p3_core_axi_aw_fire)
     begin
       p3_last_core_axi_awaddr <= core_axi_awaddr;
@@ -280,6 +301,15 @@ begin
     if (p3_core_axi_b_fire)
     begin
       p3_last_core_axi_bresp <= core_axi_bresp;
+    end
+    if (core_axi_arvalid & core_axi_arready)
+    begin
+      p3_last_core_axi_araddr <= core_axi_araddr;
+    end
+    if (core_axi_rvalid & core_axi_rready)
+    begin
+      p3_last_core_axi_rdata <= core_axi_rdata[7:0];
+      p3_last_core_axi_rresp <= core_axi_rresp;
     end
     if (~uart16550_tx)
     begin
@@ -325,6 +355,15 @@ assign p3_uart_debug_seen = p3_uart_debug_seen_r;
 assign p3_uart_debug_bus = p3_sifive_debug_bus;
 `elsif P3_BD_UART_WR_NARROW_DEBUG_ILA
 assign p3_uart_debug_bus = {8'd0, p3_uart_wr_debug_bus_s1};
+`elsif P3_BD_UART_RW_DEBUG_ILA
+assign p3_uart_debug_bus = {p3_last_s_axi_rdata[7:0],
+                            p3_last_s_axi_araddr[7:0],
+                            p3_last_s_axi_wdata[7:0],
+                            p3_last_s_axi_awaddr[7:0],
+                            p3_last_core_axi_rdata[7:0],
+                            p3_last_core_axi_araddr[7:0],
+                            p3_last_core_axi_wdata[7:0],
+                            p3_last_core_axi_awaddr[7:0]};
 `elsif P3_BD_UART_WR_DEBUG_ILA
 assign p3_uart_debug_bus = {p3_last_s_axi_wdata[7:0],
                             p3_last_s_axi_wstrb[3:0],

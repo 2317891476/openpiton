@@ -120,6 +120,18 @@ Implementation note: Build 41 supports `-reuse_synth` for implementation-only re
 
 Validation note: when using `scripts/p3_serial.py --capture <seconds>` around a PDI reprogramming run, the capture duration must cover Vivado hardware-manager connection time, XVC target open time, PDI programming, and post-DONE execution. On Build 47, a 90-second capture ended before reprogramming finished and falsely suggested no bootrom text; a 360-second window captured the normal OpenPiton+Ariane banner from the original AXI16550 path. Treat pre-DONE serial windows as inconclusive for bootrom output.
 
+Build 48 is the normal-boot post-banner debug flow. It keeps the original AXI16550 UART and translated-DDR baseline from Build 47, but replaces the two-ILA Build 47 view with four small BD-owned ILAs. `axis_ila_0` captures heartbeat, top status, core sticky, UART sticky, and DDR sticky probes; `axis_ila_1` captures the 64-bit core/L15 payload; `axis_ila_2` captures the 64-bit UART AXI read/write payload; `axis_ila_3` captures the 64-bit DDR payload. The default work project is `D:/p3b48`, with final PDI/LTX published under `huaprop3_build48_boot_progress/debug_build`.
+
+```bash
+vivado -mode batch -source scripts/p3_build48_boot_progress.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build48_boot_progress/debug_build/p3_top_build48_boot_progress.pdi
+python3 scripts/p3_serial.py --capture 360
+vivado -mode batch -source scripts/p3_ila_capture_build48_boot_progress.tcl
+python3 scripts/p3_decode_build48_ila_csv.py huaprop3_build48_boot_progress/debug_build
+```
+
+The Build 48 LTX check requires the validated Versal debug path (`0x000003FFC0000000` through `PMC_AXI_NOC0`) plus all four `axis_ila_*` cores and the `p3_dbg_core_*`, `p3_dbg_uart_*`, and `p3_dbg_ddr_*` probe names. If the build succeeds but the boot still stops after the banner, decode the four CSVs before changing UART or DDR IP structure.
+
 Implementation note: on 2026-05-26, both the WSL project and a `save_project_as` copy under Windows `%TEMP%` stalled inside `launch_runs impl_1 -scripts_only` before creating `impl_1/runme.*`. Direct `open_checkpoint` of the completed 99 MB `p3_top.dcp` also went idle after loading `xcvp1902-vsva6865-1MP-e-S`. `scripts/p3_build24_direct_flow.tcl` is the fallback for this case: it sources the generated `synth_1/p3_top.tcl` so synthesis remains in the same Vivado process, inserts the RTL debug ILA, reads the OOC IP DCPs into their black-box cells, and then runs `opt_design` through `write_device_image` without run manager or DCP reopen.
 
 Implementation note: the direct fallback should locate OOC/IP cells by synthesized `REF_NAME`, not by fixed BD hierarchy. A 2026-05-26 direct run completed synthesis and connected the explicit top-level debug nets, but failed before `opt_design` because `u_bd/openpiton_top_i/axi_noc_0` was no longer a valid cell path after synthesis. The fallback script now reads `openpiton_top_axi_noc_0_0`, `openpiton_top_clk_wizard_0_0`, `openpiton_top_proc_sys_reset_0_0`, and `uart_16550` DCPs into the matching black-box cells by `REF_NAME`; it also supports `-reuse_synth` to continue from `debug_build/build24_direct/p3_top.dcp` without another full synthesis pass.

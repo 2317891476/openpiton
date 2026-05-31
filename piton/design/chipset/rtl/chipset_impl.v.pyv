@@ -1338,6 +1338,9 @@ end
 `ifdef P3_BD_UART_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_uart_debug_seen;
 assign p3_chipset_debug_bus = p3_uart_debug_bus;
+`elsif P3_BD_BOOT_PROGRESS_ILA
+assign p3_chipset_debug_seen = p3_uart_debug_seen;
+assign p3_chipset_debug_bus = p3_uart_debug_bus;
 `elsif P3_BD_BUILD41_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_chipset_debug_seen_r;
 assign p3_chipset_debug_bus = {p3_last_intf_chipset_data_noc2_r,

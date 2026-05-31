@@ -768,6 +768,9 @@ assign p3_chipset_debug_bus = {p3_chipset_impl_debug_bus[55:0],
 `elsif P3_BD_UART_WR_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_chipset_impl_debug_seen;
 assign p3_chipset_debug_bus = p3_chipset_impl_debug_bus;
+`elsif P3_BD_BOOT_PROGRESS_ILA
+assign p3_chipset_debug_seen = p3_chipset_impl_debug_seen;
+assign p3_chipset_debug_bus = p3_chipset_impl_debug_bus;
 `else
 assign p3_chipset_debug_seen = p3_chipset_debug_seen_r | p3_chipset_impl_debug_seen;
 assign p3_chipset_debug_bus = {p3_chipset_impl_debug_bus[55:0],

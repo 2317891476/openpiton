@@ -492,6 +492,8 @@ module chip(
    assign p3_chip_debug_seen = p3_chip_debug_seen_r | tile0_p3_debug_seen;
 `ifdef P3_BD_BUILD41_DEBUG_ILA
    assign p3_chip_debug_bus = tile0_p3_debug_bus;
+`elsif P3_BD_BOOT_PROGRESS_ILA
+   assign p3_chip_debug_bus = tile0_p3_debug_bus;
 `else
    assign p3_chip_debug_bus = {tile0_p3_debug_bus[47:0],
                                rst_n_inter,
