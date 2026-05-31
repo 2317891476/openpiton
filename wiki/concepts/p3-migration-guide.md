@@ -131,6 +131,8 @@ Build 47 hardware validation confirmed the corrected baseline: a serial capture 
 
 Build 48 keeps the Build 47 hardware/software baseline and only adds finer debug visibility for that post-banner stop. It uses the original `PITON_UART16550` path, keeps `P3_AXI_DDR_ADDR_TRANSLATE`, keeps `PITONSYS_MEM_ZEROER` disabled, and adds `P3_BD_BOOT_PROGRESS_ILA` to expose three compact 64-bit debug buses plus sticky status. The BD owns four small ILAs: status/sticky, core/L15 payload, UART AXI read/write payload, and DDR AXI payload. This should identify whether the stop is core/L15 progress, UART register sequencing, DDR stack/write response, or later SD/GPT traffic without changing the proven UART path.
 
+Build 48 implementation completed successfully from `D:/p3b48`: route status reported 154,734 fully routed routable nets and 0 routing errors, timing met all user constraints with `WNS=8.965 ns` and `WHS=0.019 ns`, and `p3_top_build48_boot_progress.pdi/.ltx` were published. The hardware validation sequence should start serial capture before PDI programming, then collect all four ILA CSVs so the post-banner stop can be separated between core/L15 progress, UART AXI state, and DDR AXI responses.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
