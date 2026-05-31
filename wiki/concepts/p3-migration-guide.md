@@ -147,6 +147,8 @@ Build 51 instruments that native SD initialization path without changing the boa
 
 Build 51 hardware validation proved the first case. The image built cleanly from `D:/p3b51`, programmed with `DONE bit: HIGH`, and refreshed all four ILAs through the known-good `PMC_AXI_NOC0` debug path. The SD-init decode showed raw `sd_cd=1`, aggregated SD reset asserted, `init_done=0`, no SD clock toggle, no CMD/DAT output-enable activity, and no Wishbone ack. Since `piton_sd_top` currently computes internal reset as `sys_rst | sd_cd`, a high card-detect input prevents the native SD init FSM from leaving reset. Build 52 should keep the same SD controller, pins, clocks, UART, and no-stack SD-probe bootrom, but mask `sd_cd` out of the internal reset path while continuing to probe the raw `sd_cd` level. If SD clock/CMD/Wishbone activity starts, the root cause is the P3 card-detect polarity/connection path; if it still does not, the next fault is inside the SD clock/reset or Wishbone controller initialization.
 
+Build 52 implements that narrow card-detect control. The RTL adds `P3_SD_IGNORE_CARD_DETECT_RESET` around the `piton_sd_top` internal reset calculation so raw `sd_cd` remains visible in the ILA, but the SD controller/init reset ignores it for this experiment. The Vivado runner is `scripts/p3_build52_sd_cd_mask.tcl`, defaults to `D:/p3b52`, and publishes `p3_top_build52_sd_cd_mask.pdi/.ltx`. All other Build 51 variables are intentionally held constant: original AXI16550 UART, no-stack SD-probe bootrom, native SD controller, SD pinout, SD clocks, DDR address translation, and the same compact four-ILA layout.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**

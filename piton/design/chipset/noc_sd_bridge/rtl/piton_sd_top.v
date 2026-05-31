@@ -66,8 +66,14 @@ module piton_sd_top (
 `endif
     );
 
-    // Aggregated reset signal
-    wire    rst =   sys_rst | sd_cd;
+    // Aggregated reset signal. On P3, Build 51 showed raw SD_CD stuck high
+    // and holding the native SD controller in reset before init could start.
+`ifdef P3_SD_IGNORE_CARD_DETECT_RESET
+    wire    sd_cd_reset = 1'b0;
+`else
+    wire    sd_cd_reset = sd_cd;
+`endif
+    wire    rst =   sys_rst | sd_cd_reset;
     wire    [31:0]      m_wb_dat_o;
     wire    [31:0]      m_wb_dat_i;
     wire    [7:0]       m_wb_adr_o;

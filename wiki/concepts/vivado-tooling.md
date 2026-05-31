@@ -614,6 +614,17 @@ python3 scripts/p3_decode_build42b_ila_csv.py huaprop3_build42b_bram_stack/debug
 
 The hardware path is intentionally not a BD address-map rewrite. `P3_BUILD42B_BRAM_STACK` inserts `p3_axi_stack_bram` between `openpiton_wrapper` and the BD AXI NoC. The interposer responds only to AXI `0x03ff0000..0x04000000`, which corresponds to CPU `0x83ff0000..0x84000000` after OpenPiton subtracts `0x80000000` from DDR addresses. CPU `0x80000000` remains routed to DDR so the existing SD/BBL load buffer is not hidden by the stack experiment.
 
+### P3 Build 52 SD Card-Detect Mask
+
+Build 52 is a run-manager flow derived from Build 51. It uses `D:/p3b52` by default and keeps the same four BD-owned ILAs, AXI16550 no-stack SD-probe bootrom, DDR address translation, and `PMC_AXI_NOC0` debug hub path. The only RTL experiment is `P3_SD_IGNORE_CARD_DETECT_RESET`, which keeps raw `sd_cd` observable but removes it from the native SD block's internal reset calculation.
+
+```bash
+vivado -mode batch -source scripts/p3_build52_sd_cd_mask.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build52_sd_cd_mask/debug_build/p3_top_build52_sd_cd_mask.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build52_sd_cd_mask.tcl
+python3 scripts/p3_decode_build52_ila_csv.py huaprop3_build52_sd_cd_mask/debug_build
+```
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
