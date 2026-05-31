@@ -123,6 +123,8 @@ OpenPiton already has `noc_axi4_bridge` (`piton/design/chipset/noc_axi4_bridge/r
 
 Bring-up note from Builds 44-46: do not assume the P3 BD always sees DDR addresses after subtracting `0x80000000`. The Build 44 top-level ILA observed the BD-facing AXI address `0x84000000` for a bootrom load/store to CPU physical `0x84000000`, while the BD DDR segment was at offset `0x00000000`. Build 45 tried to move the BD DDR segment to `0x80000000`, but Vivado rejected that because the Versal AXI NoC DDR slave only exposes a valid `0x00000000 [2G]` aperture in this BD. Build 46 therefore keeps the BD aperture at `0x0` and adds a gated `P3_AXI_DDR_ADDR_TRANSLATE` path in `p3_top.v` to fold CPU physical DDR addresses into the legal BD low window before `S_AXI_MEM`.
 
+Build 46 hardware validation confirmed that this translation is functional: the no-stack DDR probe still issued a physical `0x84xxxxxx` read, but the BD-facing snapshot retained `0x04000000`, and the AXI R channel returned with OKAY response. Treat the address translation as part of the P3 OpenPiton memory integration baseline; later boot failures should first be checked at the C bootrom, SD, cache, or payload-loading layer before reopening DDR PHY/IP bring-up.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**

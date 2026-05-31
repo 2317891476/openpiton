@@ -466,7 +466,9 @@ vivado -mode batch -source scripts/p3_ila_capture_build46_axi_translated_ddr.tcl
 python3 scripts/p3_decode_build46_ila_csv.py huaprop3_build46_axi_translated_ddr/debug_build
 ```
 
-Expected outcome: the sticky address bits should still prove the bootrom issued physical `0x84xxxxxx` DDR traffic, while the compact bus snapshot should retain a low BD-facing address such as `0x04000000`. If R valid/fire appears and serial reaches `rP`, the Build 44 failure was the missing physical-to-BD address translation. If the translated address still gets no R return, the next build should probe inside the AXI NoC/DDRMC read-return path.
+Hardware validation completed on 2026-05-31. Build 46 built and programmed successfully, the debug hub refreshed at `0x3ffc0000000`, and the original AXI16550 no-stack bootrom continued to print stable `A` characters. The ILA decode reported `p3_dbg_ddr_seen16=0xcf01`: AR valid/fire and R valid/fire were observed with OKAY response, while the sticky address class still proved the core issued a physical `0x84xxxxxx` read. The compact snapshot was `0x0400000000000f01`, retaining BD-facing address `0x04000000`.
+
+The Build 46 decoder returned non-zero only because the immediate trigger window did not include AW/W/B write-channel events. That does not invalidate the DDR read result. The decisive comparison is Build 44's missing R channel at BD-facing `0x84000000` versus Build 46's returned R channel at translated `0x04000000`. Therefore the next normal-boot build should keep `P3_AXI_DDR_ADDR_TRANSLATE` enabled and move on to C-stack, UART logging, SD, and payload-load progress.
 
 ### P3 Build 39 SiFive UART Project Variant
 
