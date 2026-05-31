@@ -139,6 +139,8 @@ Build 49 starts with a narrower software experiment before another full normal-b
 
 Build 49 hardware validation narrowed the stop before any SD-sector data returns. The SD-smoke bootrom printed `B49 SD SMOKE AXI16550`, `mode: direct SD mapped reads, no payload copy`, and stopped after `read lba0[0]`. The four BD-owned ILAs remained accessible through `PMC_AXI_NOC0`; decode showed `top_status=0xff03`, `core_seen=0x7fff`, `sd_seen=0x7f2b`, and `ddr_seen=0xcf01`. The important SD bits were `buf_sd_noc2_valid=1` with `sd_buf_noc2_ready=0`, `sd_req_fire=0`, `sd_buf_noc3_valid=0`, and `sd_resp_fire=0`. DDR read traffic still completed with OKAY response. This does not support "SD card lacks a standard BBL" as the current first failure: the CPU is blocked before the SD path accepts the first mapped LBA0 read, so the next debug target is SD bridge ready/backpressure/reset/clock/address decode rather than GPT/BBL image contents.
 
+Build 50 is a stricter control for the same SD acceptance point. It creates a new `huaprop3_build50_sd_uart_minimal` Vivado variant and leaves the current OpenPiton SD controller, pins, reset, clock, and AXI16550 UART path unchanged. The bootrom mode `asm_uart16550_sdprobe` avoids C, stack setup, DDR, GPT parsing, and payload copying: it prints a fixed AXI16550 banner, performs direct loads from the SD mapped window at `0xF000000000`, and only continues printing if those loads return. Matching Build 49's `sd_buf_noc2_ready=0` in this image would isolate the failure to the native SD bridge/controller acceptance path independent of C bootrom software.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
@@ -574,6 +576,9 @@ The exact `-source` paths depend on the final Clock Wizard configuration and wil
 
 **Problem Description (Build 49)**:
 During the SD-smoke test (`BOOTROM_MODE=sd_smoke`), the console output prints the banner but hangs at `read lba0[0]`. ILA captures show `buf_sd_noc2_valid=1` but `sd_buf_noc2_ready=0` (corresponding to the internal `sd_splitter_rdy=0`), blocking the AXI/NoC request from firing (`sd_req_fire=0`).
+
+**Build 50 Follow-up**:
+Build 50 replaces the Build 49 C smoke code with the no-stack `asm_uart16550_sdprobe` bootrom while preserving the current SD hardware configuration. It is expected to print `B50 UART SD` before the first SD load. If it then hangs with `buf_sd_noc2_valid=1` and `sd_buf_noc2_ready=0`, the stop is independent of stack, DDR, GPT parsing, BBL contents, and C bootrom sequencing.
 
 **Detailed Comparison & Root Causes**:
 1. **Controller Architecture Difference**:

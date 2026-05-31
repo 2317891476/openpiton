@@ -24,6 +24,9 @@ SRCS_ASM = startup_asm_uart16550.S
 else ifeq ($(BOOTROM_MODE),asm_uart16550_ddrprobe)
 SRCS_C =
 SRCS_ASM = startup_asm_uart16550_ddrprobe.S
+else ifeq ($(BOOTROM_MODE),asm_uart16550_sdprobe)
+SRCS_C =
+SRCS_ASM = startup_asm_uart16550_sdprobe.S
 else ifeq ($(BOOTROM_MODE),sd_smoke)
 SRCS_C = src/main_sd_smoke.c src/uart.c
 SRCS_ASM = startup.S
@@ -72,7 +75,7 @@ rv64_platform.dts: FORCE
 	@echo "PYTHON >= $(MAIN_SV)"
 
 clean:
-	$(RM) $(OBJS_C) $(OBJS_S) src/main_sd_smoke.o startup_asm_uart.o startup_asm_uart16550.o startup_asm_uart16550_ddrprobe.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
+	$(RM) $(OBJS_C) $(OBJS_S) src/main_sd_smoke.o startup_asm_uart.o startup_asm_uart16550.o startup_asm_uart16550_ddrprobe.o startup_asm_uart16550_sdprobe.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
 
 all: $(MAIN) $(MAIN_BIN) $(MAIN_IMG) $(MAIN_SV)
 	@echo "zero stage bootloader has been compiled!"
