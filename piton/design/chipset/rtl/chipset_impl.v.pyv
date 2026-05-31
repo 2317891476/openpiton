@@ -345,6 +345,8 @@ reg [15:0]                                      p3_sd_smoke_seen_r;
 reg [15:0]                                      p3_last_sd_req_addr16_r;
 reg [15:0]                                      p3_last_sd_req_data16_r;
 reg [15:0]                                      p3_last_sd_resp_data16_r;
+wire [63:0]                                     p3_sd_init_debug_bus;
+wire [15:0]                                     p3_sd_init_debug_seen;
 `endif
 
 <%
@@ -1035,6 +1037,10 @@ uart_top        uart_top (
         .sd_clk_out       ( sd_clk_out        ),
         .sd_cmd           ( sd_cmd            ),
         .sd_dat           ( sd_dat            )
+`ifdef P3_BD_SD_INIT_ILA
+       ,.p3_sd_init_seen_o( p3_sd_init_debug_seen ),
+        .p3_sd_init_bus_o ( p3_sd_init_debug_bus  )
+`endif
         );
 
 `endif
@@ -1383,6 +1389,9 @@ end
 `ifdef P3_BD_UART_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_uart_debug_seen;
 assign p3_chipset_debug_bus = p3_uart_debug_bus;
+`elsif P3_BD_SD_INIT_ILA
+assign p3_chipset_debug_seen = p3_sd_init_debug_seen;
+assign p3_chipset_debug_bus = p3_sd_init_debug_bus;
 `elsif P3_BD_SD_SMOKE_ILA
 assign p3_chipset_debug_seen = p3_sd_smoke_seen_r;
 assign p3_chipset_debug_bus = {p3_last_sd_req_addr16_r,

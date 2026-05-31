@@ -65,6 +65,11 @@ module piton_sd_init (
     // Initialization done signal
     output  wire                    init_done,
     output  reg                     is_hcxc     // output if the card is a SDHC/SDXC card
+`ifdef P3_BD_SD_INIT_ILA
+    ,
+    output  wire    [7:0]           p3_sd_init_state_o,
+    output  wire    [23:0]          p3_sd_init_counter_o
+`endif
     );
 
     // ------ Common Local Parameters ------ //
@@ -200,6 +205,10 @@ module piton_sd_init (
     assign  m_wb_sel_o  =   4'hf;
     assign  m_wb_cyc_o  =   1'b1;
     assign  counter_en  =   fsm[0];
+`ifdef P3_BD_SD_INIT_ILA
+    assign  p3_sd_init_state_o = state;
+    assign  p3_sd_init_counter_o = counter;
+`endif
 
     // ------ Sequential Logic ------ //
     always @(posedge clk or posedge rst) begin  //{{{

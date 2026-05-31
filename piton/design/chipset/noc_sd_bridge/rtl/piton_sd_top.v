@@ -59,6 +59,11 @@ module piton_sd_top (
     output wire                             sd_clk_out,
     inout  wire                             sd_cmd,
     inout  wire [3:0]                       sd_dat
+`ifdef P3_BD_SD_INIT_ILA
+    ,
+    output wire [15:0]                      p3_sd_init_seen_o,
+    output wire [63:0]                      p3_sd_init_bus_o
+`endif
     );
 
     // Aggregated reset signal
@@ -95,6 +100,71 @@ module piton_sd_top (
     // Init <-> Others
     wire                init_done;
     wire                is_hcxc;
+`ifdef P3_BD_SD_INIT_ILA
+    wire    [7:0]       p3_sd_init_state;
+    wire    [23:0]      p3_sd_init_counter;
+    reg                 p3_sd_clk_sample_q;
+    reg                 p3_sd_clk_sample_qq;
+    reg     [15:0]      p3_sd_init_seen_r;
+    wire                p3_sd_clk_toggle = p3_sd_clk_sample_q ^ p3_sd_clk_sample_qq;
+    wire    [15:0]      p3_sd_init_flags = {
+                            sd_dat_oe_o,
+                            sd_cmd_oe_o,
+                            sd_cmd_out_o,
+                            sd_cmd_dat_i,
+                            p3_sd_clk_toggle,
+                            sd_clk_out,
+                            sd_int_data,
+                            sd_int_cmd,
+                            m_wb_ack_i,
+                            m_wb_we_o,
+                            m_wb_stb_o,
+                            is_hcxc,
+                            init_done,
+                            rst,
+                            sd_cd,
+                            sys_rst
+                        };
+
+    always @(posedge sys_clk or posedge sys_rst) begin
+        if (sys_rst) begin
+            p3_sd_clk_sample_q <= 1'b0;
+            p3_sd_clk_sample_qq <= 1'b0;
+            p3_sd_init_seen_r <= 16'd0;
+        end
+        else begin
+            p3_sd_clk_sample_q <= sd_clk_out;
+            p3_sd_clk_sample_qq <= p3_sd_clk_sample_q;
+            p3_sd_init_seen_r <= p3_sd_init_seen_r |
+                                  {~sd_dat_dat_i[0],
+                                   ~sd_cmd_dat_i,
+                                   sd_dat_oe_o,
+                                   sd_cmd_oe_o,
+                                   p3_sd_clk_toggle,
+                                   sd_int_data,
+                                   sd_int_cmd,
+                                   m_wb_ack_i,
+                                   m_wb_we_o,
+                                   m_wb_stb_o,
+                                   init_done,
+                                   ~rst,
+                                   rst,
+                                   ~sd_cd,
+                                   sd_cd,
+                                   ~sys_rst};
+        end
+    end
+
+    assign p3_sd_init_seen_o = p3_sd_init_seen_r;
+    assign p3_sd_init_bus_o = {p3_sd_init_state,
+                               p3_sd_init_counter[23:16],
+                               m_wb_adr_o,
+                               m_wb_dat_i[7:0],
+                               m_wb_dat_o[7:0],
+                               sd_dat_dat_i,
+                               sd_dat_out_o,
+                               p3_sd_init_flags};
+`endif
 
     // Init <-> Wishbone SD Controller
     wire    [31:0]      m_wb_dat_o_init;
@@ -241,6 +311,10 @@ module piton_sd_top (
 
         .init_done              (init_done),
         .is_hcxc                (is_hcxc)
+`ifdef P3_BD_SD_INIT_ILA
+       ,.p3_sd_init_state_o     (p3_sd_init_state),
+        .p3_sd_init_counter_o   (p3_sd_init_counter)
+`endif
         );
 
     piton_sd_transaction_manager sd_tm (

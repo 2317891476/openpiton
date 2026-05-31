@@ -13,6 +13,11 @@
 `define P3_BD_BOOT_PROGRESS_PORTS_ILA
 `endif
 `endif
+`ifdef P3_BD_SD_INIT_ILA
+`ifndef P3_BD_BOOT_PROGRESS_PORTS_ILA
+`define P3_BD_BOOT_PROGRESS_PORTS_ILA
+`endif
+`endif
 
 module p3_top (
     // Differential system clock (100 MHz LVDS15)
