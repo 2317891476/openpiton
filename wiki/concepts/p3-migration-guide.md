@@ -133,6 +133,8 @@ Build 48 keeps the Build 47 hardware/software baseline and only adds finer debug
 
 Build 48 implementation completed successfully from `D:/p3b48`: route status reported 154,734 fully routed routable nets and 0 routing errors, timing met all user constraints with `WNS=8.965 ns` and `WHS=0.019 ns`, and `p3_top_build48_boot_progress.pdi/.ltx` were published. The hardware validation sequence should start serial capture before PDI programming, then collect all four ILA CSVs so the post-banner stop can be separated between core/L15 progress, UART AXI state, and DDR AXI responses.
 
+Build 48 hardware validation printed the normal banner through AXI16550, then produced no additional serial output in a later 600-second capture. Two ILA captures taken about 18 minutes apart were identical. The last L1.5 address was `0xfff101057c`, which maps to `sd_copy+0xcc` (`bne a1,a4,10570`) in the bootrom block-copy loop. UART-side state showed a final THR write of `0x29` after an LSR read of `0x20`, and DDR-side state showed an OKAY read at translated low address `0x03fffd00` with no DDR write-channel sticky bits. This moves the fault from reset/fetch/UART bring-up to early SD/GPT block-copy progress and cache/DDR write visibility. Build 49 should expose live boot progress or PC plus SD-mapped read and DDR write-channel activity, so a stopped `sd_copy` loop can be separated from a missing SD return, a cached store/writeback issue, or a UART transmitter state issue after the banner.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
