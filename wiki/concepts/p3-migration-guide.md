@@ -561,7 +561,7 @@ set_property PACKAGE_PIN CF59 [get_ports {leds[1]}]
 set_property IOSTANDARD LVCMOS15 [get_ports {leds[*]}]
 ```
 
-**Note**: The P3 reference project uses different pin assignments (CV57/DB57/DC56 etc.) because it may route SD signals through different PHC logical pins. At implementation time, **verify against the actual daughter card wiring** and the reference XDC. The p3_io.md table and reference XDC may describe different wiring arrangements.
+**Note**: The P3 reference project and its imported `shell.xdc` were found to contain a severe pin assignment error for the SD card block. They mapped the SD interface to wrong package pins (`CV57`, `DB57`, `DC56` etc.), which left the SD card unpowered and disconnected from clocks and command lines. During Build 54 analysis, this discrepancy was discovered, and the correct package pins (from `p3_io.md` for **PHC3 / Bank 705**) must be used: `sd_clk_out` -> `CW60`, `sd_cmd` -> `DB61`, `sd_dat[3:0]` -> `DC60/DC59/CY58/DA58`, `sd_vsd_en` -> `CY60`, `sd_sel` -> `DA59`, and `sd_resetn` -> `DA60`. Only `sd_cd` (`DC61`) was correctly mapped.
 
 ### 6.5 SD Timing Constraints
 
@@ -627,9 +627,14 @@ vivado -mode batch -source scripts/p3_ila_capture_build54_sd_native_pullups.tcl
 python3 scripts/p3_decode_build53_ila_csv.py --tag build54 huaprop3_build54_sd_native_pullups/debug_build
 ```
 
-Build 54 hardware validation reached that negative decision point. Programming and ILA capture succeeded, but the decoded live command bus stayed at `ST_ACMD41_CMD55_WAIT_INT` with CMD55 active, command master `EXECUTE`, serial host `READ_WAIT`, `cmd_oe_o=0`, and `sd_cmd_dat_i=1`. The added pull-ups do not change the failure mode, so the current focus moves to the SD pad clock and CMD bidirectional timing rather than idle-line biasing.
+Build 54 hardware validation confirmed the deadlock on CMD55 timeouts (stuck in `ST_ACMD41_CMD55_WAIT_INT` and `READ_WAIT` waiting for the card response start bit). Since the added pull-ups did not resolve the silence, we performed a thorough cross-check between `constraints.xdc` and the physical board schema in `p3_io.md`.
 
-Build 55 is the next single-variable experiment. It preserves the Build 54 software, AXI16550 UART path, SD pins, controller, card-detect mask, and command ILA, but changes the P3-specific SD clock pad drive from `assign sd_clk_out = sd_clk_out_internal` to an IOB-targeted output register sampled by `sd_sys_clk`. The goal is to avoid routing the internally generated SD clock directly through ordinary fabric to the pad on Versal while keeping the controller's internal SD clock unchanged for command FSM timing. If this still stops at CMD55 `READ_WAIT`, the next likely experiment is explicit CMD/DAT IOBUF direction timing or an SPI-mode SD controller.
+This check revealed a fatal pin mapping discrepancy:
+- The reference project constraints had misrouted nearly all SD pins (`CV57/DB57/DC56` etc.).
+- The correct physical pin connections for PHC3/Bank 705 are: `sd_clk_out` -> `CW60`, `sd_cmd` -> `DB61`, `sd_dat[3:0]` -> `DC60/DC59/CY58/DA58`, `sd_vsd_en` -> `CY60`, `sd_sel` -> `DA59`, and `sd_resetn` -> `DA60`.
+- Because of this misrouting, the SD card had no clock, no command signals, and no power (`vsd_en` was misrouted).
+
+Build 55 is therefore redirected to implement the correct physical pin mappings for PHC3 in `constraints.xdc` while preserving weak pull-ups on `sd_cmd` and `sd_dat[3:0]` to resolve the physical-layer disconnection.
 
 ---
 
