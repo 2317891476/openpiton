@@ -153,6 +153,8 @@ Builds 53 through 55 narrowed the SD failure to the external command-response bo
 
 The first Build 56 hardware capture already resolved one major ambiguity: `ref_spi` passed and observed a card response, while `ref_native` timed out. The same capture exposed a probe-local bug before the remaining two cases completed: the SPI response timeout counter could underflow on a no-response path and hold the sequencer in `SPI_RESP_HIGH`. The Build 56 revision fixes only that timeout bookkeeping and the ILA debug-bus width declarations, then reruns the same standalone experiment; if `phc3_native` remains silent after the fixed four-case run, the next full OpenPiton direction should be a reference-pin SPI-mode SD path rather than more native-controller physical tweaks.
 
+Build 57 implements that direction without changing the UART decision from Builds 43 and 49-55: the board UART stays on the original AXI16550 path. Only the SD hardware behind the existing OpenPiton SD NoC/MMIO window changes. `P3_SPI_SD_BOOT` selects `piton_spi_sd_top`, which preserves the `piton_sd_top` NoC-facing and top-level SD ports but internally connects `noc_axilite_bridge`, `axi_sd_bridge`, and `spi_master`. The P3 pin use follows the Build 56 passing reference-SPI case: `sd_clk_out` is SPI SCK, `sd_cmd` is MOSI, `sd_dat[0]` is MISO, and `sd_dat[3]` is CS#. Build 57 also keeps the Build 52-derived compact ILA layout and repacks the SD debug bus around NoC, AXI-Lite, Wishbone, and SPI-level progress so one hardware capture can distinguish missing NoC acceptance, missing SPI initialization, card-response errors, and successful SD block-cache reads.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**

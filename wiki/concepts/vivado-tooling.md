@@ -668,6 +668,19 @@ python3 scripts/p3_decode_build53_ila_csv.py --tag build55 huaprop3_build55_sd_c
 
 The expected pass condition is `init_state=0xf0` or clear progress beyond CMD55. If decode still shows CMD55 `READ_WAIT` with `sd_cmd_dat_i=1`, the clock-output experiment is negative and the next target should be explicit CMD/DAT IOBUF direction timing.
 
+### P3 Build 57 Reference-Pin SPI SD Path
+
+Build 57 is the first full OpenPiton SD-path build after the standalone Build 56 probe proved the reference pin map responds in SPI mode. It keeps the AXI16550 UART, no-stack SD-probe bootrom, DDR address translation, and compact BD-owned ILA layout from Build 52. The intended hardware delta is `P3_SPI_SD_BOOT`, which selects `piton_spi_sd_top` instead of the native 4-bit `piton_sd_top`.
+
+```bash
+vivado -mode batch -source scripts/p3_build57_spi_sd.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build57_spi_sd/debug_build/p3_top_build57_spi_sd.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build57_spi_sd.tcl
+python3 scripts/p3_decode_build57_ila_csv.py huaprop3_build57_spi_sd/debug_build
+```
+
+The wrapper uses `D:/p3b57` by default and publishes `p3_top_build57_spi_sd.pdi/.ltx` under `huaprop3_build57_spi_sd/debug_build`. The Build 52 runner now removes `P3_SPI_SD_BOOT` from pre-existing fileset defines before applying each derived build's requested defines, so a later native-SD control build cannot accidentally inherit the SPI-SD selection macro from Build 57.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
