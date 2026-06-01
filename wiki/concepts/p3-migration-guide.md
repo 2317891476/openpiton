@@ -561,7 +561,7 @@ set_property PACKAGE_PIN CF59 [get_ports {leds[1]}]
 set_property IOSTANDARD LVCMOS15 [get_ports {leds[*]}]
 ```
 
-**Note**: The P3 reference project and its imported `shell.xdc` were found to contain a severe pin assignment error for the SD card block. They mapped the SD interface to wrong package pins (`CV57`, `DB57`, `DC56` etc.), which left the SD card unpowered and disconnected from clocks and command lines. During Build 54 analysis, this discrepancy was discovered, and the correct package pins (from `p3_io.md` for **PHC3 / Bank 705**) must be used: `sd_clk_out` -> `CW60`, `sd_cmd` -> `DB61`, `sd_dat[3:0]` -> `DC60/DC59/CY58/DA58`, `sd_vsd_en` -> `CY60`, `sd_sel` -> `DA59`, and `sd_resetn` -> `DA60`. Only `sd_cd` (`DC61`) was correctly mapped.
+**Note**: There is an unresolved discrepancy between the reference project `shell.xdc` and `p3_io.md` regarding the pin assignment on PHC3. While UART works on `CW58/CW59` (defined as B3/B2 in reference project), the manual specifies `CM59/CN59` for UART. The reference project mapped SD signals to `CV57`, `DB57`, `DC56` etc. (SPI mode pinout), while `p3_io.md` maps them to `CW60`, `DB61`, `DC60` etc. If the reference project layout is physically wired, a native SD controller mapping might suffer from an **SPI Wire-Crossing** mismatch where `sd_cmd` (DB57) and `sd_dat[3]` (CY55) are swapped relative to the card's native input/output requirements. Build 56 is designed to run parallel experiments to resolve this conflict.
 
 ### 6.5 SD Timing Constraints
 
@@ -627,14 +627,15 @@ vivado -mode batch -source scripts/p3_ila_capture_build54_sd_native_pullups.tcl
 python3 scripts/p3_decode_build53_ila_csv.py --tag build54 huaprop3_build54_sd_native_pullups/debug_build
 ```
 
-Build 54 hardware validation confirmed the deadlock on CMD55 timeouts (stuck in `ST_ACMD41_CMD55_WAIT_INT` and `READ_WAIT` waiting for the card response start bit). Since the added pull-ups did not resolve the silence, we performed a thorough cross-check between `constraints.xdc` and the physical board schema in `p3_io.md`.
+Build 54 hardware validation confirmed the deadlock on CMD55 timeouts (stuck in `ST_ACMD41_CMD55_WAIT_INT` and `READ_WAIT` waiting for the card response start bit). Since the added pull-ups did not resolve the silence, we analyzed the board pinout.
 
-This check revealed a fatal pin mapping discrepancy:
-- The reference project constraints had misrouted nearly all SD pins (`CV57/DB57/DC56` etc.).
-- The correct physical pin connections for PHC3/Bank 705 are: `sd_clk_out` -> `CW60`, `sd_cmd` -> `DB61`, `sd_dat[3:0]` -> `DC60/DC59/CY58/DA58`, `sd_vsd_en` -> `CY60`, `sd_sel` -> `DA59`, and `sd_resetn` -> `DA60`.
-- Because of this misrouting, the SD card had no clock, no command signals, and no power (`vsd_en` was misrouted).
+A key conflict was highlighted: UART works on `CW58/CW59` (B3/B2) instead of the manual's `CM59/CN59` (C8/C9), proving that `p3_io.md` does not match the actual physical layout directly. This points to the **SPI Wire-Crossing Hypothesis**: the reference project (`shell.xdc`) routed SD in SPI mode, where `DB57` was connected to Card DAT3/CS and `CY55` was connected to Card CMD/DI. By using native SD mode, OpenPiton outputs `sd_cmd` on `DB57` and `sd_dat[3]` on `CY55`, physically swapping command and data lines.
 
-Build 55 is therefore redirected to implement the correct physical pin mappings for PHC3 in `constraints.xdc` while preserving weak pull-ups on `sd_cmd` and `sd_dat[3:0]` to resolve the physical-layer disconnection.
+Build 55 is reserved for testing the IOB clock path (`huaprop3_build55_sd_clk_iob_reg.pdi`).
+
+Build 56 is introduced as a dedicated experiment to test physical pin configurations:
+- **Hypothesis A (SPI Swap)**: Swap `sd_cmd` (CY55) and `sd_dat[3]` (DB57) in XDC to verify the SPI wire-crossing hypothesis.
+- **Hypothesis B (Manual Alignment)**: Remap SD completely to `p3_io.md`'s PHC3 native pins to test the manual alignment.
 
 ---
 
