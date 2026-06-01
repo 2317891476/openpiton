@@ -627,6 +627,10 @@ vivado -mode batch -source scripts/p3_ila_capture_build54_sd_native_pullups.tcl
 python3 scripts/p3_decode_build53_ila_csv.py --tag build54 huaprop3_build54_sd_native_pullups/debug_build
 ```
 
+Build 54 hardware validation reached that negative decision point. Programming and ILA capture succeeded, but the decoded live command bus stayed at `ST_ACMD41_CMD55_WAIT_INT` with CMD55 active, command master `EXECUTE`, serial host `READ_WAIT`, `cmd_oe_o=0`, and `sd_cmd_dat_i=1`. The added pull-ups do not change the failure mode, so the current focus moves to the SD pad clock and CMD bidirectional timing rather than idle-line biasing.
+
+Build 55 is the next single-variable experiment. It preserves the Build 54 software, AXI16550 UART path, SD pins, controller, card-detect mask, and command ILA, but changes the P3-specific SD clock pad drive from `assign sd_clk_out = sd_clk_out_internal` to an IOB-targeted output register sampled by `sd_sys_clk`. The goal is to avoid routing the internally generated SD clock directly through ordinary fabric to the pad on Versal while keeping the controller's internal SD clock unchanged for command FSM timing. If this still stops at CMD55 `READ_WAIT`, the next likely experiment is explicit CMD/DAT IOBUF direction timing or an SPI-mode SD controller.
+
 ---
 
 

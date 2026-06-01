@@ -653,6 +653,21 @@ python3 scripts/p3_decode_build53_ila_csv.py --tag build54 huaprop3_build54_sd_n
 
 The decoder remains `p3_decode_build53_ila_csv.py`; pass `--tag build54` so it matches the Build 54 CSV filenames.
 
+Build 54 validated the pull-up hypothesis negatively. The board programmed and all ILAs uploaded, but decode remained at `init_state=0x34`, CMD55, `EXECUTE`, `READ_WAIT`, `cmd_oe_o=0`, and `sd_cmd_dat_i=1`.
+
+### P3 Build 55 SD Clock IOB Register
+
+Build 55 keeps the Build 54 debug shape and software stimulus, but adds `P3_SD_CLK_IOB_REG` so the P3 SD clock pad is driven by an IOB-targeted output register sampled on `sd_sys_clk` instead of a direct fabric assignment from `sd_clk_out_internal`.
+
+```bash
+vivado -mode batch -source scripts/p3_build55_sd_clk_iob_reg.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build55_sd_clk_iob_reg/debug_build/p3_top_build55_sd_clk_iob_reg.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build55_sd_clk_iob_reg.tcl
+python3 scripts/p3_decode_build53_ila_csv.py --tag build55 huaprop3_build55_sd_clk_iob_reg/debug_build
+```
+
+The expected pass condition is `init_state=0xf0` or clear progress beyond CMD55. If decode still shows CMD55 `READ_WAIT` with `sd_cmd_dat_i=1`, the clock-output experiment is negative and the next target should be explicit CMD/DAT IOBUF direction timing.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
