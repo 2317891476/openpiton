@@ -681,6 +681,19 @@ python3 scripts/p3_decode_build57_ila_csv.py huaprop3_build57_spi_sd/debug_build
 
 The wrapper uses `D:/p3b57` by default and publishes `p3_top_build57_spi_sd.pdi/.ltx` under `huaprop3_build57_spi_sd/debug_build`. The Build 52 runner now removes `P3_SPI_SD_BOOT` from pre-existing fileset defines before applying each derived build's requested defines, so a later native-SD control build cannot accidentally inherit the SPI-SD selection macro from Build 57.
 
+### P3 Build 58 SPI SD Power-Wait Debug
+
+Build 58 follows the Build 57 hardware result where the OpenPiton SD request reached the SPI backend but the card response was absent (`miso_low_seen=0`, SPI error `0x01`). It keeps the same reference SPI pins, original AXI16550 UART path, and compact four-ILA shape. The RTL delta is limited to a 100 ms wait inside `init_sd_p3` before the idle-clock/CMD0 sequence and a narrower debug repack that exposes initializer state, command byte, response byte, timeout, CS, and error fields.
+
+```bash
+vivado -mode batch -source scripts/p3_build58_spi_sd_power_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build58_spi_sd_power_debug/debug_build/p3_top_build58_spi_sd_power_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build58_spi_sd_power_debug.tcl
+python3 scripts/p3_decode_build58_ila_csv.py huaprop3_build58_spi_sd_power_debug/debug_build
+```
+
+The wrapper uses `D:/p3b58` by default and publishes `p3_top_build58_spi_sd_power_debug.pdi/.ltx` under `huaprop3_build58_spi_sd_power_debug/debug_build`. The Build 58 decoder returns a non-zero status for missing MISO response or non-zero SPI/init error bits, so an automated flow can immediately proceed to the next build plan if this capture still fails.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

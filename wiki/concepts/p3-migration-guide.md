@@ -157,6 +157,8 @@ Build 57 implements that direction without changing the UART decision from Build
 
 The SPI backend needs two P3-specific protocol fixes before it is a valid full-boot experiment. First, the original OpenCores initializer uses the legacy CMD0/CMD1 flow, which is not sufficient for modern SDHC cards; `HUAPROP3_BOARD` therefore selects `init_sd_p3`, which sends CMD0, CMD8, and repeated CMD55/ACMD41 with the HCS bit set. Second, once a card is in SDHC mode, CMD17/CMD24 use a 512-byte block number rather than a byte address. The P3 transaction manager now writes `req_addr >> 9` into the SPI address registers while leaving the old byte-address behavior untouched for non-P3 builds.
 
+Build 57's first hardware capture proved that the replacement SD path is being reached from OpenPiton: NoC request, Wishbone access, init transaction selection, and SPI clock toggle all appeared in the ILA. It did not prove card communication, because MISO never sampled low and the SPI controller reported error `0x01` after the init attempt. Build 58 therefore keeps the same reference SPI pin map and AXI16550 UART decision, but adds a 100 ms `init_sd_p3` power-wait before idle clocks/CMD0 and repacks the ILA bus to expose the initializer's state, command byte, response byte, timeout, ready/request, CS, and error fields. This lets the next capture distinguish an early CMD0 no-response condition from a later CMD8 or ACMD41 protocol failure without another wide-probe build.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
