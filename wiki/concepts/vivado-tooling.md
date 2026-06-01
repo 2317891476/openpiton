@@ -640,6 +640,19 @@ python3 scripts/p3_decode_build53_ila_csv.py huaprop3_build53_sd_cmd_debug/debug
 
 The wrapper uses `D:/p3b53` by default and publishes `p3_top_build53_sd_cmd_debug.pdi/.ltx` under `huaprop3_build53_sd_cmd_debug/debug_build`. The Build 52 script now accepts environment overrides for project name, output PDI basename, work directory, and extra Verilog defines so this follow-up can reuse the known-good run-manager flow without duplicating the whole Tcl body.
 
+### P3 Build 54 Native SD Pull-Ups
+
+Build 54 reuses the Build 53 command-layer ILA and no-stack AXI16550 SD-probe bootrom, but builds from `D:/p3b54` after enabling P3 native-SD idle pull-ups on `sd_cmd`, `sd_dat[0]`, and `sd_dat[3]`.
+
+```bash
+vivado -mode batch -source scripts/p3_build54_sd_native_pullups.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build54_sd_native_pullups/debug_build/p3_top_build54_sd_native_pullups.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build54_sd_native_pullups.tcl
+python3 scripts/p3_decode_build53_ila_csv.py --tag build54 huaprop3_build54_sd_native_pullups/debug_build
+```
+
+The decoder remains `p3_decode_build53_ila_csv.py`; pass `--tag build54` so it matches the Build 54 CSV filenames.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

@@ -614,6 +614,19 @@ Build 53 adds `P3_BD_SD_CMD_DEBUG_ILA` while preserving the Build 52 hardware ba
 - SD-domain timeout/error status present but WB-domain `int_cmd` low: debug the SD-to-WB interrupt/status FIFO and interrupt-enable path.
 - CMD55 completes but loops back: decode the R1 response bits and card status checks in `ST_ACMD41_CMD55_RD_RESP0`.
 
+Build 53 hardware capture hit the second case consistently. The command starts are observed in both WB and SD clock domains, timeout and command-finish sticky bits have fired, and the live bus repeatedly shows CMD55 active with the serial host in `READ_WAIT`, `cmd_oe_o=0`, and `sd_cmd_dat_i=1`. This means the OpenCores command path is no longer blocked internally; it is waiting for an external CMD-line response from the card.
+
+Build 54 keeps the same controller and probes, but adds P3 native-SD idle pull-ups on `sd_cmd`, `sd_dat[0]`, and `sd_dat[3]`. The primary hypothesis is that DAT3/CS must be high when CMD0 is issued; if it floats or is interpreted low, the card can enter SPI mode and will not answer later native CMD55 traffic on the CMD line. If Build 54 still stops at `READ_WAIT`, the next fault is more likely SD clock output quality or bidirectional CMD timing rather than Wishbone/NoC/bootrom behavior.
+
+Build 54 commands:
+
+```bash
+vivado -mode batch -source scripts/p3_build54_sd_native_pullups.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build54_sd_native_pullups/debug_build/p3_top_build54_sd_native_pullups.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build54_sd_native_pullups.tcl
+python3 scripts/p3_decode_build53_ila_csv.py --tag build54 huaprop3_build54_sd_native_pullups/debug_build
+```
+
 ---
 
 
