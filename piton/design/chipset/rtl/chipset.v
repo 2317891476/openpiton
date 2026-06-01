@@ -1764,7 +1764,22 @@ chipset_impl_noc_power_test  chipset_impl (
 
     `ifdef PITONSYS_SPI
     `ifdef HUAPROP3_BOARD
+    `ifdef P3_SD_CLK_IOB_REG
+        (* keep = "true", iob = "true" *) reg sd_clk_out_iob_r = 1'b0;
+
+        always @(posedge sd_sys_clk) begin
+            if (!chipset_rst_n_ff) begin
+                sd_clk_out_iob_r <= 1'b0;
+            end
+            else begin
+                sd_clk_out_iob_r <= sd_clk_out_internal;
+            end
+        end
+
+        assign sd_clk_out = sd_clk_out_iob_r;
+    `else
         assign sd_clk_out = sd_clk_out_internal;
+    `endif
     `elsif VCU118_BOARD
         ODDRE1 sd_clk_oddr (
             .Q(sd_clk_out),
