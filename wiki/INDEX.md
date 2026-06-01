@@ -38,6 +38,11 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | [ASIC Extrapolation](concepts/asic-extrapolation.md) | Projecting FPGA results to ASIC |
 | [RTL-ASIC Port](concepts/rtl-asic-port.md) | Preparing RTL for tape-out |
 | [P3 Migration Guide](concepts/p3-migration-guide.md) | Porting OpenPiton+Ariane from AX7203 to HuaPro P3 (VP1902) |
+ 
+## Weekly Reports
+
+- [Weekly Report - SD Card Issue on P3](weekly_report_sd_issue.md)
+- [Weekly Report - UART Issue on P3](weekly_report_uart_issue.md)
 
 ## Dev Log
 
