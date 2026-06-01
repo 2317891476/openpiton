@@ -4,8 +4,23 @@ set hw_server_url "100.93.77.36"
 set hw_server_port "3121"
 set xvc_host "202.197.4.99"
 set xvc_port "2540"
-set project_dir [file normalize "[file dirname [info script]]/../huaprop3_build52_sd_cd_mask"]
-set ltx_file "${project_dir}/debug_build/p3_top_build52_sd_cd_mask.ltx"
+if {[info exists env(P3_CAPTURE_PROJECT_NAME)] && $env(P3_CAPTURE_PROJECT_NAME) ne ""} {
+    set project_name $env(P3_CAPTURE_PROJECT_NAME)
+} else {
+    set project_name "huaprop3_build52_sd_cd_mask"
+}
+if {[info exists env(P3_CAPTURE_PDI_BASENAME)] && $env(P3_CAPTURE_PDI_BASENAME) ne ""} {
+    set pdi_basename $env(P3_CAPTURE_PDI_BASENAME)
+} else {
+    set pdi_basename "p3_top_build52_sd_cd_mask"
+}
+if {[info exists env(P3_CAPTURE_TAG)] && $env(P3_CAPTURE_TAG) ne ""} {
+    set capture_tag $env(P3_CAPTURE_TAG)
+} else {
+    set capture_tag "build52"
+}
+set project_dir [file normalize "[file dirname [info script]]/../${project_name}"]
+set ltx_file "${project_dir}/debug_build/${pdi_basename}.ltx"
 set output_dir "${project_dir}/debug_build"
 
 proc p3_sanitize_filename {name} {
@@ -63,7 +78,7 @@ foreach ila $ilas {
     incr idx
     set cell_name [get_property CELL_NAME $ila]
     set clean_name [p3_sanitize_filename $cell_name]
-    set csv_file "${output_dir}/ila_capture_build52_${idx}_${clean_name}.csv"
+    set csv_file "${output_dir}/ila_capture_${capture_tag}_${idx}_${clean_name}.csv"
 
     puts "------------------------------------------"
     puts "Capturing ILA ${idx}: $ila"

@@ -12,7 +12,11 @@
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
-set project_name "huaprop3_build52_sd_cd_mask"
+if {[info exists env(P3_BUILD52_PROJECT_NAME)] && $env(P3_BUILD52_PROJECT_NAME) ne ""} {
+    set project_name $env(P3_BUILD52_PROJECT_NAME)
+} else {
+    set project_name "huaprop3_build52_sd_cd_mask"
+}
 set output_project_dir [file normalize "${repo_dir}/${project_name}"]
 if {[info exists env(P3_BUILD52_WORK_DIR)] && $env(P3_BUILD52_WORK_DIR) ne ""} {
     set project_dir [file normalize $env(P3_BUILD52_WORK_DIR)]
@@ -26,7 +30,15 @@ set bootrom_rebuild_sh [file normalize "${script_dir}/p3_rebuild_build52_sd_cd_m
 set ariane_unread_impl_src [file normalize "${repo_dir}/piton/design/xilinx/huaprop3/unread_vivado_impl.sv"]
 set synth_run "synth_1"
 set impl_run "impl_1"
-set pdi_basename "p3_top_build52_sd_cd_mask"
+if {[info exists env(P3_BUILD52_PDI_BASENAME)] && $env(P3_BUILD52_PDI_BASENAME) ne ""} {
+    set pdi_basename $env(P3_BUILD52_PDI_BASENAME)
+} else {
+    set pdi_basename "p3_top_build52_sd_cd_mask"
+}
+set p3_extra_defines {}
+if {[info exists env(P3_BUILD52_EXTRA_DEFINES)] && $env(P3_BUILD52_EXTRA_DEFINES) ne ""} {
+    set p3_extra_defines [split $env(P3_BUILD52_EXTRA_DEFINES)]
+}
 set run_create 1
 set run_prepare 1
 set reuse_synth 0
@@ -351,12 +363,13 @@ foreach define $defs {
         $define ne "P3_BD_UART_WR_NARROW_DEBUG_ILA" &&
         $define ne "P3_BD_UART_RW_DEBUG_ILA" &&
         $define ne "P3_SD_IGNORE_CARD_DETECT_RESET" &&
+        $define ne "P3_BD_SD_CMD_DEBUG_ILA" &&
         $define ne "PITONSYS_MEM_ZEROER"} {
         lappend cleaned_defs $define
     }
 }
 set defs $cleaned_defs
-foreach required_define [list \
+set required_defines [list \
     PITON_UART16550 \
     P3_AXI_DDR_ADDR_TRANSLATE \
     P3_RTL_DEBUG \
@@ -371,7 +384,13 @@ foreach required_define [list \
     PITON_RV64_CLINT \
     PITON_RV64_PLIC \
     WT_DCACHE \
-] {
+]
+foreach extra_define $p3_extra_defines {
+    if {$extra_define ne ""} {
+        lappend required_defines $extra_define
+    }
+}
+foreach required_define $required_defines {
     if {[lsearch -exact $defs $required_define] < 0} {
         lappend defs $required_define
     }

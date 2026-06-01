@@ -90,8 +90,13 @@ module sdc_controller(
            sd_dat_oe_o, 
            sd_clk_o_pad,
            sd_clk_i_pad,
-           int_cmd, 
+           int_cmd,
            int_data
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+           ,
+           p3_sd_cmd_debug_seen_o,
+           p3_sd_cmd_debug_bus_o
+`endif
        );
 
 input wb_clk_i;
@@ -125,6 +130,10 @@ output sd_clk_o_pad;
 input wire sd_clk_i_pad;
 output int_cmd;
 output int_data;
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+output wire [15:0] p3_sd_cmd_debug_seen_o;
+output wire [55:0] p3_sd_cmd_debug_bus_o;
+`endif
 
 //SD clock
 wire sd_clk_o; //Sd_clk used in the system
@@ -142,6 +151,11 @@ wire [119:0] cmd_response;
 wire cmd_crc_ok;
 wire cmd_index_ok;
 wire cmd_finish;
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+wire [9:0] p3_cmd_master_debug;
+wire [6:0] p3_cmd_serial_state;
+reg  [15:0] p3_sd_cmd_debug_seen_r;
+`endif
 
 wire d_write;
 wire d_read;
@@ -248,6 +262,9 @@ sd_cmd_master sd_cmd_master0(
     .response_1_o (response_1_reg_sd_clk),
     .response_2_o (response_2_reg_sd_clk),
     .response_3_o (response_3_reg_sd_clk)
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+    ,.p3_cmd_master_debug_o (p3_cmd_master_debug)
+`endif
     );
 
 sd_cmd_serial_host cmd_serial_host0(
@@ -265,7 +282,52 @@ sd_cmd_serial_host cmd_serial_host0(
     .cmd_dat_i  (sd_cmd_dat_i),
     .cmd_out_o  (sd_cmd_out_o),
     .cmd_oe_o   (sd_cmd_oe_o)
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+    ,.p3_cmd_serial_state_o (p3_cmd_serial_state)
+`endif
     );
+
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+always @(posedge wb_clk_i or posedge wb_rst_i) begin
+    if (wb_rst_i) begin
+        p3_sd_cmd_debug_seen_r <= 16'd0;
+    end else begin
+        p3_sd_cmd_debug_seen_r <= p3_sd_cmd_debug_seen_r |
+                                  {p3_cmd_serial_state[3],
+                                   (p3_cmd_master_debug[1:0] == 2'b01),
+                                   ~sd_cmd_dat_i,
+                                   sd_cmd_oe_o,
+                                   int_cmd,
+                                   cmd_int_status_reg_sd_clk[`INT_CMD_CTE],
+                                   cmd_int_status_reg_sd_clk[`INT_CMD_EI],
+                                   cmd_int_status_reg_sd_clk[`INT_CMD_CC],
+                                   cmd_finish,
+                                   cmd_start_tx,
+                                   cmd_start_sd_clk,
+                                   cmd_start_wb_clk,
+                                   cmd_int_enable_reg_wb_clk[0],
+                                   (cmd_timeout_reg_sd_clk != {`CMD_TIMEOUT_W{1'b0}}),
+                                   (command_reg_sd_clk[`CMD_INDEX] == 6'd55),
+                                   ~wb_rst_i};
+    end
+end
+
+assign p3_sd_cmd_debug_seen_o = p3_sd_cmd_debug_seen_r;
+assign p3_sd_cmd_debug_bus_o = {p3_cmd_master_debug[9:2],
+                                command_reg_sd_clk[`CMD_INDEX],
+                                cmd_int_status_reg_sd_clk,
+                                cmd_int_status_reg_wb_clk,
+                                cmd_timeout_reg_sd_clk[15:0],
+                                p3_cmd_master_debug[1:0],
+                                p3_cmd_serial_state,
+                                cmd_start_wb_clk,
+                                cmd_start_sd_clk,
+                                cmd_start_tx,
+                                cmd_finish,
+                                sd_cmd_dat_i,
+                                sd_cmd_oe_o,
+                                int_cmd};
+`endif
 
 sd_data_master sd_data_master0(
     .sd_clk           (sd_clk_o),

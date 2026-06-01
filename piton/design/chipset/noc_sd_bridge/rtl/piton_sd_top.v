@@ -109,6 +109,10 @@ module piton_sd_top (
 `ifdef P3_BD_SD_INIT_ILA
     wire    [7:0]       p3_sd_init_state;
     wire    [23:0]      p3_sd_init_counter;
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+    wire    [15:0]      p3_sd_cmd_debug_seen;
+    wire    [55:0]      p3_sd_cmd_debug_bus;
+`endif
     reg                 p3_sd_clk_sample_q;
     reg                 p3_sd_clk_sample_qq;
     reg     [15:0]      p3_sd_init_seen_r;
@@ -161,6 +165,11 @@ module piton_sd_top (
         end
     end
 
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+    assign p3_sd_init_seen_o = p3_sd_cmd_debug_seen;
+    assign p3_sd_init_bus_o = {p3_sd_init_state,
+                               p3_sd_cmd_debug_bus};
+`else
     assign p3_sd_init_seen_o = p3_sd_init_seen_r;
     assign p3_sd_init_bus_o = {p3_sd_init_state,
                                p3_sd_init_counter[23:16],
@@ -170,6 +179,7 @@ module piton_sd_top (
                                sd_dat_dat_i,
                                sd_dat_out_o,
                                p3_sd_init_flags};
+`endif
 `endif
 
     // Init <-> Wishbone SD Controller
@@ -385,6 +395,10 @@ module piton_sd_top (
         .sd_clk_i_pad			(sd_clk),
         .int_cmd				(sd_int_cmd), 
         .int_data				(sd_int_data)
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+       ,.p3_sd_cmd_debug_seen_o (p3_sd_cmd_debug_seen),
+        .p3_sd_cmd_debug_bus_o  (p3_sd_cmd_debug_bus)
+`endif
         );
 
 endmodule

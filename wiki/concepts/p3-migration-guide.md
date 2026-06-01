@@ -601,6 +601,19 @@ Build 50 replaces the Build 49 C smoke code with the no-stack `asm_uart16550_sdp
    - **SD Clock Generation**: Direct wire assignment `assign sd_clk_out = sd_clk_out_internal` without an ODDR primitive on Versal can cause clock skew/duty-cycle issues, preventing the physical SD card from responding to command sequences.
    - **Tristate Bidirectional Buffer Delay**: The `inout` `sd_cmd`/`sd_dat` lines rely on inferred `IOBUF`s. On Versal, the bidirectional direction switching must be carefully timed to avoid bus contention with the card.
 
+### 6.7 Build 52 Result and Build 53 CMD55 Debug
+
+Build 52 validates the first part of the SD reset hypothesis. With `P3_SD_IGNORE_CARD_DETECT_RESET`, raw `sd_cd` remains high on P3, but the native SD controller's internal reset releases. Hardware ILA capture then shows Wishbone acks, SD clock toggles, CMD output-enable activity, and at least one command interrupt. Therefore the Build 49/50 backpressure was caused by the SD init gate (`~init_done | rst`), and the raw card-detect signal was a real reset blocker.
+
+Build 52 does not complete card initialization. The live init FSM stops at `0x34`, which maps to `ST_ACMD41_CMD55_WAIT_INT` in `piton_sd_init.v`: CMD0 and CMD8 have completed, and the hardware is waiting for the CMD55 completion interrupt before issuing ACMD41. This narrows the next failure to the command path, not DDR, UART, bootrom stack, or NoC request acceptance.
+
+Build 53 adds `P3_BD_SD_CMD_DEBUG_ILA` while preserving the Build 52 hardware baseline. The compact SD ILA bus is repacked as `{init_state, watchdog_low, command_index, cmd_int_status_sd, cmd_int_status_wb, cmd_timeout, cmd_master_state, cmd_serial_state, start/finish/CMD flags}`. The expected interpretation is:
+
+- CMD start absent in WB or SD clock domain: debug the Wishbone-to-SD FIFO and `cmd_start_sd_clk` generation.
+- CMD master executing and serial host in `READ_WAIT`: the controller issued CMD55 and is waiting for the card to pull CMD low for a response.
+- SD-domain timeout/error status present but WB-domain `int_cmd` low: debug the SD-to-WB interrupt/status FIFO and interrupt-enable path.
+- CMD55 completes but loops back: decode the R1 response bits and card status checks in `ST_ACMD41_CMD55_RD_RESP0`.
+
 ---
 
 

@@ -625,6 +625,21 @@ vivado -mode batch -source scripts/p3_ila_capture_build52_sd_cd_mask.tcl
 python3 scripts/p3_decode_build52_ila_csv.py huaprop3_build52_sd_cd_mask/debug_build
 ```
 
+Build 52 hardware validation completed and showed the mask working: raw `sd_cd` stayed high, but internal SD reset released and the controller produced Wishbone acks, SD clock toggles, CMD output-enable activity, and command interrupts. The SD init FSM still stopped at `ST_ACMD41_CMD55_WAIT_INT`.
+
+### P3 Build 53 SD Command-Layer Debug
+
+Build 53 is a narrow follow-up to Build 52. It keeps the same project structure, bootrom, AXI16550 path, SD pins, and four small BD-owned ILAs, but adds `P3_BD_SD_CMD_DEBUG_ILA` to repack the SD ILA bus around the OpenCores command path.
+
+```bash
+vivado -mode batch -source scripts/p3_build53_sd_cmd_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build53_sd_cmd_debug/debug_build/p3_top_build53_sd_cmd_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build53_sd_cmd_debug.tcl
+python3 scripts/p3_decode_build53_ila_csv.py huaprop3_build53_sd_cmd_debug/debug_build
+```
+
+The wrapper uses `D:/p3b53` by default and publishes `p3_top_build53_sd_cmd_debug.pdi/.ltx` under `huaprop3_build53_sd_cmd_debug/debug_build`. The Build 52 script now accepts environment overrides for project name, output PDI basename, work directory, and extra Verilog defines so this follow-up can reuse the known-good run-manager flow without duplicating the whole Tcl body.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

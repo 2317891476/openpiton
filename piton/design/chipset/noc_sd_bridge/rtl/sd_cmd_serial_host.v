@@ -60,6 +60,10 @@ module sd_cmd_serial_host (
            cmd_dat_i,
            cmd_out_o,
            cmd_oe_o
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+           ,
+           p3_cmd_serial_state_o
+`endif
        );
 
 //---------------Input ports---------------
@@ -76,6 +80,9 @@ output reg crc_ok_o;
 output reg index_ok_o;
 (* iob="true" *) output reg cmd_oe_o;
 (* iob="true" *) output reg cmd_out_o;
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+output wire [6:0] p3_cmd_serial_state_o;
+`endif
 
 //-------------Internal Constant-------------
 parameter INIT_DELAY = 4;
@@ -114,6 +121,9 @@ parameter
     FINISH_WO = 7'h40;
 reg [STATE_SIZE-1:0] state;
 reg [STATE_SIZE-1:0] next_state;
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+assign p3_cmd_serial_state_o = state[6:0];
+`endif
 //Misc
 `define cmd_idx  (CMD_SIZE-1-counter)
 
@@ -340,5 +350,4 @@ begin: FSM_OUT
 end
 
 endmodule
-
 

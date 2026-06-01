@@ -71,6 +71,10 @@ module sd_cmd_master(
            output reg [31:0] response_1_o,
            output reg [31:0] response_2_o,
            output reg [31:0] response_3_o
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+           ,
+           output wire [9:0] p3_cmd_master_debug_o
+`endif
        );
 
 //-----------Types--------------------------------------------------------
@@ -93,6 +97,9 @@ parameter BUSY_CHECK = 2'b10;
 
 assign setting_o[1:0] = {long_response, expect_response};
 assign int_status_o = state == IDLE ? int_status_reg : 5'h0;
+`ifdef P3_BD_SD_CMD_DEBUG_ILA
+assign p3_cmd_master_debug_o = {watchdog[7:0], state};
+`endif
 
 //---------------Input ports---------------
 

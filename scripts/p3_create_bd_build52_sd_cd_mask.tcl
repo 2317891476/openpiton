@@ -4,7 +4,9 @@
 #   vivado -mode batch -source scripts/p3_create_bd_build52_sd_cd_mask.tcl
 
 set script_dir [file dirname [info script]]
-set P3_PROJECT_NAME "huaprop3_build52_sd_cd_mask"
+if {![info exists P3_PROJECT_NAME] || $P3_PROJECT_NAME eq ""} {
+    set P3_PROJECT_NAME "huaprop3_build52_sd_cd_mask"
+}
 set P3_ENABLE_SIFIVE_UART 0
 set P3_ENABLE_SIFIVE_DEBUG_ILA 0
 set P3_ENABLE_BUILD41_DEBUG_ILA 0
