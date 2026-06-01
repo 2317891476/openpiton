@@ -31,17 +31,53 @@ gantt
 
 ---
 
-## 二、 各 Build 设计初衷、验证结果与结论汇总
+## 二、 调试手段与步步排查细节
+
+为了在庞大复杂的 SoC 移植项目中精准定位问题，我们引入了如下关键的硬件调试与隔离手段：
+
+### 1. 软件栈隔离与汇编级探测
+* **排查细节**：在调试初期，由于 CPU 访问外部 DDR4 时会发生挂死，如果直接使用常规的 C 语言 Bootrom，其入口的堆栈指针（`sp`）设置在未就绪的 DDR 内，会导致处理器触发非法存取异常，串口终端从而无任何输出。
+* **隔离手段**：我们开发了**免栈汇编镜像（`startup_asm_...`）**。该镜像直接利用处理器寄存器，绕过了 C 语言堆栈的初始化：
+  ```assembly
+  // AXI 16550 最小化串口输出控制流
+  _prog_start:
+      li      t0, 0xfff0c2c000      # 串口控制器基基址
+  .poll_tx:
+      lb      t1, 5(t0)             # 读取状态寄存器 LSR
+      andi    t1, t1, 0x20          # 提取 LSR[5] (THR 空闲标志)
+      beqz    t1, .poll_tx          # 若未空闲，继续轮询
+      li      t2, 0x41              # 字符 'A' 的 ASCII
+      sb      t2, 0(t0)             # 写入发送保持寄存器 THR
+      j       .poll_tx
+  ```
+  通过这种方式，我们能绕过 DDR 物理链路直接测试 UART IP 的响应。同样地，在 DDR4 排查中，我们用纯汇编执行 `sb t2, 0(t3); fence; lb t4, 0(t3)`，实现了**单周期内存读写探测**，从而锁定了写成功但读挂起的微观总线故障。
+
+### 2. PC 指针挂起点实时捕获
+* **排查细节**：在 Bootrom 搭载测试（Build 48）发生卡死时，虽然串口打印了 Banner，但随后全无信息。我们利用顶层 debug 总线中的 `p3_dbg_core_bus64_i_1` 探针（抓取 L1.5 cache 到 CPU 核心的 Instruction Address）进行硬件实时监测。
+* **捕获结果**：在系统卡死后，探针反馈的指令请求地址稳定锁定在 `0xfff101057c`。
+* **分析过程**：
+  我们通过将该地址与 Bootrom 的反汇编代码（Disassembly）进行交叉对照：
+  ```disassembly
+  fff1010570 <sd_copy>:
+  fff1010570:   ...
+  fff1010574:   lw      a5, 0(a4)       # 读取 SD 卡缓冲区
+  fff1010578:   sw      a5, 0(a3)       # 写入 DDR
+  fff101057c:   bne     a4, a2, fff1010574  # 循环拷贝 512 字节
+  ```
+  该地址刚好位于块拷贝循环尾的 `bne` 指令。总线数据显示总线一直被拉在忙状态。这以**数据级证据**直接实锤了：**处理器在试图从 SD 卡缓冲区取数时，由于控制器 Ready 信号被拉死，发生了物理总线读挂起**。
+
+---
+
+## 三、 各 Build 设计初衷、验证结果与结论汇总
 
 ### 1. Build 37 & Build 38 (5月29日)
 * **设计初衷与目标假设**：
-  解决移植初期的“串口终端无任何字符输出”的问题。
   * **假设 1 (流控死锁)**：默认的 OpenPiton 串口驱动 `init_uart()` 设置了 `UART_MODEM_CONTROL = 0x20`（即使能自动流控 AFE）。然而 P3 接口板物理上只引出了 TXD 和 RXD，缺乏 `CTS`/`RTS` 硬件流控管脚。因此，开启 AFE 会导致 UART 发送器由于等不到 CTS 信号被永久死锁挂起。
-  * **假设 2 (字节通道错位)**：64位 NoC 到 32位 AXI-Lite 桥接在读取串口状态寄存器（`LSR`，偏移量为 5）时，期待数据落在高位通道并执行右移 40 位的操作（`rdata >> 40`）。但 Xilinx UART 内部在地址转换后将 LSR 呈现在低 8 位，右移 40 位后导致 CPU 读回的 LSR 永远为 `0x00`（判定串口始终 Busy）。
+  * **假设 2 (字节通道错位)**：64位 NoC 到 32位 AXI-Lite 桥接在读取串口状态寄存器（`LSR`，偏移量为 5）时，期待数据落在高位通道并执行右移 40 位的操作（`rdata >> 40`）。但 Xilinx UART 内部在地址转换后将 LSR 呈现在最低字节，右移 40 位后导致 CPU 读回的 LSR 永远为 `0x00`（判定串口始终 Busy）。
   * **设计**：Build 38 将串口初始化流控配置修改为 `0x00`（禁用流控）；同时在桥接模块中对读取的 8 位 UART 状态执行 8 通道复制广播映射（`.m_axi_rdata({8{core_axi_rdata[7:0]}})`），彻底消除字节通道对齐的影响。
 * **硬件验证结果与结论**：
   * **结果**：串口终端依然全无输出。
-  * **结论**：**关闭自动流控与修正字节对齐是必要条件，但仍非充分条件**。可能还存在由于其他硬件/时钟引脚故障引起的 CPU 取指异常，使执行流未能流转到串口打印部分。
+  * **结论**：**关闭自动流控与修正字节对齐是必要条件，但仍非充分条件**。可能还存在由于其他硬件/时钟引导故障引起的 CPU 取指异常。
 
 ### 2. Build 39 & Build 40 (5月29日)
 * **设计初衷与目标假设**：
@@ -66,7 +102,7 @@ gantt
   验证在未涉及 DDR 内存时，串口是否在物理和总线上完全可用。
   * **假设**：由于 DDR 未初始化，如果 bootrom 进行 C 语言函数调用导致利用了未就绪的 DDR4 作为 Stack 运行栈，会引发段错误崩塌。
   * **设计**：
-    * **Build 42-A**：编写免 SP 栈、免 DDR 的纯汇编串口镜像（`BOOTROM_MODE=asm_uart`），直接往 SiFive TLUART 发射字符 `A`。
+    * **Build 42-A**：编写免 SP 栈、免 DDR 的纯汇编串口镜像（`BOOTROM_MODE=asm_uart`），直接向 SiFive TLUART 发射字符 `A`。
     * **Build 42-B**：设计 BRAM 替代 interposer，在 AXI 端口拦截对堆栈窗口的访问，并重定向到内部 BRAM（防止 DDR 干扰）。
 * **硬件验证结果与结论**：
   * **结果**：Build 42-A 依旧无任何输出。ILA 读回的 SiFive 串口状态总线显示，寄存器回读仍有数据通道冲突。
@@ -93,7 +129,7 @@ gantt
 ### 7. Build 45 (5月31日)
 * **设计初衷与目标假设**：
   探索 DDR 读挂起是否是由 CPU 发出的地址与控制器物理段映射冲突引起。
-  * **假设**：在 Block Design (BD) 内将 NoC DDR 基地址直接从默认的 `0x00000000` 改为与 CPU 地址一致的 `0x80000000`，可以实现直通读写。
+  * **假设**：在 Block Design (BD) 内将 NoC DDR 基地址直接从默认的 `0x00000000` 改为与 CPU 地址一致 of `0x80000000`，可以实现直通读写。
   * **设计**：在 BD 内部通过脚本参数强行设定 `P3_DDR_AXI_OFFSET = 0x80000000` 并重建项目。
 * **硬件验证结果与结论**：
   * **结果**：Vivado 在 BD 地址段验证时报错中断，无法通过设计法则检查（DRC）。
@@ -168,38 +204,88 @@ gantt
 
 ---
 
-## 三、 核心突破：SPI 模式引脚交叉错位 (SPI Wire-Crossing) 假说
+## 四、 根因微观机制分析
 
-在对 UART 成功通车（引脚为 `CW58/CW59`）进行反向推导时，发现它们与 `p3_io.md` 官方声称的引脚（`CM59/CN59`）不同。这证明了**我们物理开发板的连线确实是按照参考工程 `shell.xdc` 的引脚（`CV57`, `DB57` 等）来布线的**，不能直接套用 `p3_io.md` 描述。
+### 1. DDR 读挂死机制 (LOW0 映射局限)
+Versal NoC 硬核规定，挂接在 NoC 上的 DDR 物理控制器基址段受到片上地址译码器的硬性约束。BD（Block Design）内部地址分配器对 `S_AXI_MEM` 接口有强制校验，其只接受基址为 `0x00000000` (2GB 空间) 的地址区间映射。若直接由 CPU 发出 `0x80000000` 开始的请求到 BD，就会因为找不到目标外设段而发生 AXI 协议总线挂死。
 
-那么为什么 SD 依然不响应？因为**参考工程设计时使用的是 SPI 模式驱动 SD 卡**。这造成了 Native 模式下的管脚交叉错位：
-
-* **参考工程的 SPI 物理连线**：
-  * FPGA 的 `DB57` 连到了卡的 **Pin 1 (`DAT3/CS`)** 充当 SPI 片选。
-  * FPGA 的 `CY55` 连到了卡的 **Pin 2 (`CMD/DI`)** 充当 SPI 数据输入。
-* **OpenPiton 的 Native 驱动模式**：
-  * 控制器视 `DB57` 为命令脚 `sd_cmd`。
-  * 控制器视 `CY55` 为数据脚 `sd_dat[3]`。
-
-#### 交叉错位示意图：
+### 2. 卡检测复位死锁机制 (Card-Detect Reset)
+在 [piton_sd_top.v](file:///L:/home/illya/openpiton/piton/design/chipset/noc_sd_bridge/rtl/piton_sd_top.v) 的复位电路中：
+```verilog
+assign rst = sys_rst | sd_cd;
 ```
-[OpenPiton 控制器逻辑]                         [物理 SD 卡卡座引脚]
-sd_cmd    (DB57)  =======（物理连线）=======>  Pin 1 (DAT3)  [卡端用于传输数据/片选]
-sd_dat[3] (CY55)  =======（物理连线）=======>  Pin 2 (CMD)   [卡端用于接收命令]
-```
+由于物理引脚的 card-detect 为低电平有效，在未插入卡或悬空状态下，FPGA 读入的 `sd_cd` 为 `1`。在没有外部控制屏蔽时，这个 `1` 导致 SD 内部的 Wishbone 控制器和 `piton_sd_init` 状态机长期工作在硬复位（Reset）状态。分频时钟被停止输出，总线握手也被全部拉低阻断，系统从而发生永久性总线压死。
 
-当控制器在 `sd_cmd`（`DB57`）上发出初始化命令（如 `CMD55`）时，信号被物理送到了卡的 `DAT3` 脚。而卡真正用来接收命令的 `CMD` 脚（连到 `CY55`）却只收到了控制器作为数据线空闲时拉高的高电平。由于 SD 卡的 CMD 引脚无法收到任何命令，它当然不会做出任何响应，从而导致了控制器的无限超时挂起。
+### 3. SPI 模式引脚交叉错位机制 (SPI Wire-Crossing)
+这是目前定位到的最关键的物理层障碍。由于参考设计在开发时使用 **SPI 模式** 驱动 SD，且在该模式下成功，因此其 FPGA 引脚配置为：
+* `DB57` $\rightarrow$ 卡 Pin 1 (`DAT3/CS`) 
+* `CY55` $\rightarrow$ 卡 Pin 2 (`CMD/DI`)
+
+然而在 OpenPiton 中，我们采用的是 **Native SD 4-bit 模式**。控制器认为的管脚是：
+* `sd_cmd` $\rightarrow$ 命令线，理应连接到卡的 Pin 2 (`CMD`)，但目前被强行引脚约束到了 `DB57` (物理上送到了卡的 `DAT3/CS`)。
+* `sd_dat[3]` $\rightarrow$ 4-bit数据线3，理应连接到卡的 Pin 1 (`DAT3`)，但目前被约束到了 `CY55` (物理上送到了卡的 `CMD`)。
+
+#### ASCII 物理连线交叉关系：
+```
+[OpenPiton 控制器逻辑信号]                      [FPGA XDC 映射引脚]               [SD 卡物理插卡槽引脚]
+     sd_cmd (发送CMD55等指令)   ===========>     DB57 (SPI_CS)    ===========>   Pin 1 (DAT3)  [误收到了指令信号]
+     sd_dat[3] (数据流第三位)  ===========>     CY55 (SPI_DI)    ===========>   Pin 2 (CMD)   [误收到了空闲高电平]
+```
+由于这种硬件连线上的交叉错位，SD 卡在它的 `CMD` 管脚上只接收到了代表高阻或空闲的 `CY55` 高电平电平，根本接收不到启动命令，自然在物理上保持完全的 Silence。
 
 ---
 
-## 四、 后续实验与验证规划 (Build 55 - Build 56)
+## 五、 具体的解决方案代码与逻辑
+
+### 1. DDR 顶层地址折叠翻译代码 (RTL 级逻辑)
+在顶层 [p3_top.v](file:///L:/home/illya/openpiton/piton/design/xilinx/huaprop3/p3_top.v) 实例化 BD 之前，当 `P3_AXI_DDR_ADDR_TRANSLATE` 使能时，高位地址做自动移位变换扣除，规避 BD NoC 对 AXI 基址译码的 DRC 报错：
+```verilog
+`ifdef P3_AXI_DDR_ADDR_TRANSLATE
+    // 将 CPU 物理地址的高位进行移位折叠 (从 0x80000000 变回 0x0)
+    assign bd_m_axi_awaddr = m_axi_awaddr - 64'h0000000080000000;
+    assign bd_m_axi_araddr = m_axi_araddr - 64'h0000000080000000;
+`else
+    assign bd_m_axi_awaddr = m_axi_awaddr;
+    assign bd_m_axi_araddr = m_axi_araddr;
+`endif
+```
+
+### 2. Card-Detect 复位屏蔽实现 (RTL 级逻辑)
+在 [piton_sd_top.v](file:///L:/home/illya/openpiton/piton/design/chipset/noc_sd_bridge/rtl/piton_sd_top.v) 中，通过局部宏命令剥离 CD 输入对复位网络的控制，释放状态机：
+```verilog
+    // =========================================================================
+    // Card Detect Reset Mask for P3
+    // =========================================================================
+`ifdef P3_SD_IGNORE_CARD_DETECT_RESET
+    wire    sd_cd_reset = 1'b0; // 强制将外部 card detect 复位清零
+`else
+    wire    sd_cd_reset = sd_cd; // 沿用原本的卡检测引脚极性
+`endif
+    wire    rst =   sys_rst | sd_cd_reset; // 最终总线复位触发信号
+```
+
+### 3. Build 56A: SPI 引脚交叉对调 XDC 方案 (XDC 物理约束)
+在 Build 56A 实验中，通过在 [constraints.xdc](file:///L:/home/illya/openpiton/piton/design/xilinx/huaprop3/constraints.xdc) 中直接交换命令引脚（`sd_cmd`）与数据3引脚（`sd_dat[3]`）的 FPGA PACKAGE_PIN 分配，使控制器逻辑匹配子卡的 SPI 物理连线布局：
+```xdc
+# =============================================================================
+# Build 56A SD Pin Swap - Correcting Native SD-to-SPI Daughterboard Mismatch
+# =============================================================================
+# 1. 将原 DB57 改配给数据线3 (原连往卡的 Pin 1 DAT3/CS)
+set_property PACKAGE_PIN DB57 [get_ports {sd_dat[3]}]
+set_property IOSTANDARD LVCMOS15 [get_ports {sd_dat[3]}]
+set_property PULLTYPE PULLUP [get_ports {sd_dat[3]}]
+
+# 2. 将原 CY55 改配给命令线 (原连往卡的 Pin 2 CMD/DI)
+set_property PACKAGE_PIN CY55 [get_ports sd_cmd]
+set_property IOSTANDARD LVCMOS15 [get_ports sd_cmd]
+set_property PULLTYPE PULLUP [get_ports sd_cmd]
+```
+
+---
+
+## 六、 后续实验与验证规划 (Build 55 - Build 56)
 
 1. **Build 55 (进行中)**：继续进行原计划的时钟路径优化实验（引入 IOB 寄存器驱动 `sd_clk_out`）。
 2. **Build 56 (物理引脚对调与对照实验)**：
-   * **实验 56A (验证引脚交叉对调 - 强嫌疑)**：在 XDC 中对调 `sd_cmd` 和 `sd_dat[3]` 的引脚：
-     ```xdc
-     set_property PACKAGE_PIN CY55 [get_ports sd_cmd]
-     set_property PACKAGE_PIN DB57 [get_ports {sd_dat[3]}]
-     ```
-     如果该版本烧录后 ILA 的 `READ_WAIT` 状态消失并获得响应，说明“SPI 交叉错位”假说成立，硬件将彻底调通。
+   * **实验 56A (验证引脚交叉对调 - 强嫌疑)**：如上节所示，在 XDC 中对调 `sd_cmd` 和 `sd_dat[3]` 的引脚。如果该版本烧录后 ILA 的 `READ_WAIT` 状态消失并获得响应，说明“SPI 交叉错位”假说成立，硬件将彻底调通。
    * **实验 56B (验证官方引脚)**：制作对照版本，将 SD 卡所有引脚（`CW60`/`CY60`/`DB61`...）切换为 `p3_io.md` 中指明的引脚，以防万一。
