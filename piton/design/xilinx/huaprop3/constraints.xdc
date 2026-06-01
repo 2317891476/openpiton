@@ -33,8 +33,10 @@ set_property IOSTANDARD LVCMOS15 [get_ports uart_tx]
 set_property IOSTANDARD LVCMOS15 [get_ports uart_rx]
 
 # =============================================================================
-# SD Card -- SPI mode on PHC3 daughter card
-# Pin assignments from reference project shell.xdc (proven working)
+# SD Card -- PHC3 daughter card
+# Pin assignments from reference project shell.xdc (proven working).
+# The OpenPiton native SD controller leaves CMD/DAT high-Z between transfers,
+# so enable weak pull-ups on the idle command/data lines used during init.
 # =============================================================================
 # SD_CLK (XPPHC A0)
 set_property PACKAGE_PIN CV57 [get_ports sd_clk_out]
@@ -43,10 +45,12 @@ set_property IOSTANDARD LVCMOS15 [get_ports sd_clk_out]
 # SD_CMD (XPPHC A2) -- bidirectional in OpenPiton (MOSI + response)
 set_property PACKAGE_PIN DB57 [get_ports sd_cmd]
 set_property IOSTANDARD LVCMOS15 [get_ports sd_cmd]
+set_property PULLTYPE PULLUP [get_ports sd_cmd]
 
 # SD_DAT[0] (XPPHC A4) -- MISO in SPI mode
 set_property PACKAGE_PIN DC56 [get_ports {sd_dat[0]}]
 set_property IOSTANDARD LVCMOS15 [get_ports {sd_dat[0]}]
+set_property PULLTYPE PULLUP [get_ports {sd_dat[0]}]
 
 # SD_DAT[1] (XPPHC A5)
 set_property PACKAGE_PIN DC55 [get_ports {sd_dat[1]}]
@@ -61,6 +65,7 @@ set_property PULLTYPE PULLUP [get_ports {sd_dat[2]}]
 # SD_DAT[3] (XPPHC A7) -- CS in SPI mode
 set_property PACKAGE_PIN CY55 [get_ports {sd_dat[3]}]
 set_property IOSTANDARD LVCMOS15 [get_ports {sd_dat[3]}]
+set_property PULLTYPE PULLUP [get_ports {sd_dat[3]}]
 
 # SD Card Detect (XPPHC A3) -- active-low, PHC3/Bank 705 from p3_io.md
 set_property PACKAGE_PIN DC61 [get_ports sd_cd]

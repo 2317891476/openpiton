@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decode Build 53 SD command-layer ILA CSV captures."""
+"""Decode Build 53/54 SD command-layer ILA CSV captures."""
 
 import argparse
 import csv
@@ -184,12 +184,13 @@ def decode_sd_cmd(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("debug_build_dir", help="Build 53 debug_build directory")
+    parser.add_argument("--tag", default="build53", help="capture tag used in CSV filenames")
+    parser.add_argument("debug_build_dir", help="debug_build directory")
     args = parser.parse_args()
 
     try:
-        axis0 = find_one(args.debug_build_dir, "ila_capture_build53_*axis_ila_0.csv")
-        axis2 = find_one(args.debug_build_dir, "ila_capture_build53_*axis_ila_2.csv")
+        axis0 = find_one(args.debug_build_dir, f"ila_capture_{args.tag}_*axis_ila_0.csv")
+        axis2 = find_one(args.debug_build_dir, f"ila_capture_{args.tag}_*axis_ila_2.csv")
         status = decode_axis0(axis0)
         sd = decode_sd_cmd(axis2)
     except Exception as exc:
