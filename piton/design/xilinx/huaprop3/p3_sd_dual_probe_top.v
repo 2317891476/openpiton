@@ -372,31 +372,26 @@ module p3_sd_dual_probe_engine (
                         if (!dat_i[0]) begin
                             spi_miso_seen_low <= 1'b1;
                         end
-                        if (response_bit_count == 3'd7) begin
-                            if ({response_byte[6:0], dat_i[0]} != 8'hff) begin
-                                pass <= 1'b1;
+                        if (response_bit_count == 3'd7 &&
+                            {response_byte[6:0], dat_i[0]} != 8'hff) begin
+                            pass <= 1'b1;
+                            done <= 1'b1;
+                            busy <= 1'b0;
+                            dat_o[3] <= 1'b1;
+                            state <= ST_PASS;
+                        end else if (response_timeout == 16'd0) begin
+                            if (spi_miso_seen_low || !dat_i[0] || command_index == 8'd0) begin
+                                command_index <= 8'd1;
+                                response_timeout <= RESPONSE_BITS[15:0];
+                                state <= ST_CMD_LOAD;
+                            end else begin
+                                fail <= 1'b1;
                                 done <= 1'b1;
                                 busy <= 1'b0;
+                                timeout_seen <= 1'b1;
+                                fail_code <= 8'h11;
                                 dat_o[3] <= 1'b1;
-                                state <= ST_PASS;
-                            end else if (response_timeout == 16'd0) begin
-                                if (spi_miso_seen_low || command_index == 8'd0) begin
-                                    command_index <= 8'd1;
-                                    response_timeout <= RESPONSE_BITS[15:0];
-                                    state <= ST_CMD_LOAD;
-                                end else begin
-                                    fail <= 1'b1;
-                                    done <= 1'b1;
-                                    busy <= 1'b0;
-                                    timeout_seen <= 1'b1;
-                                    fail_code <= 8'h11;
-                                    dat_o[3] <= 1'b1;
-                                    state <= ST_FAIL;
-                                end
-                            end else begin
-                                response_timeout <= response_timeout - 1'b1;
-                                wait_ctr <= SD_HALF_DIV - 1;
-                                state <= ST_SPI_RESP_LOW;
+                                state <= ST_FAIL;
                             end
                         end else begin
                             response_timeout <= response_timeout - 1'b1;
@@ -525,7 +520,7 @@ module p3_sd_dual_probe_engine (
     end
 
     assign dbg_status = {fail_code,
-                         2'h0,
+                         4'h0,
                          all_done,
                          drive_sd,
                          sd_cd,
@@ -553,9 +548,10 @@ module p3_sd_dual_probe_engine (
                        response_timeout};
 
     assign dbg_bus1 = {command_index,
+                       2'h0,
                        bit_count,
-                       response_bit_count,
                        5'h0,
+                       response_bit_count,
                        response_shift};
 
     assign dbg_summary = {8'h56,
