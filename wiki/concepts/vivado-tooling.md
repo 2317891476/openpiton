@@ -755,6 +755,15 @@ python3 scripts/p3_decode_build62_ila_csv.py huaprop3_build62_spi_sd_ref_cmd_deb
 
 The Build 62 SD bus format is `{8'h62, state[7:0], command_index[7:0], response_byte[7:0], response_timeout[15:0], bit_count[5:0], response_bit_count[2:0], sd_clk, cmd_oe, cmd_o, dat0_i, miso_seen, pass, fail}`. Pass means the full shell can receive a card response using the reference SPI timing, so OpenCores SPI timing should be patched next. Failure means the remaining fault is in full-shell SD pad/control integration rather than OpenCores byte order.
 
+Build 62 reached a routed checkpoint but failed before PDI generation because Versal DRC `AVAL-352` rejects inferred `OBUFT` cells driving top-level `inout` ports. For P3 SD debug wrappers, do not rely on `assign sd_cmd = oe ? o : 1'bz` or equivalent top-level tristate inference. Build 63 fixes this by instantiating explicit `IOBUF` primitives for `sd_cmd` and `sd_dat[3:0]`, then routing both the normal SPI path and `P3_SPI_SD_REF_CMD_DEBUG` through internal input/output/enable nets. Its debug bus is identical except for the `0x63` tag:
+
+```
+vivado -mode batch -source scripts/p3_build63_spi_sd_iobuf_ref_cmd_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build63_spi_sd_iobuf_ref_cmd_debug/debug_build/p3_top_build63_spi_sd_iobuf_ref_cmd_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build63_spi_sd_iobuf_ref_cmd_debug.tcl
+python3 scripts/p3_decode_build63_ila_csv.py huaprop3_build63_spi_sd_iobuf_ref_cmd_debug/debug_build
+```
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy

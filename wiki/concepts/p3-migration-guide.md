@@ -804,7 +804,7 @@ The hardware variant is selected with `P3_SIFIVE_UART`. It adds the generated Si
 
 The software stack must move with the hardware. Bootrom builds use `PITON_SIFIVE_UART=1` so `uart.c` performs 32-bit MMIO, sets `DIV=freq/baud-1`, enables TX/RX, and polls `TXDATA[31]`. DTS uses `compatible = "sifive,uart0"` so riscv-pk/BBL selects its SiFive UART backend; the backend must use ordinary MMIO writes rather than AMO to TXDATA because the new bridge is AXI4-Lite, not an atomic-capable memory target. Linux config enables `CONFIG_SERIAL_SIFIVE` and `CONFIG_SERIAL_SIFIVE_CONSOLE`.
 
-## 12. P3 SPI SD Debug Builds 59-62
+## 12. P3 SPI SD Debug Builds 59-63
 
 Build 59 tested the smallest protocol-level fix after Build 58: OpenCores `rwspi_wire_data` now drives MOSI/CMD high during reset and idle wait states, matching the standalone Build 56 reference-SPI probe. The hardware result confirmed the fix at the pin-observation level (`spi_mosi=1`, `spi_cs_n=1`) and kept the proven AXI16550 UART path, but `miso_low_seen` was still zero.
 
@@ -815,3 +815,5 @@ Build 60's raw CSV showed `send_cmd` in response-wait states with `tx_count=62/6
 Build 61 hardware confirmed the OpenCores command launch at the internal pad observation point: the capture reported `cmd_bit_count=56` and `cmd_mosi56=0xff400000000095`. The card response was still absent (`miso_low_seen=0`). This closes the byte-order and first-command launch questions for CMD0. Future builds should avoid broad boot-flow changes and focus on the physical response boundary: exact MISO input sampling, CS#/SCK idle timing, and differences from the Build 56 reference-SPI probe that already saw a response on the same board/card path.
 
 Build 62 moves the known-good Build 56 SPI command sequencer into the full OpenPiton SD wrapper under `P3_SPI_SD_REF_CMD_DEBUG`. In this mode the full shell, constraints, BD debug hub, AXI16550 UART, bootrom stimulus, and SD top-level pads remain in place, but the SD pad drivers are temporarily muxed from the reference bit-banged CMD0/CMD8 engine. A passing Build 62 means the external card path is reachable in the full shell and the next fix should target OpenCores SPI CS/SCK/MOSI/response timing. A failing Build 62 means the problem is not OpenCores byte order; it is full-shell pad, power, reset, or top-level SD control integration.
+
+Build 62 routed successfully but failed at `write_device_image` with Versal DRC `AVAL-352` because top-level tristate assignments on `sd_cmd` and `sd_dat[3]` inferred `OBUFT` cells driving `inout` ports. Build 63 keeps the same reference-SPI boundary test and AXI16550 path, but makes the SD pad boundary explicit: `piton_spi_sd_top.v` instantiates `IOBUF` for `sd_cmd` and every `sd_dat` bit, drives internal output/enable nets, and samples the card through internal input nets. This removes the bitgen DRC as a variable before interpreting the reference-SPI full-shell result.
