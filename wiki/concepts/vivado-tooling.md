@@ -740,6 +740,8 @@ python3 scripts/p3_decode_build61_ila_csv.py huaprop3_build61_spi_sd_pad_debug/d
 
 The Build 61 SD bus format is `{cmd_bit_count[5:0], cmd_mosi56[55:0], capture_active, spi_cs_n}`. A normal OpenCores CMD0 launch should decode as `cmd_bit_count=56` and `cmd_mosi56=0xff400000000095`. If that pattern is present and `miso_low_seen` remains zero, the next experiment should compare pad timing or substitute the Build 56 bit-banged sequencer. If the MOSI pattern differs, debug the OpenCores transmit byte order and `rwspi_wire_data` sampling/shift timing first.
 
+Hardware result: Build 61 programmed successfully, refreshed the debug hub, exported all four ILA CSVs, and decoded the expected CMD0 launch (`cmd_bit_count=56`, `cmd_mosi56=0xff400000000095`). The only failing condition was still `miso_low_seen=0`. Treat AXI16550, NoC/Wishbone SD request launch, SPI byte order, and the first MOSI command window as validated for this path; the next build should probe or reproduce the external MISO/card-response boundary against Build 56.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
