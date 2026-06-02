@@ -694,6 +694,20 @@ python3 scripts/p3_decode_build58_ila_csv.py huaprop3_build58_spi_sd_power_debug
 
 The wrapper uses `D:/p3b58` by default and publishes `p3_top_build58_spi_sd_power_debug.pdi/.ltx` under `huaprop3_build58_spi_sd_power_debug/debug_build`. The Build 58 decoder returns a non-zero status for missing MISO response or non-zero SPI/init error bits, so an automated flow can immediately proceed to the next build plan if this capture still fails.
 
+### P3 Build 59 SPI SD MOSI Idle-High
+
+Build 58 programmed and captured correctly but stopped in `init_sd_p3` state `CMD0_WAIT`: `cmd=0x40`, `resp=0xff`, `miso_low_seen=0`, and SPI error `0x01`. The NoC, Wishbone, SPI init request, SPI clock, and debug hub paths were all alive, so Build 59 keeps the same reference SPI pin map and compact four-ILA shape but changes the OpenCores SPI wire engine idle level. `rwspi_wire_data` now drives MOSI high during reset, startup, and `WT_TX_DATA`, matching the standalone Build 56 reference-SPI probe that observed a valid card response.
+
+```
+vivado -mode batch -source scripts/p3_build59_spi_sd_mosi_idle_high.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_build59_spi_sd_mosi_idle_high.tcl -tclargs -skip_create -skip_prepare -reuse_synth -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build59_spi_sd_mosi_idle_high/debug_build/p3_top_build59_spi_sd_mosi_idle_high.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build59_spi_sd_mosi_idle_high.tcl
+python3 scripts/p3_decode_build59_ila_csv.py huaprop3_build59_spi_sd_mosi_idle_high/debug_build
+```
+
+The wrapper uses `D:/p3b59` by default and publishes `p3_top_build59_spi_sd_mosi_idle_high.pdi/.ltx` under `huaprop3_build59_spi_sd_mosi_idle_high/debug_build`. If Build 59 still reports no MISO low during `CMD0_WAIT`, the next build should stop changing high-level boot flow and instead capture a bit-level CMD0 waveform or replace the OpenCores byte-FIFO command sender with the known-good Build 56 command sequencer.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
