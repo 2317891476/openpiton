@@ -708,6 +708,20 @@ python3 scripts/p3_decode_build59_ila_csv.py huaprop3_build59_spi_sd_mosi_idle_h
 
 The wrapper uses `D:/p3b59` by default and publishes `p3_top_build59_spi_sd_mosi_idle_high.pdi/.ltx` under `huaprop3_build59_spi_sd_mosi_idle_high/debug_build`. If Build 59 still reports no MISO low during `CMD0_WAIT`, the next build should stop changing high-level boot flow and instead capture a bit-level CMD0 waveform or replace the OpenCores byte-FIFO command sender with the known-good Build 56 command sequencer.
 
+### P3 Build 60 SPI SD History Debug
+
+Build 59 routed and programmed successfully, but the capture combined a live `POWER_WAIT` state with sticky evidence of a prior SPI init error. Build 60 keeps the same hardware path and small four-ILA shape, but adds `P3_SPI_SD_HISTORY_DEBUG` so the existing 64-bit SD ILA bus records history instead of only current init fields. The upper 32 bits carry `init_sd_p3` current state, a 25-bit state-seen mask, request-seen, and timeout/error-seen bits. The lower 32 bits carry `send_cmd` current state, queued-byte count, last queued TX byte, response byte, and response flags.
+
+```
+vivado -mode batch -source scripts/p3_build60_spi_sd_history_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_build60_spi_sd_history_debug.tcl -tclargs -skip_create -skip_prepare -reuse_synth -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build60_spi_sd_history_debug/debug_build/p3_top_build60_spi_sd_history_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build60_spi_sd_history_debug.tcl
+python3 scripts/p3_decode_build60_ila_csv.py huaprop3_build60_spi_sd_history_debug/debug_build
+```
+
+The wrapper uses `D:/p3b60` by default. A passing capture must show `CMD0_SEND` in the init state-history mask, non-zero `send_cmd` queued-byte count, SPI clock activity, and `miso_low_seen=1`. If command progress is present but MISO remains high, the failure is after the OpenCores command launch and the next build should bypass or replace the byte-FIFO sender with the known-good Build 56 bit-banged SPI sequencer.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
