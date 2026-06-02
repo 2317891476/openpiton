@@ -742,6 +742,19 @@ The Build 61 SD bus format is `{cmd_bit_count[5:0], cmd_mosi56[55:0], capture_ac
 
 Hardware result: Build 61 programmed successfully, refreshed the debug hub, exported all four ILA CSVs, and decoded the expected CMD0 launch (`cmd_bit_count=56`, `cmd_mosi56=0xff400000000095`). The only failing condition was still `miso_low_seen=0`. Treat AXI16550, NoC/Wishbone SD request launch, SPI byte order, and the first MOSI command window as validated for this path; the next build should probe or reproduce the external MISO/card-response boundary against Build 56.
 
+### P3 Build 62 Full-Shell Reference SPI Command Probe
+
+Build 62 enables `P3_SPI_SD_REF_CMD_DEBUG`. It keeps the Build 52 compact four-ILA BD shape and original AXI16550 UART path, but muxes the top-level SD pads to a local Build 56-style reference SPI command sequencer inside `piton_spi_sd_top.v`. This is a boundary test: the OpenCores SD path remains instantiated for NoC/Wishbone context, but its pad outputs are not used while the reference probe drives CMD0/CMD8 and samples DAT0/MISO.
+
+```
+vivado -mode batch -source scripts/p3_build62_spi_sd_ref_cmd_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build62_spi_sd_ref_cmd_debug/debug_build/p3_top_build62_spi_sd_ref_cmd_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build62_spi_sd_ref_cmd_debug.tcl
+python3 scripts/p3_decode_build62_ila_csv.py huaprop3_build62_spi_sd_ref_cmd_debug/debug_build
+```
+
+The Build 62 SD bus format is `{8'h62, state[7:0], command_index[7:0], response_byte[7:0], response_timeout[15:0], bit_count[5:0], response_bit_count[2:0], sd_clk, cmd_oe, cmd_o, dat0_i, miso_seen, pass, fail}`. Pass means the full shell can receive a card response using the reference SPI timing, so OpenCores SPI timing should be patched next. Failure means the remaining fault is in full-shell SD pad/control integration rather than OpenCores byte order.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
