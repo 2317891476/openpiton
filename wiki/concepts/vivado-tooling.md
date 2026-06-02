@@ -722,6 +722,8 @@ python3 scripts/p3_decode_build60_ila_csv.py huaprop3_build60_spi_sd_history_deb
 
 The wrapper uses `D:/p3b60` by default. A passing capture must show `CMD0_SEND` in the init state-history mask, non-zero `send_cmd` queued-byte count, SPI clock activity, and `miso_low_seen=1`. If command progress is present but MISO remains high, the failure is after the OpenCores command launch and the next build should bypass or replace the byte-FIFO sender with the known-good Build 56 bit-banged SPI sequencer.
 
+Derived Build 52 wrappers that set `P3_BUILD52_EXTRA_DEFINES` rely on `p3_prepare_build52_sd_cd_mask_ila.tcl` to merge those macros into the actual Vivado `sources_1` `verilog_define` property. Checking only the wrapper script is not sufficient: the `Verilog defines:` line printed after BD/ILA prepare must contain the derived macros, or the resulting project should be discarded before synthesis.
+
 ## Key Reports
 
 - `report_utilization` -- resource usage per hierarchy
