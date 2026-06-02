@@ -138,6 +138,17 @@ Build 49 is the SD-smoke follow-up to Build 48. It keeps the same proven hardwar
 
 Build 49 completed implementation from `D:/p3b49` and published `huaprop3_build49_sd_smoke/debug_build/p3_top_build49_sd_smoke.pdi/.ltx`. Hardware programming succeeded with `DONE bit: HIGH`, and Hardware Manager refreshed all four ILAs through debug hub `0x3ffc0000000`. The serial capture printed the SD-smoke banner and stopped after `read lba0[0]`. The decoder reported `buf_sd_noc2_valid=1` but `sd_buf_noc2_ready=0`, `sd_req_fire=0`, and `sd_resp_fire=0`, while DDR read traffic still returned OKAY. Treat this as an SD mapped-read acceptance/response failure before GPT or BBL contents can matter.
 
+Build 64 is the post-Build-63 normal SPI retry. It uses `D:/p3b64`, keeps the original AXI16550 UART and Build 52 four-ILA shape, enables `P3_SPI_SD_BOOT P3_SPI_SD_HISTORY_DEBUG`, and intentionally does not enable `P3_SPI_SD_REF_CMD_DEBUG`. This means the SD pads still use the explicit `IOBUF` boundary added for Build 63, but the pad drivers come from the normal OpenCores SPI SD path. Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build64_spi_sd_iobuf_history_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build64_spi_sd_iobuf_history_debug/debug_build/p3_top_build64_spi_sd_iobuf_history_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build64_spi_sd_iobuf_history_debug.tcl
+python3 scripts/p3_decode_build64_ila_csv.py huaprop3_build64_spi_sd_iobuf_history_debug/debug_build
+```
+
+The expected discriminator is whether the normal OpenCores path now records `miso_low_seen=1` after the explicit-pad fix. If it does not, Build 63 already proved the same shell and SD pins can see a response, so the next change should stay inside the SPI command/response timing or sampling logic.
+
 Build 50 is the no-stack control for the Build 49 SD-ready hang. It creates a separate `huaprop3_build50_sd_uart_minimal` project, keeps the same AXI16550 UART and current native OpenPiton SD hardware configuration, and uses `BOOTROM_MODE=asm_uart16550_sdprobe`. The bootrom compiles only `startup_asm_uart16550_sdprobe.S`: it initializes AXI16550, prints `B50 UART SD`, issues direct loads from `0xF000000000`, and prints `R`/`A` only if the SD mapped read returns. The default Vivado work directory is `D:/p3b50` (`P3_BUILD50_WORK_DIR` override), with PDI/LTX published under `huaprop3_build50_sd_uart_minimal/debug_build`.
 
 Build 50 completed implementation and hardware validation. The published PDI/LTX programmed successfully, but this programming run took about 9 minutes 10 seconds, so serial captures must span the full PDI interval if the one-time boot banner matters. The ILA path refreshed normally and decoded `sd_seen=0x442b`: `buf_sd_noc2_valid=1`, `sd_buf_noc2_ready=0`, no SD request fire, and no SD response fire. DDR sticky activity was essentially absent (`ddr_seen=0x8001`), as intended for the no-stack/no-DDR probe. This confirms that the Build 49 stop is not caused by C stack setup, DDR writes, GPT parsing, or missing BBL contents; the remaining tooling target is a narrower SD-controller debug image that exposes `init_done`, SD reset/card-detect, SD clock activity, and the ready path feeding `sd_buf_noc2_ready`.
