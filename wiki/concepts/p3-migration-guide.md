@@ -177,6 +177,8 @@ Build 65 hardware verification confirmed that the block-read transport operates 
 
 Build 66 is the first normal-boot retry on top of that validated transport. It keeps the Build 65 SPI-mode SD block-read hardware, explicit SD `IOBUF` boundary, original AXI16550 UART, DDR address translation, and compact four-ILA layout, but replaces the no-stack SD-probe bootrom with the normal C bootrom. The expected serial behavior is therefore GPT/BBL/Linux progress rather than Build 65's intentional repeated `A` loop. If Build 66 fails to reach Linux output, the existing ILA buses should first separate SD block response, DDR AXI response, and core/L15 progress before adding wider probes.
 
+Build 66 hardware validation reached the BBL layer. The PDI programmed successfully with `DONE bit: HIGH`, `/dev/ttyUSB0` produced the OpenPiton+Ariane banner, SPI-mode SD initialized, GPT parsing found the first payload partition, and the bootrom copied all 65,536 payload blocks. The bootrom readback check printed matching DDR and SD payload words (`DDR[0x80000000] = 0x340111731F80006F`, `SD[sect2048] = 0x340111731F80006F`) before entering `bbl loader` and dumping the debug DTB. This closes the basic UART, SD init, SD block read, DDR copy, and BBL-entry questions for the current board image. Since no clean `Linux version` banner followed the BBL DTB dump, the next debug layer is BBL/Linux handoff and console setup: payload format, kernel entry, DTB/bootargs, and whether Linux is emitting on a different or misconfigured console.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
