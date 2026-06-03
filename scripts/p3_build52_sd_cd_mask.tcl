@@ -26,7 +26,11 @@ if {[info exists env(P3_BUILD52_WORK_DIR)] && $env(P3_BUILD52_WORK_DIR) ne ""} {
 set output_dir "${output_project_dir}/debug_build"
 set create_tcl [file normalize "${script_dir}/p3_create_bd_build52_sd_cd_mask.tcl"]
 set prepare_tcl [file normalize "${script_dir}/p3_prepare_build52_sd_cd_mask_ila.tcl"]
-set bootrom_rebuild_sh [file normalize "${script_dir}/p3_rebuild_build52_sd_cd_mask.sh"]
+if {[info exists env(P3_BUILD52_BOOTROM_REBUILD_SH)] && $env(P3_BUILD52_BOOTROM_REBUILD_SH) ne ""} {
+    set bootrom_rebuild_sh [file normalize $env(P3_BUILD52_BOOTROM_REBUILD_SH)]
+} else {
+    set bootrom_rebuild_sh [file normalize "${script_dir}/p3_rebuild_build52_sd_cd_mask.sh"]
+}
 set ariane_unread_impl_src [file normalize "${repo_dir}/piton/design/xilinx/huaprop3/unread_vivado_impl.sv"]
 set synth_run "synth_1"
 set impl_run "impl_1"
@@ -124,7 +128,9 @@ proc p3_seed_project_ip_cache {label project_dir project_name repo_dir cache_rel
     p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build42a_asm_uart/huaprop3_build42a_asm_uart.cache/ip/${cache_rel}"
     p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build42b_bram_stack/huaprop3_build42b_bram_stack.cache/ip/${cache_rel}"
     p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build41_debug/huaprop3_build41_debug.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build59_spi_sd_mosi_idle_high/huaprop3_build59_spi_sd_mosi_idle_high.cache/ip/${cache_rel}"
     p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_openpiton/huaprop3_openpiton.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "D:/p3b59/huaprop3_build59_spi_sd_mosi_idle_high.cache/ip/${cache_rel}"
 
     set source_cache_dir ""
     foreach dir $candidate_dirs {
@@ -161,6 +167,10 @@ proc p3_seed_build52_impl_caches {project_dir project_name repo_dir} {
     p3_seed_project_ip_cache "DDR PHY" $project_dir $project_name $repo_dir \
         "2024.2.2/f/1/f19a7ef233cf09e1" \
         [list bd_c5b9_MC0_ddrc_0_phy.dcp f19a7ef233cf09e1.xci]
+
+    p3_seed_project_ip_cache "DDR PHY Build 59 generated" $project_dir $project_name $repo_dir \
+        "2024.2.2/d/d/dddc3f069a736d89" \
+        [list bd_c5b9_MC0_ddrc_0_phy.dcp dddc3f069a736d89.xci]
 
     if {[catch {current_project} current_project_name] == 0 && $current_project_name ne ""} {
         set project_ip_repo "${project_dir}/${project_name}.cache/ip"
@@ -364,6 +374,11 @@ foreach define $defs {
         $define ne "P3_BD_UART_RW_DEBUG_ILA" &&
         $define ne "P3_SD_IGNORE_CARD_DETECT_RESET" &&
         $define ne "P3_BD_SD_CMD_DEBUG_ILA" &&
+        $define ne "P3_SPI_SD_BOOT" &&
+        $define ne "P3_SPI_SD_HISTORY_DEBUG" &&
+        $define ne "P3_SPI_SD_PAD_DEBUG" &&
+        $define ne "P3_SPI_SD_REF_CMD_DEBUG" &&
+        $define ne "P3_SPI_SD_BLOCK_DEBUG" &&
         $define ne "PITONSYS_MEM_ZEROER"} {
         lappend cleaned_defs $define
     }

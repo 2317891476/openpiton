@@ -175,6 +175,8 @@ Build 64 successfully completed the full SPI SD initialization sequence (`CMD0 -
 
 Build 65 hardware verification confirmed that the block-read transport operates correctly: on a cache miss, the bridge launched Wishbone commands, completed the block transaction, copied data to the RX FIFO, filled the cache, and returned AXI read responses carrying non-zero boot payload data from the SD card.
 
+Build 66 is the first normal-boot retry on top of that validated transport. It keeps the Build 65 SPI-mode SD block-read hardware, explicit SD `IOBUF` boundary, original AXI16550 UART, DDR address translation, and compact four-ILA layout, but replaces the no-stack SD-probe bootrom with the normal C bootrom. The expected serial behavior is therefore GPT/BBL/Linux progress rather than Build 65's intentional repeated `A` loop. If Build 66 fails to reach Linux output, the existing ILA buses should first separate SD block response, DDR AXI response, and core/L15 progress before adding wider probes.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**

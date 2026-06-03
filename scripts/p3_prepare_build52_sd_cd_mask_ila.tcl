@@ -229,13 +229,22 @@ foreach define $defs {
         $define ne "P3_SIFIVE_UART" &&
         $define ne "P3_SIFIVE_UART_DEBUG_ILA" &&
         $define ne "P3_SD_IGNORE_CARD_DETECT_RESET" &&
+        $define ne "P3_SPI_SD_BOOT" &&
+        $define ne "P3_SPI_SD_HISTORY_DEBUG" &&
+        $define ne "P3_SPI_SD_PAD_DEBUG" &&
+        $define ne "P3_SPI_SD_REF_CMD_DEBUG" &&
+        $define ne "P3_SPI_SD_BLOCK_DEBUG" &&
         $define ne "PITONSYS_MEM_ZEROER"} {
         lappend cleaned_defs $define
     }
 }
 set defs $cleaned_defs
 
-foreach required_define [list \
+if {![info exists p3_extra_defines]} {
+    set p3_extra_defines {}
+}
+
+set required_defines [list \
     PITON_UART16550 \
     P3_AXI_DDR_ADDR_TRANSLATE \
     P3_RTL_DEBUG \
@@ -250,7 +259,13 @@ foreach required_define [list \
     PITON_RV64_CLINT \
     PITON_RV64_PLIC \
     WT_DCACHE \
-] {
+]
+foreach extra_define $p3_extra_defines {
+    if {$extra_define ne ""} {
+        lappend required_defines $extra_define
+    }
+}
+foreach required_define $required_defines {
     if {[lsearch -exact $defs $required_define] < 0} {
         lappend defs $required_define
     }
