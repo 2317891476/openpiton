@@ -161,6 +161,20 @@ Build 57's first hardware capture proved that the replacement SD path is being r
 
 Build 58 completed on hardware and confirmed the early no-response case: the initializer stayed in `CMD0_WAIT` with `cmd=0x40`, `resp=0xff`, `miso_low_seen=0`, and SPI error `0x01`. The card power/reset control pins were not the immediate issue (`sd_vsd_en=1`, `sd_sel=0`, `sd_resetn=1`), and the debug hub, NoC request, Wishbone write, init transaction, and SPI clock all worked. Build 59 therefore makes the smallest protocol-level change that matches the standalone Build 56 passing probe: the OpenCores SPI wire engine now drives MOSI high during reset and idle states instead of holding the SD CMD line low before the first queued `0xff` idle byte. If Build 59 still cannot see MISO go low during CMD0, the remaining difference is likely the OpenCores byte-FIFO command/response timing rather than the board pin map.
 
+Build 59 hardware execution confirmed that driving MOSI high during reset and idle states kept the lines clean, but MISO still remained high (timeout error `0x01`), indicating that the card was not responding to CMD0. Build 60 therefore adds history debug tracking (`P3_SPI_SD_HISTORY_DEBUG`) within `init_sd_p3` to record the state transitions and timeouts of the SPI initializer state machine.
+
+Build 60 hardware execution proved that the NoC and Wishbone requests were successfully accepted, and the clock toggled. The state machine successfully reached the `CMD0_WAIT` state, but `miso_low_seen` stayed zero, and it timed out. To determine if the physical command byte actually reached the SD pads, Build 61 adds pad-level monitoring (`P3_SPI_SD_PAD_DEBUG`) to capture the first 56 bits driven on MOSI after CS# falls.
+
+Build 61 captured the correct command format (`0xff400000000095` for idle byte + CMD0) at the internal pad level, but the external card still sent no response. To verify whether the issue lay with the OpenCores SPI master timing or the physical board setup, Build 62 implements a standalone reference SPI sequencer (`P3_SPI_SD_REF_CMD_DEBUG`) inside the full OpenPiton shell, mimicking the exact timing of the successful Build 56 probe.
+
+Build 62 failed during the Vivado `write_device_image` phase with a DRC error **AVAL-352**, because implicit `OBUFT` tri-state drivers were inferred on the top-level `inout` pins, which is illegal on the Versal architecture. Build 63 fixes this by explicitly instantiating FPGA `IOBUF` primitives for `sd_cmd` and `sd_dat[3:0]` in [piton_spi_sd_top.v](file:///L:/home/illya/openpiton/piton/design/chipset/noc_sd_bridge/rtl/piton_spi_sd_top.v).
+
+Build 63 successfully completed bitgen and programmed onto the hardware. The reference SPI probe (CMD0/CMD8 test) succeeded, proving that the physical connection, power controls, and explicit `IOBUF` boundary were correct. Build 64 then returns to the normal OpenCores SPI SD path while keeping Build 63's explicit `IOBUF` configuration.
+
+Build 64 successfully completed the full SPI SD initialization sequence (`CMD0 -> CMD8 -> CMD55 -> ACMD41`), with the initialization FSM asserting `INIT_DONE=1`. Build 65 then replaces the initialization debug logic with AXI SD cache and Wishbone transaction manager block-read debugging (`P3_SPI_SD_BLOCK_DEBUG`).
+
+Build 65 hardware verification confirmed that the block-read transport operates correctly: on a cache miss, the bridge launched Wishbone commands, completed the block transaction, copied data to the RX FIFO, filled the cache, and returned AXI read responses carrying non-zero boot payload data from the SD card.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
