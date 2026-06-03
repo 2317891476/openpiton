@@ -283,9 +283,36 @@ set_property PULLTYPE PULLUP [get_ports sd_cmd]
 
 ---
 
-## 六、 后续实验与验证规划 (Build 55 - Build 56)
+## 六、 之前 SD 卡无输出原因总结与分层分析 (Build 55 - Build 65 验证闭环)
 
-1. **Build 55 (进行中)**：继续进行原计划的时钟路径优化实验（引入 IOB 寄存器驱动 `sd_clk_out`）。
-2. **Build 56 (物理引脚对调与对照实验)**：
-   * **实验 56A (验证引脚交叉对调 - 强嫌疑)**：如上节所示，在 XDC 中对调 `sd_cmd` 和 `sd_dat[3]` 的引脚。如果该版本烧录后 ILA 的 `READ_WAIT` 状态消失并获得响应，说明“SPI 交叉错位”假说成立，硬件将彻底调通。
-   * **实验 56B (验证官方引脚)**：制作对照版本，将 SD 卡所有引脚（`CW60`/`CY60`/`DB61`...）切换为 `p3_io.md` 中指明的引脚，以防万一。
+之前 SD 没有真实响应/导致启动无输出的主因不是 UART，也不是 CPU 完全不跑，而是 OpenPiton 最初接入的是 native 4-bit SD 控制器，但 P3 参考工程实际可工作的物理链路是 SPI-mode SD 链路。
+
+### 1. 故障根因的分层剖析
+
+#### 层级 1：Native SD 控制器路径被 Reset/Ready 门控锁死
+在移植初期，SoC 无法向下读取数据，这在总线上表现为明显的死锁：
+* **请求挂起**：Build 49 与 Build 50 观察到 CPU 虽然向 SD 卡映射地址窗口发送了 AXI 读请求（`buf_sd_noc2_valid=1`），但控制器的 Ready 信号 `sd_buf_noc2_ready` 恒为 `0`，导致总线读挂死。
+* **复位锁死**：Build 51 引入内部状态探针后发现，物理卡检测引脚 `sd_cd` 为高电平 `1`（表示无卡）。该信号参与了控制器的内部复位计算（`rst = sys_rst | sd_cd`），使得整个 SD 模块以及 Wishbone 总线一直处于硬复位状态，无法做出响应。
+* **初始化瓶颈**：即使在 Build 52 中通过 `P3_SD_IGNORE_CARD_DETECT_RESET` 屏蔽了 card-detect 复位，解除了硬复位，Native SD 模块在发出 CMD0、CMD8 后，依然在 `CMD55/ACMD41` 阶段（状态机处于 `ST_ACMD41_CMD55_WAIT_INT`）陷入无限超时重试，表明卡对 Native 命令依然没有响应。
+
+#### 层级 2：物理引脚与协议假设不匹配 (Native 4-bit vs SPI-mode)
+卡对 Native 模式下的 CMD55 保持沉默，其根源在于板载物理连线与协议设计的不匹配：
+* **参考工程的真实走线**：P3 开发板配套的 SD 子卡参考工程并没有使用 4-bit Native 协议，而是走 **SPI 模式** 进行读卡。其 FPGA 引脚 `DB57` 连往卡的 Pin 1 (CS)，而 `CY55` 连往卡的 Pin 2 (CMD/DI)。
+* **逻辑到引脚的错位**：OpenPiton 的 Native 驱动在 XDC 中将命令信号 `sd_cmd` 映射到 `DB57`，数据信号 `sd_dat[3]` 映射到 `CY55`。这导致逻辑命令发送到了 CS 片选脚，物理引脚彻底交叉错位。
+* **探针验证结论**：Build 56 编写了独立于 SoC 的双管脚、双协议测试探针，直接在硬件上证明：使用**参考引脚 + SPI 协议**时能成功收到卡的初始化响应，而 Native SD 协议在任何引脚上都无法获得可靠的应答。因此，SoC 后续调试必须转向 SPI-mode。
+
+#### 层级 3：Versal 顶层三态实现的硬件限制 (AVAL-352 报错)
+在将 SPI-mode 整合回 OpenPiton 的全功能 Shell（Full-shell）时，我们踩到了 Versal 架构的物理引脚推断限制：
+* **三态推断冲突**：Build 62 在 Full-shell 下启用 SPI 模式进行 CMD0/CMD8 调试，但 Vivado 在 `write_device_image` 阶段报错中断，提示 DRC 违规 **AVAL-352**。这是因为在 Versal 架构中，不允许对顶层 `inout` 端口隐式推断 `OBUFT` 三态驱动器。
+* **显式 IOBUF 解决**：Build 63 在 [piton_spi_sd_top.v](file:///L:/home/illya/openpiton/piton/design/chipset/noc_sd_bridge/rtl/piton_spi_sd_top.v) 中移除了隐式三态写法，为 `sd_cmd` and `sd_dat[3:0]` 显式例化了 Xilinx `IOBUF` 缓冲原语。修改后编译顺利通过，且 Full-shell 下的 SPI 探针测试成功，验证了物理连接的可行性。
+
+#### 层级 4：SPI-mode SD 通路的完全打通与数据读取
+在解决引脚、复位和三态问题后，全功能 OpenPiton 成功调通了 SD 卡物理读写：
+* **初始化完成**：Build 64 移除了调试探针，恢复了常规的 OpenCores SPI 控制器通路。上板测试显示，SPI 模式下的 SDHC 初始化序列（`CMD0 -> CMD8 -> CMD55 -> ACMD41`）全部顺利通过，`INIT_DONE` 信号成功拉高，说明协议栈已被卡接受。
+* **数据成功读取**：Build 65 进一步对 AXI 缓存和 Wishbone 事务管理器进行了联调。观察到 CPU 发起 AXI 读请求触发 Cache 缺失后，Wishbone 正确向 SPI SD 发起读块命令，拷贝 RX FIFO 数据，完成 Cache 填充，并通过 AXI Read Response 成功向 NoC 返回了读取到的**非零物理数据**。
+
+---
+
+### 七、 一句话总结
+
+之前 SD 卡没有真实响应与启动输出，是因为我们最初沿用了 OpenPiton 的 4-bit Native SD 控制器假设，而 P3 当前可用的物理链路和参考工程实际采用的是 **SPI-mode SD** 协议；同时，Versal 平台设计中必须**显式使用 IOBUF 缓冲原语**来处理双向 IO 引脚。在修正为 Reference-pin SPI 模式并显式例化 IOBUF 后，SD 的初始化与块数据读取已被彻底打通。
