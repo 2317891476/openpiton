@@ -26,6 +26,45 @@ Recent history uses short imperative subjects, often scoped by subsystem, plus G
 ## Security & Configuration Tips
 Do not commit generated build directories, local tool installs, simulator licenses, or machine-specific paths. Keep `VCS_HOME`, RISCV toolchain paths, Vivado settings, and license configuration in the local shell unless a documented default is intentionally changed.
 
+## P3 Remote Programming & UART Capture
+For HuaPro P3 / VP1902 board bring-up, use the remote Ubuntu host at `100.93.77.36` for both XVC/hw_server and FT2232 UART capture. Do not store passwords in repository files or scripts.
+
+Known endpoints:
+- `hw_server`: `100.93.77.36:3121`
+- XVC target: `202.197.4.99:2540`
+- Remote UART host/user: `illya@100.93.77.36`
+- FT2232 UART devices: `/dev/ttyUSB0` and `/dev/ttyUSB1`; current board UART output has been observed on `/dev/ttyUSB0`.
+
+Before programming a PDI, start UART capture on the remote host so bootrom/BBL output is not missed:
+
+```bash
+ssh -tt illya@100.93.77.36 '
+  mkdir -p ~/p3_uart_logs
+  sudo stty -F /dev/ttyUSB0 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw -echo
+  sudo stty -F /dev/ttyUSB1 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw -echo
+  ts=$(date +%Y%m%d_%H%M%S)
+  echo LOG_TS=$ts
+  timeout 240s sh -c "cat /dev/ttyUSB0 > ~/p3_uart_logs/ttyUSB0_${ts}.log" &
+  timeout 240s sh -c "cat /dev/ttyUSB1 > ~/p3_uart_logs/ttyUSB1_${ts}.log" &
+  wait
+  ls -l ~/p3_uart_logs/ttyUSB*_${ts}.log
+  wc -c ~/p3_uart_logs/ttyUSB*_${ts}.log
+'
+```
+
+Then program the PDI through Vivado/Vivado Lab using the same `hw_server` and XVC endpoints. Prefer a real Tcl file path, not shell process substitution, because the WSL-to-Windows Vivado wrapper cannot read `/dev/fd/*` paths. A programming script must set `PROGRAM.FILE`, set `PROBES.FILE` when an LTX is available, run `program_hw_devices`, and confirm `DONE bit: HIGH` plus debug hub setup at `0x3ffc0000000`.
+
+After programming, inspect remote UART logs:
+
+```bash
+ssh -tt illya@100.93.77.36 '
+  cat -v ~/p3_uart_logs/<log-file>
+  xxd -g1 ~/p3_uart_logs/<log-file>
+'
+```
+
+If `/dev/ttyUSB0` only prints repeated `A` bytes, the physical UART path is healthy but the programmed design is likely using a no-stack assembly UART probe bootrom rather than the normal GPT/BBL/Linux bootrom. Check the build script's bootrom rebuild mode before debugging SD-card image contents.
+
 ## R1: Mandatory Wiki Sync Rule
 
 **Every code change MUST include corresponding wiki updates. No exceptions. No "sync later".**
