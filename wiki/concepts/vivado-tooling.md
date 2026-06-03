@@ -151,6 +151,17 @@ The expected discriminator is whether the normal OpenCores path now records `mis
 
 Hardware result: Build 64 completed from `D:/p3b64` with 0 implementation errors, generated `p3_top_build64_spi_sd_iobuf_history_debug.pdi/.ltx`, and programmed successfully with `DONE bit: HIGH`. The LTX reached the debug hub at `0x3ffc0000000`, found all four `axis_ila_*` cores, and exported CSV. The decoder passed: NoC and Wishbone SD transactions fired, `spi_clk_toggle_seen=1`, `miso_low_seen=1`, `resp_tout=0`, and the history mask recorded `CMD0`, `CMD8`, `CMD55`, `ACMD41`, and `INIT_DONE`. Treat the first-card-response problem as fixed by the explicit SD `IOBUF` boundary; the next normal-boot debug step should examine SPI block-read/data return and the bootrom/BBL handoff.
 
+Build 65 is the block-read follow-up to Build 64. It uses `D:/p3b65`, keeps the original AXI16550 UART, the Build 52 four-ILA shape, and the explicit SD `IOBUF` boundary, but enables `P3_SPI_SD_BOOT P3_SPI_SD_BLOCK_DEBUG` instead of the init-history payload. Use:
+
+```bash
+vivado -mode batch -source scripts/p3_build65_spi_sd_block_debug.tcl -tclargs -jobs 1
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs huaprop3_build65_spi_sd_block_debug/debug_build/p3_top_build65_spi_sd_block_debug.pdi
+vivado -mode batch -source scripts/p3_ila_capture_build65_spi_sd_block_debug.tcl
+python3 scripts/p3_decode_build65_ila_csv.py huaprop3_build65_spi_sd_block_debug/debug_build
+```
+
+The Build 65 decoder treats the following as hard stops: no CPU/NoC AXI SD read, no SD block request from `axi_sd_bridge`, no transaction-manager request acceptance, missing block transaction type/control writes, transaction status never completing, read-error status, missing RX byte copy/cache write, no transaction-manager response, no `SEND_RESP`, or no AXI R response back to NoC. A pass means the OpenCores SPI transport returned a mapped SD block to the CPU-facing AXI path, so the next debug target is SD image contents and bootrom/BBL handoff rather than SD pins, power, UART, or first-response timing.
+
 Build 50 is the no-stack control for the Build 49 SD-ready hang. It creates a separate `huaprop3_build50_sd_uart_minimal` project, keeps the same AXI16550 UART and current native OpenPiton SD hardware configuration, and uses `BOOTROM_MODE=asm_uart16550_sdprobe`. The bootrom compiles only `startup_asm_uart16550_sdprobe.S`: it initializes AXI16550, prints `B50 UART SD`, issues direct loads from `0xF000000000`, and prints `R`/`A` only if the SD mapped read returns. The default Vivado work directory is `D:/p3b50` (`P3_BUILD50_WORK_DIR` override), with PDI/LTX published under `huaprop3_build50_sd_uart_minimal/debug_build`.
 
 Build 50 completed implementation and hardware validation. The published PDI/LTX programmed successfully, but this programming run took about 9 minutes 10 seconds, so serial captures must span the full PDI interval if the one-time boot banner matters. The ILA path refreshed normally and decoded `sd_seen=0x442b`: `buf_sd_noc2_valid=1`, `sd_buf_noc2_ready=0`, no SD request fire, and no SD response fire. DDR sticky activity was essentially absent (`ddr_seen=0x8001`), as intended for the no-stack/no-DDR probe. This confirms that the Build 49 stop is not caused by C stack setup, DDR writes, GPT parsing, or missing BBL contents; the remaining tooling target is a narrower SD-controller debug image that exposes `init_done`, SD reset/card-detect, SD clock activity, and the ready path feeding `sd_buf_noc2_ready`.
