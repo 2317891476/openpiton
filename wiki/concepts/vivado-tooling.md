@@ -166,6 +166,8 @@ Hardware result: Build 65 completed from `D:/p3b65`, generated `p3_top_build65_s
 
 Build 66 is the current P3 OpenPiton+Ariane baseline. It keeps the Build 65 SPI-mode SD transport, original AXI16550 UART, DDR address translation, and compact four-ILA debug layout, but returns the bootrom to normal GPT/BBL/Linux loading. After validation, fresh reruns use the repository-root `p3b66/` work directory and publish PDI/LTX under `huaprop3_build66_baseline/debug_build/`. The full previously validated `/mnt/d/p3b66` project is copied locally as ignored recovery/cache directory `p3b66_validated_snapshot/`.
 
+Self-contained rebuild rule: Build 66 and scaling successors set `P3_SELF_CONTAINED_SOURCES=1`. During project creation, `scripts/p3_create_bd.tcl` copies RTL, headers, XDC constraints, `p3_top.v`, `openpiton_wrapper.v`, and the Vivado unread shim into `<workdir>/source_snapshot/`, then adds Vivado files from that snapshot. The Build 52-derived runner fails early if the `.xpr`, fileset, or include dirs reference live repository sources under `piton/`, stale `Z:/tmp` mirrors, or old `D:/p3b*` workspaces. Generated BD wrappers and IP output products stay under the Vivado project `.gen/.srcs/.cache` directories.
+
 ```bash
 vivado -mode batch -source scripts/p3_build66_normal_spi_sd_boot.tcl -tclargs -jobs 1
 vivado -mode batch -source scripts/p3_ila_capture_build66_normal_spi_sd_boot.tcl
@@ -178,7 +180,7 @@ Repo-local hardware validation: the regenerated PDI programmed `xcvp1902_1` succ
 
 If a repo-local rerun hits Vivado path-length or DDR PHY `IPCACHE` failures, first keep the work directory at the repository root or shorten it further with `P3_BUILD66_WORK_DIR`; do not return to a new numbered `D:/p3bXX` baseline. The script seeds DDR PHY/IP cache from `p3b66_validated_snapshot/` and the old `/mnt/d/p3b66` path when those caches are still available.
 
-Build 67 scales the Build 66 baseline to a 2x1 Ariane mesh without changing the validated UART, SPI-mode SD, DDR translation, or four-ILA debug topology. The shared Build 52 runner now defaults to 1x1 but honors `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; Build 67's wrapper pins those values to `2`, `1`, and `2`. Its default work directory is the repository-local `p3b67_2x1/`, and published PDI/LTX artifacts remain under `huaprop3_build67_2x1_baseline/debug_build/`.
+Build 67 scales the Build 66 baseline to a 2x1 Ariane mesh without changing the validated UART, SPI-mode SD, DDR translation, or four-ILA debug topology. The shared Build 52 runner now defaults to 1x1 but honors `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; Build 67's wrapper pins those values to `2`, `1`, and `2`. Its default work directory is the repository-local `p3b67_2x1/`, uses the same self-contained `source_snapshot/` policy as Build 66, and publishes PDI/LTX artifacts under `huaprop3_build67_2x1_baseline/debug_build/`.
 
 ```bash
 vivado -mode batch -source scripts/p3_build67_2x1_normal_spi_sd_boot.tcl -tclargs -jobs 1

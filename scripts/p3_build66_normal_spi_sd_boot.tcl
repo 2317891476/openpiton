@@ -20,5 +20,6 @@ if {[info exists env(P3_BUILD66_WORK_DIR)] && $env(P3_BUILD66_WORK_DIR) ne ""} {
 set env(P3_BUILD52_PDI_BASENAME) "p3_top_build66_normal_spi_sd_boot"
 set env(P3_BUILD52_EXTRA_DEFINES) "P3_SPI_SD_BOOT P3_SPI_SD_BLOCK_DEBUG"
 set env(P3_BUILD52_BOOTROM_REBUILD_SH) [file normalize "${script_dir}/p3_rebuild_build66_normal_spi_sd_boot.sh"]
+set env(P3_SELF_CONTAINED_SOURCES) 1
 
 source [file normalize "${script_dir}/p3_build52_sd_cd_mask.tcl"]

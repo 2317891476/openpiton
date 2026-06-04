@@ -36,6 +36,13 @@ if {![info exists P3_DDR_AXI_RANGE]} {
 if {![info exists P3_DISABLE_MEM_ZEROER]} {
     set P3_DISABLE_MEM_ZEROER 0
 }
+if {![info exists P3_SELF_CONTAINED_SOURCES]} {
+    if {[info exists ::env(P3_SELF_CONTAINED_SOURCES)] && $::env(P3_SELF_CONTAINED_SOURCES) ne ""} {
+        set P3_SELF_CONTAINED_SOURCES $::env(P3_SELF_CONTAINED_SOURCES)
+    } else {
+        set P3_SELF_CONTAINED_SOURCES 0
+    }
+}
 if {[info exists P3_PROJECT_DIR] && $P3_PROJECT_DIR ne ""} {
     set proj_dir [file normalize $P3_PROJECT_DIR]
 } else {
@@ -48,6 +55,92 @@ set part "xcvp1902-vsva6865-1MP-e-S"
 # Reference project for DDR4 XDC
 set ref_xdc_dir [file normalize "${script_dir}/../huaprop3onecore/huaprop3onecore.srcs/constrs_1"]
 set piton_root [file normalize "${script_dir}/.."]
+set source_snapshot_dir "${proj_dir}/source_snapshot"
+
+proc p3_bool {value} {
+    set value_lc [string tolower [string trim $value]]
+    return [expr {$value_lc eq "1" || $value_lc eq "true" || $value_lc eq "yes" || $value_lc eq "on"}]
+}
+
+proc p3_normalized_slash_path {path} {
+    return [string map {"\\" "/"} [file normalize $path]]
+}
+
+proc p3_snapshot_path {src repo_dir snapshot_dir} {
+    set src_norm [p3_normalized_slash_path $src]
+    set repo_norm [p3_normalized_slash_path $repo_dir]
+
+    if {$src_norm eq $repo_norm} {
+        set rel ""
+    } elseif {[string first "${repo_norm}/" $src_norm] == 0} {
+        set rel [string range $src_norm [expr {[string length $repo_norm] + 1}] end]
+    } else {
+        set rel "external/[file tail $src_norm]"
+    }
+
+    if {$rel eq ""} {
+        return [file normalize $snapshot_dir]
+    }
+    return [file normalize "${snapshot_dir}/${rel}"]
+}
+
+proc p3_snapshot_file {src repo_dir snapshot_dir} {
+    if {![file exists $src]} {
+        return $src
+    }
+    if {[file isdirectory $src]} {
+        puts "ERROR: expected file, got directory while snapshotting: $src"
+        exit 1
+    }
+
+    set dst [p3_snapshot_path $src $repo_dir $snapshot_dir]
+    file mkdir [file dirname $dst]
+    file copy -force [file normalize $src] $dst
+    return $dst
+}
+
+proc p3_snapshot_files {files repo_dir snapshot_dir} {
+    set mapped [list]
+    foreach f $files {
+        lappend mapped [p3_snapshot_file $f $repo_dir $snapshot_dir]
+    }
+    return $mapped
+}
+
+proc p3_snapshot_include_dir {dir repo_dir snapshot_dir} {
+    if {$dir eq "" || ![file isdirectory $dir]} {
+        return $dir
+    }
+
+    set dst_dir [p3_snapshot_path $dir $repo_dir $snapshot_dir]
+    file mkdir $dst_dir
+    foreach pattern [list *.h *.vh *.svh *.inc *.v *.sv] {
+        foreach f [glob -nocomplain -directory $dir $pattern] {
+            if {![file isdirectory $f]} {
+                set dst [p3_snapshot_path $f $repo_dir $snapshot_dir]
+                file mkdir [file dirname $dst]
+                file copy -force [file normalize $f] $dst
+            }
+        }
+    }
+    return $dst_dir
+}
+
+proc p3_snapshot_include_dirs {dirs repo_dir snapshot_dir} {
+    set mapped [list]
+    foreach dir $dirs {
+        if {$dir eq ""} {
+            continue
+        }
+        set mapped_dir [p3_snapshot_include_dir $dir $repo_dir $snapshot_dir]
+        if {[lsearch -exact $mapped $mapped_dir] < 0} {
+            lappend mapped $mapped_dir
+        }
+    }
+    return $mapped
+}
+
+set P3_SELF_CONTAINED_SOURCES [p3_bool $P3_SELF_CONTAINED_SOURCES]
 
 puts "=========================================="
 puts " P3 OpenPiton Block Design Creator"
@@ -59,6 +152,10 @@ puts " Build 41 Fetch debug ILA: ${P3_ENABLE_BUILD41_DEBUG_ILA}"
 puts " DDR AXI offset: ${P3_DDR_AXI_OFFSET}"
 puts " DDR AXI range: ${P3_DDR_AXI_RANGE}"
 puts " Disable memory zeroer: ${P3_DISABLE_MEM_ZEROER}"
+puts " Self-contained sources: ${P3_SELF_CONTAINED_SOURCES}"
+if {$P3_SELF_CONTAINED_SOURCES} {
+    puts " Source snapshot: ${source_snapshot_dir}"
+}
 puts "=========================================="
 
 # ============================================================================
@@ -66,6 +163,10 @@ puts "=========================================="
 # ============================================================================
 create_project ${proj_name} ${proj_dir} -part ${part} -force
 set_property target_language Verilog [current_project]
+if {$P3_SELF_CONTAINED_SOURCES} {
+    file delete -force $source_snapshot_dir
+    file mkdir $source_snapshot_dir
+}
 
 # ============================================================================
 # 2. Create Block Design
@@ -283,6 +384,9 @@ save_bd_design
 # ============================================================================
 set xdc_file "${piton_root}/piton/design/xilinx/huaprop3/constraints.xdc"
 if {[file exists $xdc_file]} {
+    if {$P3_SELF_CONTAINED_SOURCES} {
+        set xdc_file [p3_snapshot_file $xdc_file $piton_root $source_snapshot_dir]
+    }
     add_files -fileset constrs_1 -norecurse $xdc_file
     puts "Added OpenPiton constraints: ${xdc_file}"
 }
@@ -394,6 +498,9 @@ foreach f $all_rtl_files {
     }
 }
 if {[llength $existing_rtl_files] > 0} {
+    if {$P3_SELF_CONTAINED_SOURCES} {
+        set existing_rtl_files [p3_snapshot_files $existing_rtl_files $piton_root $source_snapshot_dir]
+    }
     add_files -norecurse $existing_rtl_files
 }
 set added_count [llength $existing_rtl_files]
@@ -427,6 +534,9 @@ foreach inc_dir $all_glob_dirs {
 }
 
 if {[llength $existing_inc_files] > 0} {
+    if {$P3_SELF_CONTAINED_SOURCES} {
+        set existing_inc_files [p3_snapshot_files $existing_inc_files $piton_root $source_snapshot_dir]
+    }
     add_files -norecurse $existing_inc_files
     foreach inc_file $existing_inc_files {
         set file_obj [get_files -of_objects [current_fileset] [list "$inc_file"]]
@@ -459,6 +569,9 @@ if {![file exists $ariane_unread_impl_src]} {
     puts "ERROR: missing Vivado unread implementation shim: $ariane_unread_impl_src"
     exit 1
 }
+if {$P3_SELF_CONTAINED_SOURCES} {
+    set ariane_unread_impl_src [p3_snapshot_file $ariane_unread_impl_src $piton_root $source_snapshot_dir]
+}
 foreach old_unread [get_files -quiet *common_cells/src/unread.sv] {
     remove_files $old_unread
 }
@@ -478,6 +591,9 @@ set extra_inc_dirs [list \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl" \
 ]
 set all_inc_dirs [concat [split $GLOBAL_INCLUDE_DIRS] $extra_inc_dirs]
+if {$P3_SELF_CONTAINED_SOURCES} {
+    set all_inc_dirs [p3_snapshot_include_dirs $all_inc_dirs $piton_root $source_snapshot_dir]
+}
 set_property include_dirs $all_inc_dirs [current_fileset]
 
 if {!$P3_ENABLE_SIFIVE_UART} {
@@ -639,6 +755,9 @@ set required_wrapper_files [list \
 ]
 foreach wrapper_file $required_wrapper_files {
     if {[file exists $wrapper_file]} {
+        if {$P3_SELF_CONTAINED_SOURCES} {
+            set wrapper_file [p3_snapshot_file $wrapper_file $piton_root $source_snapshot_dir]
+        }
         add_files -norecurse $wrapper_file
         puts "Added XPM/IP wrapper: ${wrapper_file}"
     } else {
@@ -653,6 +772,9 @@ foreach wrapper_file $required_wrapper_files {
 # Add the openpiton_wrapper
 set wrapper_file "${piton_root}/piton/design/xilinx/huaprop3/openpiton_wrapper.v"
 if {[file exists $wrapper_file]} {
+    if {$P3_SELF_CONTAINED_SOURCES} {
+        set wrapper_file [p3_snapshot_file $wrapper_file $piton_root $source_snapshot_dir]
+    }
     add_files -norecurse $wrapper_file
     puts "Added wrapper: ${wrapper_file}"
 }
@@ -660,6 +782,9 @@ if {[file exists $wrapper_file]} {
 # Add the top-level file that connects BD + OpenPiton
 set top_file "${piton_root}/piton/design/xilinx/huaprop3/p3_top.v"
 if {[file exists $top_file]} {
+    if {$P3_SELF_CONTAINED_SOURCES} {
+        set top_file [p3_snapshot_file $top_file $piton_root $source_snapshot_dir]
+    }
     add_files -norecurse $top_file
     puts "Added top: ${top_file}"
 }

@@ -19,6 +19,11 @@ proc p3_default_env {name value} {
     }
 }
 
+proc p3_bool {value} {
+    set value_lc [string tolower [string trim $value]]
+    return [expr {$value_lc eq "1" || $value_lc eq "true" || $value_lc eq "yes" || $value_lc eq "on"}]
+}
+
 p3_default_env PITON_X_TILES 1
 p3_default_env PITON_Y_TILES 1
 if {![info exists ::env(PITON_NUM_TILES)] || $::env(PITON_NUM_TILES) eq ""} {
@@ -66,6 +71,11 @@ if {[info exists env(P3_BUILD52_PDI_BASENAME)] && $env(P3_BUILD52_PDI_BASENAME) 
 set p3_extra_defines {}
 if {[info exists env(P3_BUILD52_EXTRA_DEFINES)] && $env(P3_BUILD52_EXTRA_DEFINES) ne ""} {
     set p3_extra_defines [split $env(P3_BUILD52_EXTRA_DEFINES)]
+}
+if {[info exists env(P3_SELF_CONTAINED_SOURCES)] && $env(P3_SELF_CONTAINED_SOURCES) ne ""} {
+    set p3_self_contained_sources [p3_bool $env(P3_SELF_CONTAINED_SOURCES)]
+} else {
+    set p3_self_contained_sources 0
 }
 set run_create 1
 set run_prepare 1
@@ -252,6 +262,115 @@ proc p3_use_ariane_unread_vivado_shim {shim_src} {
     puts "Using Vivado unread implementation shim: $shim_src"
 }
 
+proc p3_slash_path {path} {
+    return [string map {"\\" "/"} [file normalize $path]]
+}
+
+proc p3_self_contained_forbidden_patterns {repo_dir} {
+    set repo_path [p3_slash_path $repo_dir]
+    return [list \
+        "\$PPRDIR/../piton/" \
+        "${repo_path}/piton/" \
+        "Z:/tmp" \
+        "D:/p3b" \
+        "/mnt/d/p3b" \
+    ]
+}
+
+proc p3_validate_self_contained_xpr {project_dir project_name repo_dir} {
+    set xpr_file "${project_dir}/${project_name}.xpr"
+    if {![file exists $xpr_file]} {
+        puts "ERROR: self-contained validation cannot find XPR: ${xpr_file}"
+        exit 1
+    }
+
+    set fh [open $xpr_file r]
+    set data [read $fh]
+    close $fh
+
+    foreach pattern [p3_self_contained_forbidden_patterns $repo_dir] {
+        if {[string first $pattern $data] >= 0} {
+            puts "ERROR: self-contained project XPR contains forbidden live-source path pattern: ${pattern}"
+            puts "       XPR: ${xpr_file}"
+            exit 1
+        }
+    }
+
+    set snapshot_dir "${project_dir}/source_snapshot"
+    foreach required_rel [list \
+        "piton/design/xilinx/huaprop3/p3_top.v" \
+        "piton/design/xilinx/huaprop3/openpiton_wrapper.v" \
+        "piton/design/xilinx/huaprop3/constraints.xdc" \
+        "piton/design/xilinx/huaprop3/unread_vivado_impl.sv" \
+    ] {
+        set required_path "${snapshot_dir}/${required_rel}"
+        if {![file exists $required_path]} {
+            puts "ERROR: self-contained source snapshot missing required file: ${required_path}"
+            exit 1
+        }
+    }
+
+    puts "Self-contained XPR path validation passed: ${xpr_file}"
+}
+
+proc p3_validate_self_contained_fileset {project_dir repo_dir} {
+    set project_path [p3_slash_path $project_dir]
+    set snapshot_prefix "${project_path}/source_snapshot/"
+    set xpr_snapshot_prefix "\$PPRDIR/source_snapshot/"
+    set rel_snapshot_prefix "source_snapshot/"
+
+    foreach file_obj [get_files -of_objects [current_fileset] -quiet] {
+        set file_name [get_property NAME $file_obj]
+        if {$file_name eq ""} {
+            continue
+        }
+        set file_path [string map {"\\" "/"} $file_name]
+        if {[string first "/piton/" $file_path] >= 0 &&
+            [string first $snapshot_prefix $file_path] < 0 &&
+            [string first $xpr_snapshot_prefix $file_path] < 0 &&
+            [string first $rel_snapshot_prefix $file_path] < 0 &&
+            [string first "${project_path}/" $file_path] < 0} {
+            puts "ERROR: self-contained fileset contains live OpenPiton source path: ${file_path}"
+            exit 1
+        }
+        foreach pattern [p3_self_contained_forbidden_patterns $repo_dir] {
+            if {[string first $pattern $file_path] >= 0} {
+                puts "ERROR: self-contained fileset contains forbidden path pattern ${pattern}: ${file_path}"
+                exit 1
+            }
+        }
+    }
+
+    set inc_dirs [get_property include_dirs [current_fileset]]
+    foreach inc_dir $inc_dirs {
+        set inc_path [string map {"\\" "/"} $inc_dir]
+        if {[string first "/piton/" $inc_path] >= 0 &&
+            [string first $snapshot_prefix $inc_path] < 0 &&
+            [string first $xpr_snapshot_prefix $inc_path] < 0 &&
+            [string first $rel_snapshot_prefix $inc_path] < 0 &&
+            [string first "${project_path}/" $inc_path] < 0} {
+            puts "ERROR: self-contained include_dirs contains live OpenPiton source path: ${inc_path}"
+            exit 1
+        }
+        foreach pattern [p3_self_contained_forbidden_patterns $repo_dir] {
+            if {[string first $pattern $inc_path] >= 0} {
+                puts "ERROR: self-contained include_dirs contains forbidden path pattern ${pattern}: ${inc_path}"
+                exit 1
+            }
+        }
+    }
+
+    puts "Self-contained fileset path validation passed for ${project_dir}"
+}
+
+proc p3_snapshot_file_path {project_dir rel_path fallback} {
+    set snapshot_path [file normalize "${project_dir}/source_snapshot/${rel_path}"]
+    if {[file exists $snapshot_path]} {
+        return $snapshot_path
+    }
+    return $fallback
+}
+
 proc p3_to_wsl_path {path} {
     set norm [string map {"\\" "/"} $path]
     if {[regexp {^[A-Za-z]:/(home/.*)$} $norm -> rest]} {
@@ -348,6 +467,7 @@ puts " Output dir: ${output_dir}"
 puts " Jobs: ${jobs}"
 puts " Reuse synth: ${reuse_synth}"
 puts " Prepare BD/ILA: ${run_prepare}"
+puts " Self-contained sources: ${p3_self_contained_sources}"
 puts " Tile config: ${::env(PITON_X_TILES)}x${::env(PITON_Y_TILES)} (${::env(PITON_NUM_TILES)} tiles)"
 puts "=========================================="
 
@@ -383,7 +503,16 @@ if {$run_prepare} {
     puts "Skipping Build 52 prepare step."
 }
 
+if {$p3_self_contained_sources} {
+    p3_validate_self_contained_xpr $project_dir $project_name $repo_dir
+}
+
 open_project "${project_dir}/${project_name}.xpr"
+if {$p3_self_contained_sources} {
+    set ariane_unread_impl_src [p3_snapshot_file_path $project_dir \
+        "piton/design/xilinx/huaprop3/unread_vivado_impl.sv" \
+        $ariane_unread_impl_src]
+}
 
 set defs [get_property verilog_define [current_fileset]]
 set cleaned_defs {}
@@ -456,6 +585,9 @@ if {[lsearch -exact $defs "PITONSYS_MEM_ZEROER"] >= 0} {
 
 p3_use_ariane_unread_vivado_shim $ariane_unread_impl_src
 update_compile_order -fileset sources_1
+if {$p3_self_contained_sources} {
+    p3_validate_self_contained_fileset $project_dir $repo_dir
+}
 
 if {$reuse_synth && $run_prepare} {
     puts "ERROR: -reuse_synth requires -skip_prepare because prepare regenerates synth_1 scripts and resets the run."

@@ -15,14 +15,26 @@ if {[info exists P3_PROJECT_DIR] && $P3_PROJECT_DIR ne ""} {
 }
 set bd_name "openpiton_top"
 set bd_file "${project_dir}/${project_name}.srcs/sources_1/bd/${bd_name}/${bd_name}.bd"
-set tmp_dir "Z:/tmp"
 set p3_ila_data_depth 1024
 set p3_ila_input_pipe_stages 0
+if {[info exists ::env(P3_SELF_CONTAINED_SOURCES)] && $::env(P3_SELF_CONTAINED_SOURCES) ne ""} {
+    set p3_self_contained_sources $::env(P3_SELF_CONTAINED_SOURCES)
+} elseif {[info exists P3_SELF_CONTAINED_SOURCES] && $P3_SELF_CONTAINED_SOURCES ne ""} {
+    set p3_self_contained_sources $P3_SELF_CONTAINED_SOURCES
+} else {
+    set p3_self_contained_sources 0
+}
+set p3_self_contained_sources [expr {[string tolower $p3_self_contained_sources] eq "1" ||
+                                      [string tolower $p3_self_contained_sources] eq "true" ||
+                                      [string tolower $p3_self_contained_sources] eq "yes" ||
+                                      [string tolower $p3_self_contained_sources] eq "on"}]
+set snapshot_dir "${project_dir}/source_snapshot"
 
 puts "=========================================="
 puts " Build 52 prepare: AXI16550 SD card-detect mask debug ILAs"
 puts " Project: ${project_dir}/${project_name}.xpr"
 puts " BD: ${bd_file}"
+puts " Self-contained sources: ${p3_self_contained_sources}"
 puts "=========================================="
 
 proc p3_require_file {path label} {
@@ -71,6 +83,11 @@ proc p3_copy_tmp_rtl {repo_dir tmp_dir} {
               "p3_dbg_ddr_bus64_i"]
 }
 
+proc p3_prepare_snapshot_path {repo_dir project_dir rel_path} {
+    set snapshot_path [file normalize "${project_dir}/source_snapshot/${rel_path}"]
+    return $snapshot_path
+}
+
 proc p3_create_port_if_missing {name args} {
     if {[llength [get_bd_ports -quiet $name]] == 0} {
         create_bd_port {*}$args $name
@@ -104,8 +121,28 @@ proc p3_delete_bd_port_if_present {name} {
     }
 }
 
-p3_copy_tmp_rtl $repo_dir $tmp_dir
-p3_require_tokens "${repo_dir}/piton/design/chipset/io_ctrl/rtl/uart_top.v" "UART top RTL" \
+if {$p3_self_contained_sources} {
+    p3_require_file $snapshot_dir "self-contained source snapshot directory"
+    set p3_top_check [p3_prepare_snapshot_path $repo_dir $project_dir "piton/design/xilinx/huaprop3/p3_top.v"]
+    set uart_top_check [p3_prepare_snapshot_path $repo_dir $project_dir "piton/design/chipset/io_ctrl/rtl/uart_top.v"]
+    puts "Using self-contained Build 52 RTL snapshot: ${snapshot_dir}"
+} else {
+    set tmp_dir "Z:/tmp"
+    p3_copy_tmp_rtl $repo_dir $tmp_dir
+    set p3_top_check "${tmp_dir}/p3_top.v"
+    set uart_top_check "${repo_dir}/piton/design/chipset/io_ctrl/rtl/uart_top.v"
+}
+p3_require_tokens $p3_top_check "Build 52 P3 top RTL" \
+    [list "P3_AXI_DDR_ADDR_TRANSLATE" \
+          "P3_BD_BOOT_PROGRESS_ILA" \
+          "P3_BD_SD_INIT_ILA" \
+          "p3_dbg_core_seen16_i" \
+          "p3_dbg_uart_seen16_i" \
+          "p3_dbg_ddr_seen16_i" \
+          "p3_dbg_core_bus64_i" \
+          "p3_dbg_uart_bus64_i" \
+          "p3_dbg_ddr_bus64_i"]
+p3_require_tokens $uart_top_check "UART top RTL" \
     [list "PITON_UART16550" "uart_16550" "P3_BD_UART_RW_DEBUG_ILA"]
 
 open_project "${project_dir}/${project_name}.xpr"
