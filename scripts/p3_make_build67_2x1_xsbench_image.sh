@@ -54,7 +54,7 @@ od -An -tx1 -v "$build_dtb" \
     > "$bbl_dir/embedded_dtb.h"
 
 make -C "$bbl_dir" clean
-make -C "$bbl_dir"
+env CFLAGS="-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0" make -C "$bbl_dir"
 
 riscv64-linux-gnu-objcopy \
     -S -O binary --change-addresses -0x80000000 \
