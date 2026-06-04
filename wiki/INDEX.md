@@ -15,7 +15,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Current FPGA board | AX7203 (Artix-7 XC7A200T) |
 | Migration target | HuaPro P3 (Versal VP1902) |
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
-| Single-core status | Linux boots to shell, SD + UART working |
+| Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
@@ -57,7 +57,7 @@ Entries in `devlog/` are organized by month, newest first, append-only.
 
 | Phase | Target | Milestone |
 |-------|--------|-----------|
-| P0 | Single core | Linux boots, Quicksilver runs on 1 core |
+| P0 | Single core | Linux shell, SD ext2 mount, and XSBench smoke launch verified on P3 |
 | P1 | 2x2 (4 cores) | Multi-core coherence validated |
 | P2 | 4x4 (16 cores) | Speedup measurement baseline |
 | P3 | 8x8 (64 cores) | Large-FPGA or multi-FPGA prototype |

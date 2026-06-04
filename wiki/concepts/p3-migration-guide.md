@@ -183,14 +183,26 @@ A follow-up read of the full Build 66 UART log showed that Linux did in fact sta
 
 For that isolation step, `build/huaprop3/sd_images/huaprop3_linux_shell.img` patches the BBL embedded bootargs to `rdinit=/bin/sh init=/bin/sh`. After writing that image to the remote SD card and reinserting it into the P3 board, the same Build 66 PDI reached an interactive Linux shell. The UART log showed the forced bootargs in both the BBL DTB dump and the Linux kernel command line, Linux registered the AXI16550 console at `0xfff0c2c000`, and userspace reached `Run /bin/sh as init process` followed by the `/ #` prompt. Slow per-character input over `/dev/ttyUSB0` successfully ran `echo P3_SLOW_OK` and `uname -a`. Bulk UART writes caused `ttyS0 input overrun(s)`, so remote shell testing should throttle input. The remaining standard-image issue is therefore rootfs init policy around the random-seed step, not hardware transport, BBL/Linux handoff, kernel console, or basic userspace availability.
 
-The first benchmark image for this validated path is `build/huaprop3/sd_images/huaprop3_linux_xsbench.img`. It keeps the shell BBL payload in partition 1 and adds an ext3 partition 2 named `PITON_XSBENCH` containing the statically linked RISC-V `/XSBench` binary plus `/run_xsbench.sh`. After booting the shell image, mount the second partition and start with the smallest run:
+The validated benchmark image for this path is `build/huaprop3/sd_images/huaprop3_linux_xsbench_ext2.img` (192 MiB, SHA256 `9f51e506ce65aabeaf09db18a026adf9bbba2437bc05cbe653f8b625c27271ea`). It keeps the shell BBL payload in partition 1 and adds an ext2/no-journal partition 2 named `PITON_XSBENCH` containing the statically linked RISC-V `/XSBench` binary plus `/run_xsbench.sh`. The first ext3 image proved partition discovery but could hang in the ext3/ext4 journal mount path; the ext2 image mounted successfully on hardware.
 
 ```sh
-mount /dev/piton_sd2 /mnt
-/mnt/XSBench -s small -l 100
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mkdir -p /proc /sys /mnt
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+
+ls -l /dev/piton*
+cat /proc/partitions
+
+mount -t ext2 -o ro /dev/piton_sd2 /mnt
+ls -l /mnt
+
+/mnt/XSBench -s small -p 1 -l 1
 ```
 
-If the driver exposes a different node name, first inspect `/dev/piton*` and `dmesg`. Keep using slow per-character UART input for commands; do not paste the benchmark command block as one bulk write.
+Hardware validation reached Linux 5.1.0-rc7, enumerated `piton_sd1` and `piton_sd2`, mounted `/dev/piton_sd2` read-only as ext2 through the kernel's ext4 subsystem (`mounted filesystem without journal`), and launched `/mnt/XSBench -s small -l 100`. The XSBench v20 banner and input summary printed successfully. In this XSBench version, `-p <particles>` controls `Particle Histories` and defaults to `500000`; `-l <lookups>` controls history-based XS lookups per particle and defaults to `34` unless overridden. Use `-p 1 -l 1` for a shortest functional smoke test, then increase `-p` for longer runs.
+
+If the driver exposes a different node name, first inspect `/dev/piton*` and `dmesg`. Keep using slow per-character UART input for commands; do not paste the benchmark command block as one bulk write. A common manual error is omitting the space between the block device and mount point: `mount -t ext2 -o ro /dev/piton_sd2 /mnt` is correct, while `/dev/piton_sd2/mnt` is parsed as one path and fails through `/etc/fstab` lookup.
 
 #### 1.4 ODDR Primitive
 
