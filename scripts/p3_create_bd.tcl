@@ -114,9 +114,23 @@ proc p3_snapshot_include_dir {dir repo_dir snapshot_dir} {
 
     set dst_dir [p3_snapshot_path $dir $repo_dir $snapshot_dir]
     file mkdir $dst_dir
-    foreach pattern [list *.h *.vh *.svh *.inc *.v *.sv] {
-        foreach f [glob -nocomplain -directory $dir $pattern] {
-            if {![file isdirectory $f]} {
+    set rtl_include_exts [list .h .vh .svh .inc .v .sv]
+    set skip_dirs [list .git .hg .svn .Xil .cache]
+    set pending_dirs [list [file normalize $dir]]
+
+    while {[llength $pending_dirs] > 0} {
+        set cur_dir [lindex $pending_dirs 0]
+        set pending_dirs [lrange $pending_dirs 1 end]
+
+        foreach f [glob -nocomplain -directory $cur_dir *] {
+            if {[file isdirectory $f]} {
+                if {[lsearch -exact $skip_dirs [file tail $f]] < 0} {
+                    lappend pending_dirs [file normalize $f]
+                }
+                continue
+            }
+
+            if {[lsearch -exact $rtl_include_exts [file extension $f]] >= 0} {
                 set dst [p3_snapshot_path $f $repo_dir $snapshot_dir]
                 file mkdir [file dirname $dst]
                 file copy -force [file normalize $f] $dst
