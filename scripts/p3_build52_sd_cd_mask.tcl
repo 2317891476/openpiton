@@ -131,6 +131,8 @@ proc p3_seed_project_ip_cache {label project_dir project_name repo_dir cache_rel
     p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_build59_spi_sd_mosi_idle_high/huaprop3_build59_spi_sd_mosi_idle_high.cache/ip/${cache_rel}"
     p3_unique_dir_append candidate_dirs "${repo_dir}/huaprop3_openpiton/huaprop3_openpiton.cache/ip/${cache_rel}"
     p3_unique_dir_append candidate_dirs "D:/p3b59/huaprop3_build59_spi_sd_mosi_idle_high.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "D:/p3b66/huaprop3_build66_normal_spi_sd_boot.cache/ip/${cache_rel}"
+    p3_unique_dir_append candidate_dirs "D:/p3_cleanup_archive/2026-06-04-build66-baseline/workspaces/p3b59/huaprop3_build59_spi_sd_mosi_idle_high.cache/ip/${cache_rel}"
 
     set source_cache_dir ""
     foreach dir $candidate_dirs {

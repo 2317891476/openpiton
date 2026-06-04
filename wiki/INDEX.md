@@ -16,6 +16,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Migration target | HuaPro P3 (Versal VP1902) |
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
+| Current P3 baseline | `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |

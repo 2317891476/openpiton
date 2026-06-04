@@ -94,6 +94,17 @@ vivado*.jou
 vivado*.backup.*
 clockInfo.txt
 
+# Ignore local P3 debug/build workspaces and generated board artifacts.
+huaprop3_build*/
+!huaprop3_build66_baseline/
+huaprop3_build66_baseline/debug_build/*
+huaprop3_uart*/
+huaprop3_sifive_uart*/
+huaprop3_minimal/
+huaprop3_testa/
+huaprop3_openpiton/
+huaprop3onecore/
+
 # Ignore UART debug logs
 uart_piton*.log
 

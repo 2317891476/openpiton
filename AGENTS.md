@@ -117,6 +117,16 @@ ssh illya@100.93.77.36 '
 
 The readback hash must match the local image hash for the written size. For a 128 MiB image, `count=32` with `bs=4M` reads back the full image. Never write to `/dev/sda` or `/dev/nvme*` on the remote host.
 
+## P3 Build 66 Baseline
+
+Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.
+
+The build wrapper is `scripts/p3_build66_normal_spi_sd_boot.tcl`. Future clean rebuilds should target `D:/p3_baseline_build66`; the old `D:/p3b66` workspace is only a recovery/cache source. Do not recreate new baseline work under the short numbered `D:/p3bXX` debug directories.
+
+The baseline keeps the original AXI16550 UART path, SPI-mode SD path, DDR address translation, and four compact BD-owned ILAs. Validated runtime state: Linux reaches `/bin/sh` on `/dev/ttyUSB0` at `115200 8N1`, `/dev/piton_sd2` mounts as ext2 read-only, and `/mnt/XSBench -s small -p 1 -l 1` launches.
+
+Old P3 debug projects are archived outside the repository root. Repo-local historical build folders are under `/home/illya/p3_cleanup_archive/2026-06-04-build66-baseline/repo_dirs/`; old Vivado workspaces are under `/mnt/d/p3_cleanup_archive/2026-06-04-build66-baseline/workspaces/`. Keep `huaprop3onecore/` as the board-level reference project.
+
 ## R1: Mandatory Wiki Sync Rule
 
 **Every code change MUST include corresponding wiki updates. No exceptions. No "sync later".**

@@ -1,0 +1,83 @@
+Build 66 cleanup manifest
+Date: 2026-06-04
+Repo: /home/illya/openpiton
+Repo archive: /home/illya/p3_cleanup_archive/2026-06-04-build66-baseline
+D archive: /mnt/d/p3_cleanup_archive/2026-06-04-build66-baseline
+
+Baseline files:
+huaprop3_build66_baseline/debug_build/ila_capture_build66_1_u_bd_openpiton_top_i_axis_ila_0.csv 33965 bytes
+huaprop3_build66_baseline/debug_build/ila_capture_build66_2_u_bd_openpiton_top_i_axis_ila_1.csv 28632 bytes
+huaprop3_build66_baseline/debug_build/ila_capture_build66_3_u_bd_openpiton_top_i_axis_ila_2.csv 28632 bytes
+huaprop3_build66_baseline/debug_build/ila_capture_build66_4_u_bd_openpiton_top_i_axis_ila_3.csv 28631 bytes
+huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.ltx 63318 bytes
+huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi 11965840 bytes
+
+Repo directories selected for archive:
+huaprop3_build41_debug
+huaprop3_build42a_asm_uart
+huaprop3_build42b_bram_stack
+huaprop3_build43_asm_uart16550
+huaprop3_build44_asm_uart16550_ddr
+huaprop3_build46_axi_translated_ddr
+huaprop3_build47_normal_boot_translated_ddr
+huaprop3_build48_boot_progress
+huaprop3_build49_sd_smoke
+huaprop3_build50_sd_uart_minimal
+huaprop3_build51_sd_init_debug
+huaprop3_build52_sd_cd_mask
+huaprop3_build53_sd_cmd_debug
+huaprop3_build54_sd_native_pullups
+huaprop3_build55_sd_clk_iob_reg
+huaprop3_build56_sd_dual_probe
+huaprop3_build57_spi_sd
+huaprop3_build58_spi_sd_power_debug
+huaprop3_build59_spi_sd_mosi_idle_high
+huaprop3_build60_spi_sd_history_debug
+huaprop3_build61_spi_sd_pad_debug
+huaprop3_build63_spi_sd_iobuf_ref_cmd_debug
+huaprop3_build64_spi_sd_iobuf_history_debug
+huaprop3_build65_spi_sd_block_debug
+huaprop3_build66_normal_spi_sd_boot
+huaprop3_minimal
+huaprop3_openpiton
+huaprop3_sifive_uart
+huaprop3_sifive_uart_debug
+huaprop3_testa
+huaprop3_uart16550_ila_interact
+huaprop3_uart_bd
+huaprop3_uart_direct
+
+Repo selected sizes:
+980M	huaprop3_build41_debug
+796M	huaprop3_build42a_asm_uart
+789M	huaprop3_build42b_bram_stack
+499M	huaprop3_build43_asm_uart16550
+514M	huaprop3_sifive_uart
+600M	huaprop3_sifive_uart_debug
+6.4G	huaprop3_openpiton
+12M	huaprop3_build66_normal_spi_sd_boot
+
+D directories selected for archive:
+p3b43
+p3b44
+p3b45
+p3b46
+p3b47
+p3b48
+p3b49
+p3b50
+p3b51
+p3b52
+p3b53
+p3b54
+p3b55
+p3b56
+p3b57
+p3b58
+p3b59
+p3b60
+p3b61
+p3b62
+p3b63
+p3b64
+p3b65
