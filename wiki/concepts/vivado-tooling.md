@@ -172,6 +172,8 @@ vivado -mode batch -source scripts/p3_ila_capture_build66_normal_spi_sd_boot.tcl
 python3 scripts/p3_decode_build66_ila_csv.py huaprop3_build66_baseline/debug_build
 ```
 
+Repo-local rerun result: on 2026-06-04, the `p3b66/` rerun completed through `write_device_image` and republished `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi/.ltx`. The PDI SHA256 is `464fa3b4e3c96c52cfee87dff3b128bbd65efaeb77d81624c95a34c3f631eca5`; the LTX SHA256 is `7b9c348e4d2695dfd90f700aabc8e4eee66288d07dd7a4c81ea636e33d2aeaaf`. The LTX retained the expected Versal runtime debug path: `AXI_DEBUG_HUB_V1` at `0x000003FFC0000000`, `u_bd/openpiton_top_i/ps_wizard_0/PMC_AXI_NOC0`, and `axis_ila_0` through `axis_ila_3`.
+
 If a repo-local rerun hits Vivado path-length or DDR PHY `IPCACHE` failures, first keep the work directory at the repository root or shorten it further with `P3_BUILD66_WORK_DIR`; do not return to a new numbered `D:/p3bXX` baseline. The script seeds DDR PHY/IP cache from `p3b66_validated_snapshot/` and the old `/mnt/d/p3b66` path when those caches are still available.
 
 Build 50 is the no-stack control for the Build 49 SD-ready hang. It creates a separate `huaprop3_build50_sd_uart_minimal` project, keeps the same AXI16550 UART and current native OpenPiton SD hardware configuration, and uses `BOOTROM_MODE=asm_uart16550_sdprobe`. The bootrom compiles only `startup_asm_uart16550_sdprobe.S`: it initializes AXI16550, prints `B50 UART SD`, issues direct loads from `0xF000000000`, and prints `R`/`A` only if the SD mapped read returns. The default Vivado work directory is `D:/p3b50` (`P3_BUILD50_WORK_DIR` override), with PDI/LTX published under `huaprop3_build50_sd_uart_minimal/debug_build`.
