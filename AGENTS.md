@@ -65,6 +65,40 @@ ssh -tt illya@100.93.77.36 '
 
 If `/dev/ttyUSB0` only prints repeated `A` bytes, the physical UART path is healthy but the programmed design is likely using a no-stack assembly UART probe bootrom rather than the normal GPT/BBL/Linux bootrom. Check the build script's bootrom rebuild mode before debugging SD-card image contents.
 
+## P3 Remote SD-Card Image Write
+When an SD-card image is generated locally but the card is inserted in the remote Ubuntu host, first identify the removable disk on the remote side. Do not assume a stale `/dev/sdX`; the Kingston multi-reader exposes several empty 0B slots.
+
+```bash
+ssh illya@100.93.77.36 \
+  'lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS; ls -l /dev/disk/by-id'
+```
+
+Only write a disk that has a real nonzero size, `TYPE=disk`, `TRAN=usb`, `RM=1`, and the expected model/size. In the current setup the SD card has appeared as `/dev/sdc` with model `Multi-Reader -1` and size `31914983424`, while `/dev/sdb`, `/dev/sdd`, and `/dev/sde` may be empty 0B reader slots.
+
+Copy a local image to the remote host, verify the hash, then write the whole disk device and read back the written span:
+
+```bash
+img=build/huaprop3/sd_images/huaprop3_linux_shell.img
+sha256sum "$img"
+scp "$img" illya@100.93.77.36:/tmp/huaprop3_linux_shell.img
+
+ssh illya@100.93.77.36 '
+  sha256sum /tmp/huaprop3_linux_shell.img
+  lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS /dev/sdc
+  sudo sh -c "
+    umount /dev/sdc1 2>/dev/null || true
+    dd if=/tmp/huaprop3_linux_shell.img of=/dev/sdc bs=4M conv=fsync status=progress
+    sync
+    blockdev --rereadpt /dev/sdc 2>/dev/null || true
+    sha256sum /tmp/huaprop3_linux_shell.img
+    dd if=/dev/sdc bs=4M count=32 status=none | sha256sum
+    lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS /dev/sdc
+  "
+'
+```
+
+The readback hash must match the local image hash for the written size. For a 128 MiB image, `count=32` with `bs=4M` reads back the full image. Never write to `/dev/sda` or `/dev/nvme*` on the remote host.
+
 ## R1: Mandatory Wiki Sync Rule
 
 **Every code change MUST include corresponding wiki updates. No exceptions. No "sync later".**
