@@ -178,7 +178,7 @@ Repo-local hardware validation: the regenerated PDI programmed `xcvp1902_1` succ
 
 If a repo-local rerun hits Vivado path-length or DDR PHY `IPCACHE` failures, first keep the work directory at the repository root or shorten it further with `P3_BUILD66_WORK_DIR`; do not return to a new numbered `D:/p3bXX` baseline. The script seeds DDR PHY/IP cache from `p3b66_validated_snapshot/` and the old `/mnt/d/p3b66` path when those caches are still available.
 
-Build 67 scales the Build 66 baseline to a 2x1 Ariane mesh without changing the validated UART, SPI-mode SD, DDR translation, or four-ILA debug topology. The shared Build 52 runner now defaults to 1x1 but honors `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; Build 67's wrapper pins those values to `2`, `1`, and `2`.
+Build 67 scales the Build 66 baseline to a 2x1 Ariane mesh without changing the validated UART, SPI-mode SD, DDR translation, or four-ILA debug topology. The shared Build 52 runner now defaults to 1x1 but honors `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; Build 67's wrapper pins those values to `2`, `1`, and `2`. Its default work directory is `D:/p3b67_2x1`, matching the short Windows-local path rule that kept Build 66 stable. A first attempt with the work project under the WSL repo path (`Z:/home/illya/openpiton/p3b67_2x1`) reached `create_bd_cell ... axi_noc_0` and then ended without synthesis artifacts, so do not use the repo path for this Versal BD/IP build.
 
 ```bash
 vivado -mode batch -source scripts/p3_build67_2x1_normal_spi_sd_boot.tcl -tclargs -jobs 1
