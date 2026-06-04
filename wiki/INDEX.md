@@ -15,7 +15,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Current FPGA board | AX7203 (Artix-7 XC7A200T) |
 | Migration target | HuaPro P3 (Versal VP1902) |
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
-| Single-core status | Linux boots, SD + UART working |
+| Single-core status | Linux boots to shell, SD + UART working |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
