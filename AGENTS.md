@@ -65,6 +65,24 @@ ssh -tt illya@100.93.77.36 '
 
 If `/dev/ttyUSB0` only prints repeated `A` bytes, the physical UART path is healthy but the programmed design is likely using a no-stack assembly UART probe bootrom rather than the normal GPT/BBL/Linux bootrom. Check the build script's bootrom rebuild mode before debugging SD-card image contents.
 
+When Linux reaches an interactive shell on the AXI16550 console, do not paste several commands at once. Build 66 reached `/bin/sh` with `/dev/ttyUSB0` as `ttyS0`, but bulk writes triggered `ttyS0 input overrun(s)` and corrupted characters. Use slow, per-character writes when testing shell interaction:
+
+```bash
+ssh illya@100.93.77.36 '
+  stty -F /dev/ttyUSB0 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw -echo
+  python3 - <<'"'"'PY'"'"'
+import os, time
+fd = os.open("/dev/ttyUSB0", os.O_WRONLY | os.O_NOCTTY)
+for ch in "echo P3_SHELL_OK\r":
+    os.write(fd, ch.encode("ascii"))
+    time.sleep(0.20)
+os.close(fd)
+PY
+'
+```
+
+Confirm the result from the active UART log under `~/p3_uart_logs/`; a successful Build 66 shell test printed `P3_SHELL_OK` and accepted `uname -a`.
+
 ## P3 Remote SD-Card Image Write
 When an SD-card image is generated locally but the card is inserted in the remote Ubuntu host, first identify the removable disk on the remote side. Do not assume a stale `/dev/sdX`; the Kingston multi-reader exposes several empty 0B slots.
 
