@@ -104,6 +104,8 @@ huaprop3_minimal/
 huaprop3_testa/
 huaprop3_openpiton/
 huaprop3onecore/
+p3b66/
+p3b66_validated_snapshot/
 
 # Ignore UART debug logs
 uart_piton*.log

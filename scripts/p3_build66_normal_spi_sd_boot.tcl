@@ -10,8 +10,13 @@
 # the normal C bootrom so the board can load GPT/BBL/Linux from the SD card.
 
 set script_dir [file dirname [info script]]
+set repo_dir [file normalize "${script_dir}/.."]
 set env(P3_BUILD52_PROJECT_NAME) "huaprop3_build66_baseline"
-set env(P3_BUILD52_WORK_DIR) "D:/p3_baseline_build66"
+if {[info exists env(P3_BUILD66_WORK_DIR)] && $env(P3_BUILD66_WORK_DIR) ne ""} {
+    set env(P3_BUILD52_WORK_DIR) $env(P3_BUILD66_WORK_DIR)
+} else {
+    set env(P3_BUILD52_WORK_DIR) [file normalize "${repo_dir}/p3b66"]
+}
 set env(P3_BUILD52_PDI_BASENAME) "p3_top_build66_normal_spi_sd_boot"
 set env(P3_BUILD52_EXTRA_DEFINES) "P3_SPI_SD_BOOT P3_SPI_SD_BLOCK_DEBUG"
 set env(P3_BUILD52_BOOTROM_REBUILD_SH) [file normalize "${script_dir}/p3_rebuild_build66_normal_spi_sd_boot.sh"]
