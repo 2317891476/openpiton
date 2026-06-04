@@ -183,6 +183,15 @@ A follow-up read of the full Build 66 UART log showed that Linux did in fact sta
 
 For that isolation step, `build/huaprop3/sd_images/huaprop3_linux_shell.img` patches the BBL embedded bootargs to `rdinit=/bin/sh init=/bin/sh`. After writing that image to the remote SD card and reinserting it into the P3 board, the same Build 66 PDI reached an interactive Linux shell. The UART log showed the forced bootargs in both the BBL DTB dump and the Linux kernel command line, Linux registered the AXI16550 console at `0xfff0c2c000`, and userspace reached `Run /bin/sh as init process` followed by the `/ #` prompt. Slow per-character input over `/dev/ttyUSB0` successfully ran `echo P3_SLOW_OK` and `uname -a`. Bulk UART writes caused `ttyS0 input overrun(s)`, so remote shell testing should throttle input. The remaining standard-image issue is therefore rootfs init policy around the random-seed step, not hardware transport, BBL/Linux handoff, kernel console, or basic userspace availability.
 
+The first benchmark image for this validated path is `build/huaprop3/sd_images/huaprop3_linux_xsbench.img`. It keeps the shell BBL payload in partition 1 and adds an ext3 partition 2 named `PITON_XSBENCH` containing the statically linked RISC-V `/XSBench` binary plus `/run_xsbench.sh`. After booting the shell image, mount the second partition and start with the smallest run:
+
+```sh
+mount /dev/piton_sd2 /mnt
+/mnt/XSBench -s small -l 100
+```
+
+If the driver exposes a different node name, first inspect `/dev/piton*` and `dmesg`. Keep using slow per-character UART input for commands; do not paste the benchmark command block as one bulk write.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
