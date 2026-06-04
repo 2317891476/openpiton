@@ -306,9 +306,27 @@ set BOARD_DIR "${DV_ROOT}/design/xilinx/${BOARD}"
 set ::env(DV_ROOT) $DV_ROOT
 set ::env(PROTOSYN_RUNTIME_DESIGN_PATH) "${DV_ROOT}/design/xilinx"
 set ::env(PROTOSYN_RUNTIME_BOARD) $BOARD
-set ::env(PITON_X_TILES) 1
-set ::env(PITON_Y_TILES) 1
-set ::env(PITON_NUM_TILES) 1
+if {![info exists ::env(PITON_X_TILES)] || $::env(PITON_X_TILES) eq ""} {
+    set ::env(PITON_X_TILES) 1
+}
+if {![info exists ::env(PITON_Y_TILES)] || $::env(PITON_Y_TILES) eq ""} {
+    set ::env(PITON_Y_TILES) 1
+}
+if {![info exists ::env(PITON_NUM_TILES)] || $::env(PITON_NUM_TILES) eq ""} {
+    set ::env(PITON_NUM_TILES) [expr {$::env(PITON_X_TILES) * $::env(PITON_Y_TILES)}]
+}
+foreach tile_env [list PITON_X_TILES PITON_Y_TILES PITON_NUM_TILES] {
+    if {![string is integer -strict $::env($tile_env)] || $::env($tile_env) < 1} {
+        puts "ERROR: ${tile_env} must be a positive integer, got '$::env($tile_env)'"
+        exit 1
+    }
+}
+set p3_expected_num_tiles [expr {$::env(PITON_X_TILES) * $::env(PITON_Y_TILES)}]
+if {$::env(PITON_NUM_TILES) != $p3_expected_num_tiles} {
+    puts "ERROR: PITON_NUM_TILES=$::env(PITON_NUM_TILES) does not match PITON_X_TILES*PITON_Y_TILES=${p3_expected_num_tiles}"
+    exit 1
+}
+puts "P3 OpenPiton tile config: ${::env(PITON_X_TILES)}x${::env(PITON_Y_TILES)} (${::env(PITON_NUM_TILES)} tiles)"
 set ::env(PITON_ARIANE) 1
 set ::env(PITON_RV64_PLATFORM) 1
 

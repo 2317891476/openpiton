@@ -178,6 +178,15 @@ Repo-local hardware validation: the regenerated PDI programmed `xcvp1902_1` succ
 
 If a repo-local rerun hits Vivado path-length or DDR PHY `IPCACHE` failures, first keep the work directory at the repository root or shorten it further with `P3_BUILD66_WORK_DIR`; do not return to a new numbered `D:/p3bXX` baseline. The script seeds DDR PHY/IP cache from `p3b66_validated_snapshot/` and the old `/mnt/d/p3b66` path when those caches are still available.
 
+Build 67 scales the Build 66 baseline to a 2x1 Ariane mesh without changing the validated UART, SPI-mode SD, DDR translation, or four-ILA debug topology. The shared Build 52 runner now defaults to 1x1 but honors `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; Build 67's wrapper pins those values to `2`, `1`, and `2`.
+
+```bash
+vivado -mode batch -source scripts/p3_build67_2x1_normal_spi_sd_boot.tcl -tclargs -jobs 1
+scripts/p3_make_build67_2x1_xsbench_image.sh
+```
+
+Expected artifacts are `huaprop3_build67_2x1_baseline/debug_build/p3_top_build67_2x1_normal_spi_sd_boot.pdi/.ltx` and `build/huaprop3/sd_images/huaprop3_linux_xsbench_2x1.img`. The image script rebuilds the normal bootrom with `MAX_HARTS=2`, embeds a 2-hart DTB into the forced AXI16550 BBL, preserves shell bootargs for first bring-up, and writes that BBL into partition 1 of a copy of the Build 66 XSBench ext2 image.
+
 Build 50 is the no-stack control for the Build 49 SD-ready hang. It creates a separate `huaprop3_build50_sd_uart_minimal` project, keeps the same AXI16550 UART and current native OpenPiton SD hardware configuration, and uses `BOOTROM_MODE=asm_uart16550_sdprobe`. The bootrom compiles only `startup_asm_uart16550_sdprobe.S`: it initializes AXI16550, prints `B50 UART SD`, issues direct loads from `0xF000000000`, and prints `R`/`A` only if the SD mapped read returns. The default Vivado work directory is `D:/p3b50` (`P3_BUILD50_WORK_DIR` override), with PDI/LTX published under `huaprop3_build50_sd_uart_minimal/debug_build`.
 
 Build 50 completed implementation and hardware validation. The published PDI/LTX programmed successfully, but this programming run took about 9 minutes 10 seconds, so serial captures must span the full PDI interval if the one-time boot banner matters. The ILA path refreshed normally and decoded `sd_seen=0x442b`: `buf_sd_noc2_valid=1`, `sd_buf_noc2_ready=0`, no SD request fire, and no SD response fire. DDR sticky activity was essentially absent (`ddr_seen=0x8001`), as intended for the no-stack/no-DDR probe. This confirms that the Build 49 stop is not caused by C stack setup, DDR writes, GPT parsing, or missing BBL contents; the remaining tooling target is a narrower SD-controller debug image that exposes `init_done`, SD reset/card-detect, SD clock activity, and the ready path feeding `sd_buf_noc2_ready`.

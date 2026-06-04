@@ -12,6 +12,30 @@
 
 set script_dir [file dirname [info script]]
 set repo_dir [file normalize "${script_dir}/.."]
+
+proc p3_default_env {name value} {
+    if {![info exists ::env($name)] || $::env($name) eq ""} {
+        set ::env($name) $value
+    }
+}
+
+p3_default_env PITON_X_TILES 1
+p3_default_env PITON_Y_TILES 1
+if {![info exists ::env(PITON_NUM_TILES)] || $::env(PITON_NUM_TILES) eq ""} {
+    set ::env(PITON_NUM_TILES) [expr {$::env(PITON_X_TILES) * $::env(PITON_Y_TILES)}]
+}
+foreach tile_env [list PITON_X_TILES PITON_Y_TILES PITON_NUM_TILES] {
+    if {![string is integer -strict $::env($tile_env)] || $::env($tile_env) < 1} {
+        puts "ERROR: ${tile_env} must be a positive integer, got '$::env($tile_env)'"
+        exit 1
+    }
+}
+set p3_expected_num_tiles [expr {$::env(PITON_X_TILES) * $::env(PITON_Y_TILES)}]
+if {$::env(PITON_NUM_TILES) != $p3_expected_num_tiles} {
+    puts "ERROR: PITON_NUM_TILES=$::env(PITON_NUM_TILES) does not match PITON_X_TILES*PITON_Y_TILES=${p3_expected_num_tiles}"
+    exit 1
+}
+
 if {[info exists env(P3_BUILD52_PROJECT_NAME)] && $env(P3_BUILD52_PROJECT_NAME) ne ""} {
     set project_name $env(P3_BUILD52_PROJECT_NAME)
 } else {
@@ -245,6 +269,9 @@ proc p3_to_wsl_path {path} {
 proc p3_regenerate_pyhp_tmp {repo_dir} {
     set repo_wsl [p3_to_wsl_path $repo_dir]
     set pyhp_wsl "${repo_wsl}/piton/tools/bin/pyhp.py"
+    set x_tiles $::env(PITON_X_TILES)
+    set y_tiles $::env(PITON_Y_TILES)
+    set num_tiles $::env(PITON_NUM_TILES)
     set pyhp_pairs [list \
         "${repo_dir}/piton/design/chip/rtl/chip.v.pyv" \
         "${repo_dir}/piton/design/chip/rtl/chip.tmp.v" \
@@ -258,7 +285,7 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
         set src_wsl [p3_to_wsl_path $src]
         set dst_wsl [p3_to_wsl_path $dst]
         puts "Regenerating PyHP output: ${src_wsl} -> ${dst_wsl}"
-        set cmd "set -e; export PITON_ROOT=${repo_wsl}; export DV_ROOT=${repo_wsl}/piton; export PROTOSYN_RUNTIME_DESIGN_PATH=${repo_wsl}/piton/design/xilinx; export PROTOSYN_RUNTIME_BOARD=huaprop3; export PITON_X_TILES=1; export PITON_Y_TILES=1; export PITON_NUM_TILES=1; export PITON_ARIANE=1; export PITON_RV64_PLATFORM=1; python3 ${pyhp_wsl} ${src_wsl} > ${dst_wsl}"
+        set cmd "set -e; export PITON_ROOT=${repo_wsl}; export DV_ROOT=${repo_wsl}/piton; export PROTOSYN_RUNTIME_DESIGN_PATH=${repo_wsl}/piton/design/xilinx; export PROTOSYN_RUNTIME_BOARD=huaprop3; export PITON_X_TILES=${x_tiles}; export PITON_Y_TILES=${y_tiles}; export PITON_NUM_TILES=${num_tiles}; export PITON_ARIANE=1; export PITON_RV64_PLATFORM=1; python3 ${pyhp_wsl} ${src_wsl} > ${dst_wsl}"
         if {[catch {exec bash -lc $cmd 2>@1} pyhp_log]} {
             puts $pyhp_log
             puts "ERROR: Build 52 PyHP regeneration failed for ${src_wsl}"
@@ -321,6 +348,7 @@ puts " Output dir: ${output_dir}"
 puts " Jobs: ${jobs}"
 puts " Reuse synth: ${reuse_synth}"
 puts " Prepare BD/ILA: ${run_prepare}"
+puts " Tile config: ${::env(PITON_X_TILES)}x${::env(PITON_Y_TILES)} (${::env(PITON_NUM_TILES)} tiles)"
 puts "=========================================="
 
 if {![file exists $bootrom_rebuild_sh]} {
