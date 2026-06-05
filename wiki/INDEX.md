@@ -17,7 +17,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | Build 67 `2x1` self-contained PDI/LTX generated under `huaprop3_build67_2x1_baseline/debug_build/`; hardware validation pending |
+| Current scaling candidate | Build 67 `2x1` PDI/LTX generated and programmed; bootrom reached BBL, next step is writing the 2x1 SD image |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |

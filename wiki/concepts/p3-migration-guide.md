@@ -210,6 +210,8 @@ Build 67 is the first 2x1 multicore expansion attempt from the Build 66 baseline
 
 Build 67 implementation completed on 2026-06-05 after the runner was fixed to regenerate `define.tmp.h` together with the 2x1 PyHP topology RTL. The generated PDI/LTX are `huaprop3_build67_2x1_baseline/debug_build/p3_top_build67_2x1_normal_spi_sd_boot.pdi/.ltx`; route completed with 258,405 fully routed nets, 0 routing errors, and final timing met all user constraints (`WNS=16.312 ns`, `WHS=0.005 ns`). Hardware validation is still pending, so Build 66 remains the validated single-core baseline until Build 67 proves debug-hub access, UART boot, SD/DDR handoff, and Linux SMP behavior on the board.
 
+The first Build 67 hardware run proved the 2x1 bitstream through BBL entry. PDI programming succeeded with `DONE bit: HIGH`, the LTX refreshed all four ILAs through debug hub `0x3ffc0000000`, and UART log `ttyUSB0_20260605_175423_b67.log` showed the bootrom completing SPI-mode SD init, GPT parsing, all 65,536 payload-block reads, DDR copy, and DDR/SD readback comparison before entering `bbl loader`. The BBL DTB printed by the board still listed only `cpu@0`, while local inspection of `huaprop3_linux_xsbench_2x1.img` shows `cpu@1` is present. Therefore the active blocker for Linux/SMP validation is SD card image mismatch, not Build 67 PDI, UART, SPI SD, DDR copy, or debug-hub access.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
