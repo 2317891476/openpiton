@@ -385,6 +385,39 @@ proc p3_to_wsl_path {path} {
     return $norm
 }
 
+proc p3_read_verilog_define_int {file_path macro_name} {
+    if {![file exists $file_path]} {
+        puts "ERROR: missing generated Verilog header: ${file_path}"
+        exit 1
+    }
+
+    set fh [open $file_path r]
+    set data [read $fh]
+    close $fh
+
+    set pattern [format {`define[ \t]+%s[ \t]+([0-9]+)} $macro_name]
+    if {![regexp $pattern $data -> value]} {
+        puts "ERROR: generated Verilog header ${file_path} does not define ${macro_name}"
+        exit 1
+    }
+    return $value
+}
+
+proc p3_validate_tile_define_file {define_file x_tiles y_tiles num_tiles} {
+    set got_x [p3_read_verilog_define_int $define_file PITON_X_TILES]
+    set got_y [p3_read_verilog_define_int $define_file PITON_Y_TILES]
+    set got_num [p3_read_verilog_define_int $define_file PITON_NUM_TILES]
+
+    if {$got_x != $x_tiles || $got_y != $y_tiles || $got_num != $num_tiles} {
+        puts "ERROR: generated tile defines in ${define_file} do not match this build"
+        puts "       expected PITON_X_TILES=${x_tiles}, PITON_Y_TILES=${y_tiles}, PITON_NUM_TILES=${num_tiles}"
+        puts "       got      PITON_X_TILES=${got_x}, PITON_Y_TILES=${got_y}, PITON_NUM_TILES=${got_num}"
+        exit 1
+    }
+
+    puts "Tile define validation passed for ${define_file}: ${got_x}x${got_y} (${got_num} tiles)"
+}
+
 proc p3_regenerate_pyhp_tmp {repo_dir} {
     set repo_wsl [p3_to_wsl_path $repo_dir]
     set pyhp_wsl "${repo_wsl}/piton/tools/bin/pyhp.py"
@@ -392,10 +425,16 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
     set y_tiles $::env(PITON_Y_TILES)
     set num_tiles $::env(PITON_NUM_TILES)
     set pyhp_pairs [list \
+        "${repo_dir}/piton/design/include/define.h.pyv" \
+        "${repo_dir}/piton/design/include/define.tmp.h" \
         "${repo_dir}/piton/design/chip/rtl/chip.v.pyv" \
         "${repo_dir}/piton/design/chip/rtl/chip.tmp.v" \
         "${repo_dir}/piton/design/chipset/rtl/chipset_impl.v.pyv" \
         "${repo_dir}/piton/design/chipset/rtl/chipset_impl.tmp.v" \
+        "${repo_dir}/piton/design/chip/tile/common/rtl/flat_id_to_xy.v.pyv" \
+        "${repo_dir}/piton/design/chip/tile/common/rtl/flat_id_to_xy.tmp.v" \
+        "${repo_dir}/piton/design/chip/tile/common/rtl/xy_to_flat_id.v.pyv" \
+        "${repo_dir}/piton/design/chip/tile/common/rtl/xy_to_flat_id.tmp.v" \
     ]
 
     for {set i 0} {$i < [llength $pyhp_pairs]} {incr i 2} {
@@ -407,17 +446,20 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
         set cmd "set -e; export PITON_ROOT=${repo_wsl}; export DV_ROOT=${repo_wsl}/piton; export PROTOSYN_RUNTIME_DESIGN_PATH=${repo_wsl}/piton/design/xilinx; export PROTOSYN_RUNTIME_BOARD=huaprop3; export PITON_X_TILES=${x_tiles}; export PITON_Y_TILES=${y_tiles}; export PITON_NUM_TILES=${num_tiles}; export PITON_ARIANE=1; export PITON_RV64_PLATFORM=1; python3 ${pyhp_wsl} ${src_wsl} > ${dst_wsl}"
         if {[catch {exec bash -lc $cmd 2>@1} pyhp_log]} {
             puts $pyhp_log
-            puts "ERROR: Build 52 PyHP regeneration failed for ${src_wsl}"
+            puts "ERROR: P3 PyHP regeneration failed for ${src_wsl}"
             exit 1
         }
         if {$pyhp_log ne ""} {
             puts $pyhp_log
         }
         if {![file exists $dst] || [file size $dst] == 0} {
-            puts "ERROR: Build 52 PyHP output is missing or empty: ${dst}"
+            puts "ERROR: P3 PyHP output is missing or empty: ${dst}"
             exit 1
         }
     }
+
+    p3_validate_tile_define_file "${repo_dir}/piton/design/include/define.tmp.h" \
+        $x_tiles $y_tiles $num_tiles
 }
 
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {
@@ -505,6 +547,8 @@ if {$run_prepare} {
 
 if {$p3_self_contained_sources} {
     p3_validate_self_contained_xpr $project_dir $project_name $repo_dir
+    p3_validate_tile_define_file "${project_dir}/source_snapshot/piton/design/include/define.tmp.h" \
+        $::env(PITON_X_TILES) $::env(PITON_Y_TILES) $::env(PITON_NUM_TILES)
 }
 
 open_project "${project_dir}/${project_name}.xpr"
