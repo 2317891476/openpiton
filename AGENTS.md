@@ -52,7 +52,15 @@ ssh -tt illya@100.93.77.36 '
 '
 ```
 
-Then program the PDI through Vivado/Vivado Lab using the same `hw_server` and XVC endpoints. Prefer a real Tcl file path, not shell process substitution, because the WSL-to-Windows Vivado wrapper cannot read `/dev/fd/*` paths. A programming script must set `PROGRAM.FILE`, set `PROBES.FILE` when an LTX is available, run `program_hw_devices`, and confirm `DONE bit: HIGH` plus debug hub setup at `0x3ffc0000000`.
+Then program the PDI through Vivado/Vivado Lab using the same `hw_server` and XVC endpoints. Prefer a real Tcl file path, not shell process substitution, because the WSL-to-Windows Vivado wrapper cannot read `/dev/fd/*` paths. Use `scripts/p3_program_pdi.tcl` with both the PDI and matching LTX when probes are available:
+
+```bash
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs \
+  huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi \
+  huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.ltx
+```
+
+The script sets `PROGRAM.FILE`, sets `PROBES.FILE` when an LTX is supplied, runs `program_hw_devices`, prints the DONE bit, refreshes the hardware device, and lists discovered ILAs. A successful debug-capable programming run should confirm `DONE bit: HIGH` plus debug hub setup at `0x3ffc0000000`.
 
 After programming, inspect remote UART logs:
 

@@ -25,16 +25,16 @@ P3 uses a Vivado Block Design flow (not protosyn). Three scripts in `scripts/`:
 | Script | Purpose | Vivado mode |
 |--------|---------|-------------|
 | `p3_build_bitstream.tcl` | Synthesis → Implementation → PDI generation | `-mode batch` |
-| `p3_program.tcl` | Program P3 via remote hw_server at `100.93.77.36:3121` | `-mode batch` |
+| `p3_program_pdi.tcl` | Program P3 via remote hw_server at `100.93.77.36:3121`; optionally load matching LTX and refresh ILAs | `-mode batch` |
 | `p3_debug.tcl` | Connect ILA, load probes, open interactive debug console | `-mode tcl` |
 
 ```bash
 vivado -mode batch -source scripts/p3_build_bitstream.tcl   # build
-vivado -mode batch -source scripts/p3_program.tcl            # program
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs <file.pdi> [file.ltx]
 vivado -mode tcl   -source scripts/p3_debug.tcl              # debug
 ```
 
-Note: Versal outputs `.pdi` (not `.bit`). ILA probes use `.ltx` files.
+Note: Versal outputs `.pdi` (not `.bit`). ILA probes use `.ltx` files. Supplying the LTX to `p3_program_pdi.tcl` makes the programming step also set `PROBES.FILE`, print the DONE bit, run `refresh_hw_device`, and list the available ILA cores before hardware UART validation.
 
 ### P3 UART Smoke Tests
 
@@ -175,6 +175,8 @@ python3 scripts/p3_decode_build66_ila_csv.py huaprop3_build66_baseline/debug_bui
 ```
 
 Repo-local rerun result: on 2026-06-04, the `p3b66/` rerun completed through `write_device_image` and republished `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi/.ltx`. The PDI SHA256 is `464fa3b4e3c96c52cfee87dff3b128bbd65efaeb77d81624c95a34c3f631eca5`; the LTX SHA256 is `7b9c348e4d2695dfd90f700aabc8e4eee66288d07dd7a4c81ea636e33d2aeaaf`. The LTX retained the expected Versal runtime debug path: `AXI_DEBUG_HUB_V1` at `0x000003FFC0000000`, `u_bd/openpiton_top_i/ps_wizard_0/PMC_AXI_NOC0`, and `axis_ila_0` through `axis_ila_3`.
+
+Recursive snapshot rerun result: on 2026-06-05, Build 66 was rerun from a fresh repository-local `p3b66/source_snapshot/` after fixing recursive include copying. The XPR/fileset validation rejected no paths, nested Ariane/CVA6 includes such as `register_interface/assign.svh` and `register_interface/typedef.svh` were present in the snapshot, implementation completed with 0 errors, and `write_device_image` republished the baseline PDI/LTX at 10:03 local time. The PDI SHA256 is `ee30fe4d052c763c9fc2fa72bf71cc8363173ad210ea8fb106533ac3081dd62d`; the LTX SHA256 remains `7b9c348e4d2695dfd90f700aabc8e4eee66288d07dd7a4c81ea636e33d2aeaaf`. Route status reported 151,579 routable nets, all fully routed, with 0 routing errors. Final timing met all user constraints with `WNS=16.514 ns`, `TNS=0`, `WHS=0.013 ns`, `THS=0`, `WPWS=0.063 ns`, and `TPWS=0`.
 
 Repo-local hardware validation: the regenerated PDI programmed `xcvp1902_1` successfully through `hw_server 100.93.77.36:3121` plus XVC `202.197.4.99:2540`, with `DONE bit: HIGH`. `/dev/ttyUSB0` at 115200 8N1 captured the bootrom banner, SPI-mode SD initialization, GPT parsing, 65,536-block payload copy, BBL DTB dump, Linux 5.1.0-rc7 boot, and `/ #` shell. Linux enumerated `piton_sd`, `piton_sd1`, and `piton_sd2`; `mount -t ext2 -o ro /dev/piton_sd2 /mnt` succeeded and exposed `/mnt/XSBench`. The automated XSBench smoke launch did not produce a completion marker in this run, so benchmark completion should be validated as a separate runtime procedure after the shell is stable.
 
