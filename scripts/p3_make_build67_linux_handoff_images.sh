@@ -141,10 +141,22 @@ build_variant() {
     make -C "$variant_dir" clean
     env CFLAGS="-fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0" make -C "$variant_dir"
 
+    local bbl_elf="$variant_dir/bbl"
+    if [[ "$add_markers" == "1" ]]; then
+        bbl_elf="$variant_dir/bbl_marker"
+    fi
+
     riscv64-linux-gnu-objcopy \
         -S -O binary --change-addresses -0x80000000 \
-        "$variant_dir/bbl" \
+        "$bbl_elf" \
         "$bbl_bin"
+
+    if [[ "$add_markers" == "1" ]]; then
+        if ! strings -a "$bbl_bin" | grep -q 'B67M'; then
+            echo "ERROR: marker BBL binary does not contain B67M strings: $bbl_bin" >&2
+            exit 1
+        fi
+    fi
 
     cp "$base_img" "$out_img"
 
