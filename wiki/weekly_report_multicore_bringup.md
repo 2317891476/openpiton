@@ -62,11 +62,66 @@ gantt
 
 ---
 
-## 四、 当前挂起点与下周排查计划
+## 四、 当前挂起点分析：BBL 到 Linux 固件交接流 (Firmware Handoff Flow)
 
-目前 Build 67 双核系统能够成功引导并打印出包含双核信息的设备树，但**在 BBL 转向 Linux 阶段发生乱码并挂死**。
+目前 Build 67 双核系统在 BBL 打印设备树（DTB）后，串口仅输出少量高位乱码字节流并挂死。我们必须明确，BBL 跳转到 Linux 并非一步到位，中间有一段极为关键的固件交接与早期引导流程。基于当前的底层代码与编译路径，其实际调用链如下：
 
-为定位此跳转边界故障，我们设计了两个专门的 **SD 引导镜像排查方案（Discriminator Images）**，将在不重跑 Vivado 的情况下进行板级定位：
+1. **BBL 初始化阶段**
+   主核心调用 `init_first_hart()`，完成 UART 串口、内存（DDR）、当前 hart 状态、CLINT 和 PLIC 的基本配置与 chosen 节点查询，然后调用 `wake_harts()` 发送软件中断（IPI）唤醒其它 hart（参考：`build/huaprop3/ariane-sdk/build-bbl-debug-axi16550-force/minit.c:161`）。
+2. **BBL 设备树（DTB）处理**
+   `boot_loader()` 负责将编译好的设备树复制到 Payload 后面 2MB 对齐的位置（通常为 `0x81000000` 附近），并在此过程中过滤掉由 BBL 自身接管 of 节点（如 CLINT、debug 等）。如果使能了 `PK_PRINT_DEVICE_TREE`，则在此处通过串口打印出当前捕获的完整 DTB（参考：`build/a7203x/ariane-sdk/riscv-pk/bbl/bbl.c:68`）。
+3. **BBL 选择 Linux 入口地址**
+   由于未指定外部 `kernel_start`，BBL 将入口地址默认指向内嵌的 Payload 头部：
+   `entry_point = &_payload_start`
+   根据当前的 BBL ELF 符号表，`.payload` 物理起始地址为 `0x80200000`。
+4. **BBL 切换至 S-mode（Supervisor 模式）**
+   主核心执行 `enter_supervisor_mode()`，处理以下关键寄存器与状态切换：
+   * 配置物理内存保护（PMP），放开 S-mode 对全内存的访问权限；
+   * 设置 `mstatus.MPP = S`（指定下一级特权态为 S-mode）；
+   * 设置 `mepc = 0x80200000`（指向 Linux 启动入口点）；
+   * 设定寄存器 `a0 = hartid`（传递当前启动 hart id）；
+   * 设定寄存器 `a1 = dtb_output`（传递已复制好的 DTB 基地址，约为 `0x81000000`）；
+   * 执行 `mret` 指令，硬件跳转至 `mepc`（参考：`build/huaprop3/ariane-sdk/build-bbl-debug-axi16550-force/minit.c:211`）。
+5. **Linux 早期引导与控制台初始化**
+   Linux 内核从 `0x80200000` 的 `head.S` 汇编入口点开始执行：
+   * 暂存 `a0` (hartid) 与 `a1` (DTB 物理地址)；
+   * 区分主启动核心（Boot Hart）与辅助核心（Secondary Hart）；
+   * 构建早期临时页表并开启 MMU（配置 `satp` 寄存器）；
+   * 解析设备树中的 bootargs 与 chosen 配置；
+   * 初始化 `earlycon`（早期控制台驱动）；
+   * 打印第一行标志性信息：`Linux version ...`；
+   * 进一步初始化 timer、irq、PLIC、内核子系统并根据 `bootargs` 进入 `/bin/sh`。
+
+**停点定位分析**：目前终端能够完整输出 BBL 设备树，但在进入 Linux 后没有任何 `Linux version` 的控制台输出。这表明**系统死锁点大概率位于 BBL 执行 `mret` 之后、至 Linux `earlycon` 成功输出第一行打印前的极早期初始化区间（或该区间附近）**。
+
+---
+
+## 五、 本周多核启动的最可疑根因分析
+
+针对上述停点特征，我们梳理出以下四项最高嫌疑的根因：
+
+### 1. Hart 1 / SMP 交接与同步问题（最高优先级）
+在 Build 67 的双核配置下，设备树同时暴露了 `cpu@0` 和 `cpu@1`，BBL 会通过软中断唤醒 `hart 1` 并让两个 hart 同时进入 Linux 空间。
+* **死锁机理**：如果 Linux 5.1 内核中的 SMP 启动协议（SMP Boot Protocol）、BBL 实现的 SBI 服务、CLINT 的核间中断（IPI）机制，或者 `hart 1` 物理上的复位/时钟/缓存相干性（Coherence）有任何微小的 Mismatch，都会在 Linux 开启页表或多核同步锁时导致内存破坏或 CPU 锁死。
+* **快速验证**：通过屏蔽 `cpu@1` 降级为单核，排除多核同步的硬件和软件干扰。
+
+### 2. Linux 早期控制台（Early Console）与 UART 初始化冲突
+在 BBL 结束时，终端输出了一段少量的乱码字节流。
+* **死锁机理**：由于单核 Build 66 在同一 UART 硬件上可完美工作，这排除了串口 IP 本身的物理链路故障。乱码极有可能是 Linux 早期驱动开始尝试接管并初始化 UART 寄存器时，由于核间竞争或 divisor 寄存器配置冲突，导致输出时序被破坏，或者多核心同时并发向同一 UART 寄存器执行写操作引起总线冲突。
+
+### 3. 设备树（DTB）与硬件 CLINT/PLIC 拓扑不匹配
+在双核模式下，硬件的中断引脚和地址区间会发生改变。
+* **死锁机理**：BBL 在加载时会过滤 CLINT 节点，强制让 Linux 必须通过 BBL/SBI 接口使用 timer 和 IPI 中断服务。如果设备树中 `hart 1` 的 CLINT 地址偏移量、PLIC 中断源个数或核间中断向量与 FPGA 物理网表不一致，Linux 试图查询 PLIC 中断线时就会访问非法地址触发 Exception 挂死。
+
+### 4. 内核镜像（Payload）与双核启动协议不兼容
+当前打包在 BBL 内部的 Linux 内核在 Build 66 单核下能够工作，但这并不能确保其完全具备多核运行条件。
+* **死锁机理**：如果内核编译配置中未启用多核支持（如缺少 `CONFIG_SMP`）、未配置 RISC-V SBI 核心协议，或者 `8250 console` 驱动未正确编译入核，内核在遭遇双核交接时就无法正确路由 `hart 1` 的启动请求，从而导致引导异常。
+
+---
+
+## 六、 当前挂起点与下一步排查计划
+
+我们建议下一步**不应重跑 Vivado 硬件综合**，因为当前 2x1 物理网表已被证明可以成功烧录且 Done 位拉高。最快的排查路径是在软件和 SD 镜像层面实施以下两个对照实验：
 
 1. **测试单核 SMP 降级镜像 (`nosmp`)**：
    * 使用 [p3_make_build67_linux_handoff_images.sh](file:///L:/home/illya/openpiton/scripts/p3_make_build67_linux_handoff_images.sh) 编译排查镜像：保留双核硬件，但在 BBL 设备树中将 `cpu@1` 设为 `disabled`，并向 bootargs 注入 `maxcpus=1 nosmp`。
