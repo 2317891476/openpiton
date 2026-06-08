@@ -152,7 +152,7 @@ build_variant() {
         "$bbl_bin"
 
     if [[ "$add_markers" == "1" ]]; then
-        if ! strings -a "$bbl_bin" | grep -q 'B67M'; then
+        if ! grep -a -q 'B67M' "$bbl_bin"; then
             echo "ERROR: marker BBL binary does not contain B67M strings: $bbl_bin" >&2
             exit 1
         fi
