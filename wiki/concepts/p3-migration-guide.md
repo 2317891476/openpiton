@@ -212,6 +212,8 @@ Build 67 implementation completed on 2026-06-05 after the runner was fixed to re
 
 The first Build 67 hardware run proved the 2x1 bitstream through BBL entry. PDI programming succeeded with `DONE bit: HIGH`, the LTX refreshed all four ILAs through debug hub `0x3ffc0000000`, and UART log `ttyUSB0_20260605_175423_b67.log` showed the bootrom completing SPI-mode SD init, GPT parsing, all 65,536 payload-block reads, DDR copy, and DDR/SD readback comparison before entering `bbl loader`. The BBL DTB printed by the board still listed only `cpu@0`, while local inspection of `huaprop3_linux_xsbench_2x1.img` shows `cpu@1` is present. Therefore the active blocker for Linux/SMP validation is SD card image mismatch, not Build 67 PDI, UART, SPI SD, DDR copy, or debug-hub access.
 
+After writing the intended 2x1 SD image and retesting on 2026-06-08, Build 67 cleared that stale-image blocker. UART log `ttyUSB0_20260608_195222_b67_retest.log` printed the 2x1 bootrom banner, completed the full 65,536-block SD-to-DDR payload copy, reported matching DDR/SD payload words, entered `bbl loader`, and dumped a DTB containing both `cpu@0` and `cpu@1` with two-hart CLINT/PLIC interrupt wiring. The new stop is immediately after the BBL DTB dump: UART emits a short fixed high-bit/garbled byte stream, with no `Linux version` line and no shell prompt. Treat this as a BBL-to-Linux payload handoff, Linux early console/serial, or 2-hart Linux/SMP compatibility problem. Do not spend new synthesis cycles on PDI programming, debug hub access, AXI16550 physical UART, SPI-mode SD block transport, DDR payload copy, or stale SD image contents unless a later test contradicts this log.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
