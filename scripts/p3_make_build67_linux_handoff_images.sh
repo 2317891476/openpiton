@@ -86,7 +86,7 @@ patch_marker_sources() {
 
     cp "$source_bbl_c" "$variant_dir/bbl_marker.c"
     sed -i 's/^  bbl.c \\/  bbl_marker.c \\/' "$variant_dir/bbl.mk"
-    sed -i 's/^#define PK_PRINT_DEVICE_TREE.*/\\/\\* #undef PK_PRINT_DEVICE_TREE \\*\\//' "$variant_dir/config.h"
+    perl -0pi -e 's/^#define PK_PRINT_DEVICE_TREE .*$/\/\* #undef PK_PRINT_DEVICE_TREE \*\//m' "$variant_dir/config.h"
 
     perl -0pi -e 's/(\n#ifdef BBL_BOOT_MACHINE\n)/\n  printm("B67M boot_hart=%ld entry=%p dtb=%p disabled=0x%lx\\r\\n", hartid, entry, (void*)dtb_output(), disabled_hart_mask);\n$1/' "$variant_dir/bbl_marker.c"
     perl -0pi -e 's/(\n#ifdef PK_PRINT_DEVICE_TREE\n  fdt_print\(dtb_output\(\)\);\n#endif\n  mb\(\);\n  \/\* Use optional FDT preloaded external payload if present \*\/\n  entry_point = kernel_start \? kernel_start : &_payload_start;\n)/\n  printm("B67M boot_loader dtb_in=%p dtb_out=%p disabled=0x%lx\\r\\n", (void*)dtb, (void*)dtb_output(), disabled_hart_mask);\n$1  printm("B67M entry=%p kernel_start=%p payload_start=%p payload_end=%p\\r\\n", entry_point, kernel_start, &_payload_start, &_payload_end);\n/' "$variant_dir/bbl_marker.c"
