@@ -39,6 +39,10 @@ make_dts() {
             print "        bootargs = \"" bootargs "\";"
             in_chosen = 0
         }
+        /^[[:space:]]*riscv,ndev[[:space:]]*=/ {
+            print "            riscv,ndev = <2>;"
+            next
+        }
         { print }
     ' "$bootrom_dts" > "$out_dts"
 }
@@ -293,6 +297,7 @@ build_dtb="$build_dir/huaprop3_2x1_sbi_trace.dtb"
 bbl_bin="$build_dir/bbl_build67_2x1_sbi_trace.bin"
 
 make_dts "$build_dts"
+grep -q 'riscv,ndev = <2>;' "$build_dts"
 dtc -I dts "$build_dts" -O dtb -o "$build_dtb"
 dtc -I dtb "$build_dtb" -O dts 2>/dev/null | grep -q 'cpu@1'
 dtc -I dtb "$build_dtb" -O dts 2>/dev/null | grep -q 'initcall_debug'

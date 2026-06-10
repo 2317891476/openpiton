@@ -9,8 +9,8 @@ bootrom_dts="$repo_dir/piton/design/chipset/rv64_platform/bootrom/rv64_platform.
 build_dir="$repo_dir/build/huaprop3"
 work_root="$build_dir/ariane-sdk"
 
-nosmp_bootargs='earlycon=uart8250,mmio,0xfff0c2c000,115200n8 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh maxcpus=1 nosmp'
-marker_bootargs='earlycon=uart8250,mmio,0xfff0c2c000,115200n8 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh'
+nosmp_bootargs='earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh maxcpus=1 nosmp'
+marker_bootargs='earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh'
 
 require_file() {
     local path="$1"
@@ -39,6 +39,10 @@ make_dts() {
         in_chosen && /^[[:space:]]*\};/ {
             print "        bootargs = \"" bootargs "\";"
             in_chosen = 0
+        }
+        /^[[:space:]]*riscv,ndev[[:space:]]*=/ {
+            print "            riscv,ndev = <2>;"
+            next
         }
         /^[[:space:]]*(CPU1:[[:space:]]*)?cpu@1[[:space:]]*\{/ {
             in_cpu1 = 1
@@ -121,6 +125,7 @@ build_variant() {
     local out_img="$build_dir/sd_images/huaprop3_linux_xsbench_2x1_${variant}.img"
 
     make_dts "$dts" "$bootargs" "$disable_cpu1"
+    grep -q 'riscv,ndev = <2>;' "$dts"
     dtc -I dts "$dts" -O dtb -o "$dtb"
 
     if [[ "$disable_cpu1" == "1" ]]; then

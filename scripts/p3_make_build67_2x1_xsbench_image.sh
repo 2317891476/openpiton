@@ -4,7 +4,7 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 base_img="${P3_BUILD67_BASE_IMG:-$repo_dir/build/huaprop3/sd_images/huaprop3_linux_xsbench_ext2.img}"
 out_img="${P3_BUILD67_OUT_IMG:-$repo_dir/build/huaprop3/sd_images/huaprop3_linux_xsbench_2x1.img}"
-bootargs='earlycon=uart8250,mmio,0xfff0c2c000,115200n8 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh'
+bootargs='earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh'
 
 export PITON_ROOT="${PITON_ROOT:-$repo_dir}"
 export DV_ROOT="${DV_ROOT:-$repo_dir/piton}"
@@ -18,6 +18,12 @@ if [[ ! -f "$base_img" ]]; then
     echo "ERROR: missing base XSBench image: $base_img" >&2
     exit 1
 fi
+
+fixup_dts() {
+    local dts="$1"
+
+    perl -0pi -e 's/riscv,ndev = <1>;/riscv,ndev = <2>;/g' "$dts"
+}
 
 "$repo_dir/scripts/p3_rebuild_build67_2x1_normal_spi_sd_boot.sh"
 
@@ -43,6 +49,8 @@ awk -v bootargs="$bootargs" '
     { print }
 ' "$bootrom_dts" > "$build_dts"
 
+fixup_dts "$build_dts"
+grep -q 'riscv,ndev = <2>;' "$build_dts"
 dtc -I dts "$build_dts" -O dtb -o "$build_dtb"
 dtc -I dtb "$build_dtb" -O dts | grep -q 'cpu@1'
 dtc -I dtb "$build_dtb" -O dts | grep -q 'rdinit=/bin/sh init=/bin/sh'
