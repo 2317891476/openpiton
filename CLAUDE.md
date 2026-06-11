@@ -168,6 +168,8 @@ Default DDR layout:
 
 Remote Ubuntu toolchain state as of 2026-06-11: `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1` are installed on `cs@202.197.4.150`. Build 68 requires `riscv64-unknown-elf-gcc` during bootrom rebuild before Vivado project creation.
 
+For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown-elf` supplies headers such as `stdint.h`. Build 68 passes that include path through `P3_BOOTROM_EXTRA_CFLAGS` when the OpenPiton scratch toolchain is absent, while keeping the bootrom `-nostdlib`/`-nostartfiles` link model.
+
 ### Key Board Files
 
 | File | Purpose |

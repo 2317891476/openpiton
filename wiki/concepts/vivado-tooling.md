@@ -72,6 +72,8 @@ The 2026-06-11 first remote Build 68 run reached Vivado 2024.2.2, but stopped be
 
 That specific blocker was cleared later on 2026-06-11 by installing Jammy packages on the offline Ubuntu host: `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1`. If the host is rebuilt or reverted, restore those packages before starting Build 68.
 
+The Jammy embedded RISC-V GCC package still needs `picolibc-riscv64-unknown-elf` for C headers such as `stdint.h`. Build 68 handles this by passing `P3_BOOTROM_EXTRA_CFLAGS=-isystem /usr/lib/picolibc/riscv64-unknown-elf/include` when the local OpenPiton scratch toolchain is absent and picolibc headers are present. Do not replace this with `picolibc.specs` for the bootrom path; the bootrom intentionally keeps `-nostdlib`, `-nodefaultlibs`, and `-nostartfiles`.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:

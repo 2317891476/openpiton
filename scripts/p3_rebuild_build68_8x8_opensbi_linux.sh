@@ -26,8 +26,12 @@ export P3_OPENSBI_FW_ADDR="${P3_OPENSBI_FW_ADDR:-0x80000000}"
 export P3_OPENSBI_DTB_ADDR="${P3_OPENSBI_DTB_ADDR:-0x88000000}"
 
 export RISCV="${RISCV:-$HOME/scratch/riscv_install}"
+bootrom_extra_make_args=()
 if [[ -x "$RISCV/bin/riscv64-unknown-elf-gcc" ]]; then
     export PATH="$RISCV/bin:$PATH"
+elif [[ -f /usr/lib/picolibc/riscv64-unknown-elf/include/stdint.h ]]; then
+    bootrom_extra_make_args+=("P3_BOOTROM_EXTRA_CFLAGS=-isystem /usr/lib/picolibc/riscv64-unknown-elf/include")
+    echo "Using system riscv64-unknown-elf-gcc with picolibc headers."
 fi
 
 bootrom_dir="$repo_dir/piton/design/chipset/rv64_platform/bootrom/linux"
@@ -40,7 +44,8 @@ make all \
     MAX_HARTS="$PITON_NUM_TILES" \
     UART_FREQ="$CONFIG_SYS_FREQ" \
     P3_OPENSBI_FW_ADDR="$P3_OPENSBI_FW_ADDR" \
-    P3_OPENSBI_DTB_ADDR="$P3_OPENSBI_DTB_ADDR"
+    P3_OPENSBI_DTB_ADDR="$P3_OPENSBI_DTB_ADDR" \
+    "${bootrom_extra_make_args[@]}"
 
 riscv64-unknown-elf-objdump -d bootrom_linux.elf > bootrom_linux_build68_8x8_opensbi_linux.dump
 if ! grep -q '<_prog_start>' bootrom_linux_build68_8x8_opensbi_linux.dump; then

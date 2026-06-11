@@ -192,6 +192,8 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
 
 Remote Ubuntu toolchain state as of 2026-06-11: the offline host has Jammy packages `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1` installed. Build 68 failed before synthesis when these were missing, because the bootrom Makefile requires `riscv64-unknown-elf-gcc`. If the host is reverted, reinstall those packages before rerunning `scripts/p3_remote_vivado_64core.sh`.
 
+For the Jammy system-packaged toolchain, `picolibc-riscv64-unknown-elf` is also required for headers such as `stdint.h`. `scripts/p3_rebuild_build68_8x8_opensbi_linux.sh` passes the picolibc include directory through `P3_BOOTROM_EXTRA_CFLAGS` only when the OpenPiton scratch toolchain is absent. Keep the bootrom on its `-nostdlib`/`-nostartfiles` link path; do not switch it to `picolibc.specs`.
+
 The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 
 ## P3 Build 66 Baseline
