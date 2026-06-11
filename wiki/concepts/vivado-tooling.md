@@ -78,6 +78,8 @@ P3 Vivado project creation must also expose the repo's PyHP tool directory to Vi
 
 The 2026-06-11 remote Build 68 run first reached the OOC synthesis license gate, then passed it after installing `/home/cs/.Xilinx/xilinx_ise_vivado.lic` and exporting `XILINXD_LICENSE_FILE`/`LM_LICENSE_FILE`. All four BD-owned ILA OOC synthesis runs completed with 0 errors and 0 critical warnings. The next blocker occurred before main `synth_1`: the remote archive was missing recursive Ariane submodules, so the self-contained XPR validation rejected live `$PPRDIR/../piton/...` include paths. Treat that as a packaging/source-snapshot failure, not a 64-core RTL/resource/timing result.
 
+The recursive-archive rerun on 2026-06-12 cleared that packaging gate. At the 00:33 CST checkpoint the XPR live-path count was zero, the four BD-owned ILA OOC runs plus `uart_16550`, `clk_wizard`, `proc_sys_reset`, and `axi_noc` OOC runs had completed, and Vivado had started the main `synth_1` run with `synth_design -top p3_top -part xcvp1902-vsva6865-1MP-e-S`. This is now the active 8x8 hardware feasibility gate. Do not infer resource usage, congestion, timing, or boot viability until `synth_1` and then `impl_1` produce reports.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
