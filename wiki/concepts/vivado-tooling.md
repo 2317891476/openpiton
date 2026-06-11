@@ -80,6 +80,8 @@ The 2026-06-11 remote Build 68 run first reached the OOC synthesis license gate,
 
 The recursive-archive rerun on 2026-06-12 cleared that packaging gate. At the 00:33 CST checkpoint the XPR live-path count was zero, the four BD-owned ILA OOC runs plus `uart_16550`, `clk_wizard`, `proc_sys_reset`, and `axi_noc` OOC runs had completed, and Vivado had started the main `synth_1` run with `synth_design -top p3_top -part xcvp1902-vsva6865-1MP-e-S`. This is now the active 8x8 hardware feasibility gate. Do not infer resource usage, congestion, timing, or boot viability until `synth_1` and then `impl_1` produce reports.
 
+That same 2026-06-12 `synth_1` run failed during RTL elaboration before resource reporting. The first hard error was that `tile.tmp.v` connected `ariane_verilog_wrap.p3_ariane_debug_bus`, while `ariane_verilog_wrap.sv` did not declare that port. Treat this as a `P3_RTL_DEBUG` interface/define mismatch in the RTL generation path. Fix the wrapper/tile port contract before rerunning synthesis; do not classify this as a 64-core capacity, timing, or routing failure.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
