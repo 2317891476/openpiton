@@ -188,7 +188,7 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
   'cd /home/cs/openpiton && scripts/p3_prepare_64core_opensbi_image.sh'
 ```
 
-`scripts/p3_remote_vivado_64core.sh` archives the tracked repository state and the currently checked-out submodule contents, transfers that archive through `ProxyJump`, and also copies `riscv64-linux-64core-src-20260610.tar.gz` into `/home/cs/openpiton/`. If local Build 68 changes are not committed, they will not be included in that archive.
+`scripts/p3_remote_vivado_64core.sh` archives the tracked repository state and the currently checked-out recursive submodule HEAD contents, transfers that archive through `ProxyJump`, and also copies `riscv64-linux-64core-src-20260610.tar.gz` into `/home/cs/openpiton/`. If local Build 68 changes are not committed, they will not be included in that archive. If a recursive submodule has staged or unstaged tracked changes, the script must fail before packing; commit and push the submodule change, then update and commit the superproject gitlink before rerunning.
 
 Remote Ubuntu toolchain state as of 2026-06-11: the offline host has Jammy packages `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1` installed. Build 68 failed before synthesis when these were missing, because the bootrom Makefile requires `riscv64-unknown-elf-gcc`. If the host is reverted, reinstall those packages before rerunning `scripts/p3_remote_vivado_64core.sh`.
 

@@ -172,6 +172,8 @@ For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown
 
 `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to Vivado Tcl `env(PATH)` so the common PyHP preprocessing helper can execute `pyhp.py` by name on the offline Ubuntu host.
 
+`scripts/p3_remote_vivado_64core.sh` archives the committed top-level repository state plus committed recursive submodule HEAD contents. It intentionally does not package dirty tracked submodule changes; it now fails before packing if any recursive submodule has staged or unstaged tracked diffs. Commit and push submodule RTL fixes, then update the superproject gitlink, before launching a remote Build 68 run.
+
 ### Key Board Files
 
 | File | Purpose |

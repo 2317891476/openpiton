@@ -82,6 +82,8 @@ The recursive-archive rerun on 2026-06-12 cleared that packaging gate. At the 00
 
 That same 2026-06-12 `synth_1` run failed during RTL elaboration before resource reporting. The first hard error was that `tile.tmp.v` connected `ariane_verilog_wrap.p3_ariane_debug_bus`, while `ariane_verilog_wrap.sv` did not declare that port. Treat this as a `P3_RTL_DEBUG` interface/define mismatch in the RTL generation path. Fix the wrapper/tile port contract before rerunning synthesis; do not classify this as a 64-core capacity, timing, or routing failure.
 
+The fix is to make the Ariane submodule state part of the committed remote input, not to edit generated `.tmp` files. The missing `p3_ariane_debug_bus` port was committed in the CVA6/Ariane submodule as `bf55dcba`, and the OpenPiton superproject gitlink must point at that commit for remote Build 68 runs. `scripts/p3_remote_vivado_64core.sh` now rejects recursive submodules with staged or unstaged tracked changes before creating the archive, because it packs submodule `HEAD` contents and dirty submodule edits would otherwise be silently omitted.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:

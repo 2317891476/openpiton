@@ -20,8 +20,22 @@ rm -rf "$pack_dir"
 mkdir -p "$pack_dir"
 git -C "$repo_dir" archive --format=tar HEAD | tar -x -C "$pack_dir"
 
+require_clean_submodule() {
+    local submodule_path="$1"
+    local submodule_dir="$repo_dir/$submodule_path"
+
+    if ! git -C "$submodule_dir" diff --quiet --ignore-submodules=dirty -- ||
+       ! git -C "$submodule_dir" diff --cached --quiet --ignore-submodules=dirty --; then
+        echo "ERROR: submodule has uncommitted tracked changes and would be archived from HEAD: $submodule_path" >&2
+        git -C "$submodule_dir" status --short --untracked-files=no >&2 || true
+        echo "Commit and push the submodule change, then update the superproject gitlink before rerunning." >&2
+        exit 1
+    fi
+}
+
 while read -r submodule_path; do
     if [[ -d "$repo_dir/$submodule_path/.git" || -f "$repo_dir/$submodule_path/.git" ]]; then
+        require_clean_submodule "$submodule_path"
         mkdir -p "$pack_dir/$submodule_path"
         git -C "$repo_dir/$submodule_path" archive --format=tar HEAD | tar -x -C "$pack_dir/$submodule_path"
     else
