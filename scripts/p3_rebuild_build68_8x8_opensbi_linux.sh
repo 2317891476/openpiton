@@ -38,12 +38,45 @@ baremetal_bootrom_dir="$repo_dir/piton/design/chipset/rv64_platform/bootrom/bare
 cd "$baremetal_bootrom_dir"
 
 rm -f bootrom.img bootrom.sv bootrom.bin bootrom.elf bootrom.h rv64_platform.dtb
-dtc -I dts rv64_platform.dts -O dtb -o rv64_platform.dtb
+companion_dts="$(mktemp)"
+trap 'rm -f "$companion_dts"' EXIT
+cat > "$companion_dts" <<'DTS'
+/dts-v1/;
+
+/ {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    compatible = "openpiton,build68-companion-bootrom";
+
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0x0 0x80000000 0x0 0x10000000>;
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        timebase-frequency = <234375>;
+
+        cpu@0 {
+            device_type = "cpu";
+            reg = <0>;
+            status = "okay";
+            compatible = "openhwgroup,cva6", "riscv";
+            riscv,isa = "rv64imafdc";
+            mmu-type = "riscv,sv39";
+        };
+    };
+};
+DTS
+dtc -I dts "$companion_dts" -O dtb -o rv64_platform.dtb
 "${CROSSCOMPILE:-riscv64-unknown-elf-}gcc" -Tlinker.ld bootrom.S -nostdlib -static -Wl,--no-gc-sections -o bootrom.elf
 "${CROSSCOMPILE:-riscv64-unknown-elf-}objcopy" -O binary bootrom.elf bootrom.bin
 dd if=bootrom.bin of=bootrom.img bs=128
 python3 ./gen_rom.py bootrom.img
 rm -f bootrom.bin bootrom.elf rv64_platform.dtb
+trap - EXIT
+rm -f "$companion_dts"
 
 if ! awk -v module_name="bootrom" '$1 == "module" && $2 == module_name { found = 1 } END { exit found ? 0 : 1 }' bootrom.sv; then
     echo "ERROR: Build 68 baremetal bootrom.sv does not define module bootrom" >&2
