@@ -188,7 +188,7 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
   'cd /home/cs/openpiton && scripts/p3_prepare_64core_opensbi_image.sh'
 ```
 
-`scripts/p3_remote_vivado_64core.sh` archives the tracked repository state with `git archive`, transfers it through `ProxyJump`, and also copies `riscv64-linux-64core-src-20260610.tar.gz` into `/home/cs/openpiton/`. If local Build 68 changes are not committed, they will not be included in that archive.
+`scripts/p3_remote_vivado_64core.sh` archives the tracked repository state and the currently checked-out submodule contents, transfers that archive through `ProxyJump`, and also copies `riscv64-linux-64core-src-20260610.tar.gz` into `/home/cs/openpiton/`. If local Build 68 changes are not committed, they will not be included in that archive.
 
 The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 

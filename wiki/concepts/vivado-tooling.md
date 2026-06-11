@@ -66,7 +66,7 @@ scripts/p3_prepare_64core_opensbi_image.sh
 
 The SD bundle uses these default DDR addresses: OpenSBI `0x80000000`, Linux `Image` `0x80200000`, DTB `0x88000000`, and initramfs `0x90000000`. The DTB must list `cpu@0` through `cpu@63`, CLINT and PLIC contexts for every hart, UART interrupt source 1, and `riscv,ndev = <2>`. `P3_64CORE_USE_PREBUILT=1` is only for local packaging smoke tests; final board images should rebuild OpenSBI/Linux so `FW_JUMP_ADDR` and `FW_JUMP_FDT_ADDR` match the P3 layout.
 
-Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends a `git archive` of `HEAD` and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host.
+Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends an archive of `HEAD` plus the currently checked-out submodule contents, and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host.
 
 ### P3 UART Smoke Tests
 

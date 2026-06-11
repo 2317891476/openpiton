@@ -13,9 +13,21 @@ core_archive="${P3_64CORE_ARCHIVE:-$repo_dir/riscv64-linux-64core-src-20260610.t
 jobs="${JOBS:-8}"
 
 archive="$repo_dir/build/p3_64core/openpiton-p3-64core-src.tar.gz"
+pack_dir="$repo_dir/build/p3_64core/archive_root"
 mkdir -p "$(dirname "$archive")"
 
-git -C "$repo_dir" archive --format=tar.gz --output="$archive" HEAD
+rm -rf "$pack_dir"
+mkdir -p "$pack_dir"
+git -C "$repo_dir" archive --format=tar HEAD | tar -x -C "$pack_dir"
+
+while read -r submodule_path; do
+    if [[ -d "$repo_dir/$submodule_path/.git" || -f "$repo_dir/$submodule_path/.git" ]]; then
+        mkdir -p "$pack_dir/$submodule_path"
+        git -C "$repo_dir/$submodule_path" archive --format=tar HEAD | tar -x -C "$pack_dir/$submodule_path"
+    fi
+done < <(git -C "$repo_dir" config --file .gitmodules --get-regexp path | awk '{print $2}')
+
+tar -czf "$archive" -C "$pack_dir" .
 
 if [[ ! -f "$core_archive" ]]; then
     echo "ERROR: missing 64core software archive: $core_archive" >&2
