@@ -9,7 +9,8 @@ source_pk="${P3_RISCV_PK_SRC:-$repo_dir/build/a7203x/ariane-sdk/riscv-pk}"
 bootrom_dts="$repo_dir/piton/design/chipset/rv64_platform/bootrom/rv64_platform.dts"
 build_dir="$repo_dir/build/huaprop3"
 work_root="$build_dir/ariane-sdk"
-variant_dir="$work_root/build-bbl-build67-sbi_trace"
+variant_name="${P3_BUILD67_TRACE_VARIANT:-sbi_trace}"
+variant_dir="$work_root/build-bbl-build67-$variant_name"
 
 bootargs='earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 rdinit=/bin/sh init=/bin/sh keep_bootcon loglevel=8 ignore_loglevel initcall_debug'
 
@@ -59,8 +60,9 @@ dtb_to_header() {
 patch_bbl_sources() {
     cp "$source_pk/bbl/bbl.c" "$variant_dir/bbl.c"
     cp "$source_pk/machine/mtrap.c" "$variant_dir/mtrap.c"
+    cp "$source_pk/machine/mentry.S" "$variant_dir/mentry.S"
 
-    perl - "$variant_dir/bbl.c" "$variant_dir/mtrap.c" <<'PERL'
+    perl - "$variant_dir/bbl.c" "$variant_dir/mtrap.c" "$variant_dir/mentry.S" <<'PERL'
 use strict;
 use warnings;
 
@@ -80,7 +82,7 @@ sub replace_once {
     close $out or die "ERROR: close $path: $!\n";
 }
 
-my ($bbl_path, $mtrap_path) = @ARGV;
+my ($bbl_path, $mtrap_path, $mentry_path) = @ARGV;
 
 replace_once($bbl_path, <<'OLD', <<'NEW');
   long hartid = read_csr(mhartid);
@@ -150,7 +152,11 @@ void printm(const char* s, ...)
   va_end(vl);
 }
 
-static uint32_t b67s_timer_count[MAX_HARTS];
+uint32_t b67s_timer_count[MAX_HARTS];
+volatile uintptr_t b67s_mtimer_irq_count[MAX_HARTS];
+volatile uintptr_t b67s_msoft_irq_count[MAX_HARTS];
+volatile uintptr_t b67s_clear_ipi_count[MAX_HARTS];
+volatile uintptr_t b67s_soft_sent_count[MAX_HARTS][MAX_HARTS];
 static uint32_t b67s_ipi_count[16];
 
 static int b67s_should_trace(uint32_t *count)
@@ -161,6 +167,46 @@ static int b67s_should_trace(uint32_t *count)
 }
 
 static void send_ipi(uintptr_t recipient, int event)
+NEW
+
+replace_once($mtrap_path, <<'OLD', <<'NEW');
+static void send_ipi(uintptr_t recipient, int event)
+{
+  if (((disabled_hart_mask >> recipient) & 1)) return;
+  // atomic or
+  atomic_binop(&OTHER_HLS(recipient)->mipi_pending, event, res | (event));
+  mb();
+  *OTHER_HLS(recipient)->ipi = 1;
+}
+OLD
+static void send_ipi(uintptr_t recipient, int event)
+{
+  if (((disabled_hart_mask >> recipient) & 1)) return;
+  if (event == IPI_SOFT) {
+    uintptr_t sender = read_csr(mhartid);
+    if (sender < MAX_HARTS && recipient < MAX_HARTS)
+      b67s_soft_sent_count[sender][recipient]++;
+  }
+  // atomic or
+  atomic_binop(&OTHER_HLS(recipient)->mipi_pending, event, res | (event));
+  mb();
+  *OTHER_HLS(recipient)->ipi = 1;
+}
+NEW
+
+replace_once($mtrap_path, <<'OLD', <<'NEW');
+static uintptr_t mcall_clear_ipi()
+{
+  return clear_csr(mip, MIP_SSIP) & MIP_SSIP;
+}
+OLD
+static uintptr_t mcall_clear_ipi()
+{
+  uintptr_t hart = read_csr(mhartid);
+  if (hart < MAX_HARTS)
+    b67s_clear_ipi_count[hart]++;
+  return clear_csr(mip, MIP_SSIP) & MIP_SSIP;
+}
 NEW
 
 replace_once($mtrap_path, <<'OLD', <<'NEW');
@@ -176,9 +222,18 @@ static uintptr_t mcall_set_timer(uint64_t when)
 {
   uintptr_t hart = read_csr(mhartid);
   uint32_t idx = hart < MAX_HARTS ? hart : 0;
-  if (b67s_should_trace(&b67s_timer_count[idx]))
+  if (b67s_should_trace(&b67s_timer_count[idx])) {
     printm("B67S set_timer hart=%ld count=%u when=%p timecmp=%p\r\n",
            hart, b67s_timer_count[idx], (void*)(uintptr_t)when, HLS()->timecmp);
+    if (hart == 0)
+      printm("B67I irq_snapshot set0=%u set1=%u mt0=%ld mt1=%ld ms0=%ld ms1=%ld clear0=%ld clear1=%ld send01=%ld send10=%ld mip=0x%lx mie=0x%lx\r\n",
+             b67s_timer_count[0], b67s_timer_count[1],
+             b67s_mtimer_irq_count[0], b67s_mtimer_irq_count[1],
+             b67s_msoft_irq_count[0], b67s_msoft_irq_count[1],
+             b67s_clear_ipi_count[0], b67s_clear_ipi_count[1],
+             b67s_soft_sent_count[0][1], b67s_soft_sent_count[1][0],
+             read_csr(mip), read_csr(mie));
+  }
   *HLS()->timecmp = when;
   clear_csr(mip, MIP_STIP);
   set_csr(mie, MIP_MTIP);
@@ -275,6 +330,50 @@ static void send_ipi_many(uintptr_t* pmask, int event)
   }
 }
 NEW
+
+replace_once($mentry_path, <<'OLD', <<'NEW');
+  # Yes.  Simply clear MTIE and raise STIP.
+  li a0, MIP_MTIP
+  csrc mie, a0
+  li a0, MIP_STIP
+  csrs mip, a0
+OLD
+  # Count per-hart MTIP entries before redirecting the interrupt to S-mode.
+  la a0, b67s_mtimer_irq_count
+  csrr a1, mhartid
+  slli a1, a1, 3
+  add a0, a0, a1
+  ld a1, 0(a0)
+  addi a1, a1, 1
+  sd a1, 0(a0)
+
+  # Clear MTIE and raise STIP.
+  li a0, MIP_MTIP
+  csrc mie, a0
+  li a0, MIP_STIP
+  csrs mip, a0
+NEW
+
+replace_once($mentry_path, <<'OLD', <<'NEW');
+  # Yes.  First, clear the MIPI bit.
+  LOAD a0, MENTRY_IPI_OFFSET(sp)
+  sw x0, (a0)
+  fence
+OLD
+  # Count per-hart MSIP entries before clearing the CLINT MIPI bit.
+  la a0, b67s_msoft_irq_count
+  csrr a1, mhartid
+  slli a1, a1, 3
+  add a0, a0, a1
+  ld a1, 0(a0)
+  addi a1, a1, 1
+  sd a1, 0(a0)
+
+  # Clear the CLINT MIPI bit.
+  LOAD a0, MENTRY_IPI_OFFSET(sp)
+  sw x0, (a0)
+  fence
+NEW
 PERL
 }
 
@@ -292,9 +391,9 @@ fi
 rm -rf "$variant_dir"
 cp -a "$source_bbl_dir" "$variant_dir"
 
-build_dts="$build_dir/huaprop3_2x1_sbi_trace.dts"
-build_dtb="$build_dir/huaprop3_2x1_sbi_trace.dtb"
-bbl_bin="$build_dir/bbl_build67_2x1_sbi_trace.bin"
+build_dts="$build_dir/huaprop3_2x1_${variant_name}.dts"
+build_dtb="$build_dir/huaprop3_2x1_${variant_name}.dtb"
+bbl_bin="$build_dir/bbl_build67_2x1_${variant_name}.bin"
 
 make_dts "$build_dts"
 grep -q 'riscv,ndev = <2>;' "$build_dts"
@@ -318,6 +417,10 @@ riscv64-linux-gnu-objcopy \
 
 if ! grep -a -q 'B67S' "$bbl_bin"; then
     echo "ERROR: SBI trace BBL binary does not contain B67S strings: $bbl_bin" >&2
+    exit 1
+fi
+if ! grep -a -q 'B67I irq_snapshot' "$bbl_bin"; then
+    echo "ERROR: IRQ-chain trace BBL binary does not contain B67I snapshot strings: $bbl_bin" >&2
     exit 1
 fi
 

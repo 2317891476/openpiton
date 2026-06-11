@@ -262,6 +262,8 @@ The stronger evidence is the RCU task flag and later SBI activity. In this kerne
 
 The next firmware image must therefore report per-hart chain counters instead of only SBI call counts. Count machine-timer trap entries before BBL raises STIP, machine-software trap entries before BBL raises SSIP, Linux `SBI_CLEAR_IPI` calls, `SBI_SEND_IPI` source and target counts, and `SBI_SET_TIMER` rearms. Hart0 can print a low-frequency snapshot of both harts so the diagnostic still reports hart1 state after hart1 stops making SBI calls. If hart1 MTIP stops while its compare has expired, inspect CLINT-to-tile1 delivery; if MTIP advances but timer rearm does not, inspect STIP delegation and Linux timer handling; if hart0 sends MSIP and hart1 receives it without clearing SSIP, inspect the supervisor IPI handler; if all interrupt counters advance while `_TIF_NEED_RESCHED` remains set, move the primary suspect to scheduler atomics and OpenPiton cache coherence.
 
+`scripts/p3_make_build67_irq_chain_trace_image.sh` implements that discriminator without a Vivado rebuild. Its BBL machine-trap instrumentation increments per-hart MTIP and MSIP counters before the existing redirect logic, and its SBI instrumentation counts timer rearms, `SBI_CLEAR_IPI`, and software IPI sends in each direction. Hart0 emits a `B67I irq_snapshot` only on the existing 1024-call timer sampling interval. Read the fields as a chain: `send01 -> ms1 -> clear1` is the CPU0-to-CPU1 software-interrupt path, while `mt1 -> set1` is the CPU1 timer-interrupt/rearm path. A break between adjacent counters identifies the first failing ownership boundary.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
