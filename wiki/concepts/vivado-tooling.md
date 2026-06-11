@@ -68,6 +68,8 @@ The SD bundle uses these default DDR addresses: OpenSBI `0x80000000`, Linux `Ima
 
 Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends an archive of `HEAD` plus the currently checked-out submodule contents, and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host.
 
+The 2026-06-11 first remote Build 68 run reached Vivado 2024.2.2, but stopped before project creation or synthesis because the offline Ubuntu host did not have `riscv64-unknown-elf-gcc` on the bootrom rebuild path. Build 68 still requires the OpenPiton bare-metal toolchain for `piton/design/chipset/rv64_platform/bootrom/linux/Makefile`; make `$HOME/scratch/riscv_install/bin/riscv64-unknown-elf-gcc` available, or export an equivalent `RISCV`/`PATH`, before rerunning the remote flow.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
