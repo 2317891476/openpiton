@@ -938,3 +938,4 @@ Build 65 hardware passed this discriminator. The PDI generated from `D:/p3b65` p
 ## 13. Build 67 Multihart Firmware Trace Constraints
 
 - Multihart firmware diagnostics must not print from both harts inside `SBI_SET_TIMER` before rearming the timer. BBL's `printm()` polls and writes the shared 16550 without serialization; simultaneous timer-boundary traces visibly interleave bytes and can perturb forward progress. Complete `mtimecmp`/STIP/MTIE updates first, keep hart0 as the sole firmware UART writer, and save full trap state only when an anomaly predicate fires.
+- riscv-pk's tiny `snprintf` is not libc. It supports `%p`, `%x`, `%d`, `%s`, and `%c`; it does not support `%u`. Firmware trace strings must cast unsigned counters to `long` and print them with `%ld`, otherwise varargs consumption falls out of sync and the UART log itself becomes corrupted.

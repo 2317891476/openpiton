@@ -238,8 +238,8 @@ static uintptr_t mcall_set_timer(uint64_t when)
 
   // Keep hart0 as the only firmware UART writer after Linux starts.
   if (hart == 0 && (count <= 8 || (((count - 1) & 0x3ff) == 0))) {
-    printm("B67I irq_snapshot set0=%u set1=%u mt0=%ld mt1=%ld ms0=%ld ms1=%ld clear0=%ld clear1=%ld send01=%ld send10=%ld mip=0x%lx mie=0x%lx\r\n",
-           b67s_timer_count[0][0], b67s_timer_count[1][0],
+    printm("B67I irq_snapshot set0=%ld set1=%ld mt0=%ld mt1=%ld ms0=%ld ms1=%ld clear0=%ld clear1=%ld send01=%ld send10=%ld mip=0x%lx mie=0x%lx\r\n",
+           (long)b67s_timer_count[0][0], (long)b67s_timer_count[1][0],
            b67s_mtimer_irq_count[0][0], b67s_mtimer_irq_count[1][0],
            b67s_msoft_irq_count[0][0], b67s_msoft_irq_count[1][0],
            b67s_clear_ipi_count[0][0], b67s_clear_ipi_count[1][0],
@@ -325,13 +325,14 @@ static void send_ipi_many(uintptr_t* pmask, int event)
       while (*OTHER_HLS(i)->ipi) {
         spins++;
         if (trace_this && (spins == (1u << 20) || spins == (1u << 24) || spins == (1u << 28)))
-          printm("B67S ipi_wait hart=%ld target=%ld event=%d spins=%u target_msip=%u self_msip=%u\r\n",
-                 current_hart, i, event, spins, *OTHER_HLS(i)->ipi, *HLS()->ipi);
+          printm("B67S ipi_wait hart=%ld target=%ld event=%d spins=%ld target_msip=%ld self_msip=%ld\r\n",
+                 current_hart, i, event, (long)spins,
+                 (long)*OTHER_HLS(i)->ipi, (long)*HLS()->ipi);
         incoming_ipi |= atomic_binop(HLS()->ipi, 0, (0)); // atomic swap
       }
       if (trace_this && spins)
-        printm("B67S ipi_wait_done hart=%ld target=%ld event=%d spins=%u\r\n",
-               current_hart, i, event, spins);
+        printm("B67S ipi_wait_done hart=%ld target=%ld event=%d spins=%ld\r\n",
+               current_hart, i, event, (long)spins);
     }
 
   if (trace_this)
