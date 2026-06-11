@@ -152,14 +152,14 @@ void printm(const char* s, ...)
   va_end(vl);
 }
 
-uint32_t b67s_timer_count[MAX_HARTS][16] __attribute__((aligned(64)));
+volatile uint32_t b67s_timer_count[MAX_HARTS][16] __attribute__((aligned(64)));
 volatile uintptr_t b67s_mtimer_irq_count[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67s_msoft_irq_count[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67s_clear_ipi_count[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67s_soft_sent_count[MAX_HARTS][MAX_HARTS];
 volatile uintptr_t b67c_mtimer_mtie_zero_count[MAX_HARTS][8] __attribute__((aligned(64)));
-volatile uintptr_t b67c_mtimer_mie_before[MAX_HARTS][8] __attribute__((aligned(64)));
-volatile uintptr_t b67c_mtimer_mie_after[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mtie_clear_fail_count[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mie[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67c_mtimer_mip[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67c_mtimer_mcause[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67c_mtimer_mepc[MAX_HARTS][8] __attribute__((aligned(64)));
@@ -229,27 +229,29 @@ static uintptr_t mcall_set_timer(uint64_t when)
 {
   uintptr_t hart = read_csr(mhartid);
   uint32_t idx = hart < MAX_HARTS ? hart : 0;
-  if (b67s_should_trace(&b67s_timer_count[idx][0])) {
-    printm("B67S set_timer hart=%ld count=%u when=%p timecmp=%p\r\n",
-           hart, b67s_timer_count[idx][0], (void*)(uintptr_t)when, HLS()->timecmp);
-    if (hart == 0)
-      printm("B67I irq_snapshot set0=%u set1=%u mt0=%ld mt1=%ld ms0=%ld ms1=%ld clear0=%ld clear1=%ld send01=%ld send10=%ld mip=0x%lx mie=0x%lx\r\n",
-             b67s_timer_count[0][0], b67s_timer_count[1][0],
-             b67s_mtimer_irq_count[0][0], b67s_mtimer_irq_count[1][0],
-             b67s_msoft_irq_count[0][0], b67s_msoft_irq_count[1][0],
-             b67s_clear_ipi_count[0][0], b67s_clear_ipi_count[1][0],
-             b67s_soft_sent_count[0][1], b67s_soft_sent_count[1][0],
-             read_csr(mip), read_csr(mie));
-    if (hart == 0)
-      printm("B67C mt1z=%ld mie1b=0x%lx mie1a=0x%lx mip1=0x%lx cause1=0x%lx epc1=%p status1=0x%lx\r\n",
-             b67c_mtimer_mtie_zero_count[1][0],
-             b67c_mtimer_mie_before[1][0], b67c_mtimer_mie_after[1][0],
-             b67c_mtimer_mip[1][0], b67c_mtimer_mcause[1][0],
-             (void*)b67c_mtimer_mepc[1][0], b67c_mtimer_mstatus[1][0]);
-  }
+  uint32_t count = ++b67s_timer_count[idx][0];
+
+  // Complete the timer rearm before any diagnostic UART traffic.
   *HLS()->timecmp = when;
   clear_csr(mip, MIP_STIP);
   set_csr(mie, MIP_MTIP);
+
+  // Keep hart0 as the only firmware UART writer after Linux starts.
+  if (hart == 0 && (count <= 8 || (((count - 1) & 0x3ff) == 0))) {
+    printm("B67I irq_snapshot set0=%u set1=%u mt0=%ld mt1=%ld ms0=%ld ms1=%ld clear0=%ld clear1=%ld send01=%ld send10=%ld mip=0x%lx mie=0x%lx\r\n",
+           b67s_timer_count[0][0], b67s_timer_count[1][0],
+           b67s_mtimer_irq_count[0][0], b67s_mtimer_irq_count[1][0],
+           b67s_msoft_irq_count[0][0], b67s_msoft_irq_count[1][0],
+           b67s_clear_ipi_count[0][0], b67s_clear_ipi_count[1][0],
+           b67s_soft_sent_count[0][1], b67s_soft_sent_count[1][0],
+           read_csr(mip), read_csr(mie));
+    printm("B67C mt1z=%ld mt1cf=%ld mie1=0x%lx mip1=0x%lx cause1=0x%lx epc1=%p status1=0x%lx\r\n",
+           b67c_mtimer_mtie_zero_count[1][0],
+           b67c_mtimer_mtie_clear_fail_count[1][0],
+           b67c_mtimer_mie[1][0], b67c_mtimer_mip[1][0],
+           b67c_mtimer_mcause[1][0], (void*)b67c_mtimer_mepc[1][0],
+           b67c_mtimer_mstatus[1][0]);
+  }
   return 0;
 }
 NEW
@@ -295,7 +297,8 @@ static void send_ipi_many(uintptr_t* pmask, int event)
   uintptr_t current_hart = read_csr(mhartid);
   uintptr_t trace_hart = current_hart < MAX_HARTS ? current_hart : 0;
   uint32_t event_idx = event < 16 ? event : 0;
-  int trace_this = b67s_should_trace(&b67s_ipi_count[trace_hart][event_idx]);
+  int trace_this = current_hart == 0 &&
+                   b67s_should_trace(&b67s_ipi_count[trace_hart][event_idx]);
 
   if (trace_this)
     printm("B67S ipi_enter hart=%ld event=%d mask=0x%lx pmask=%p mepc=%p\r\n",
@@ -359,16 +362,19 @@ OLD
   addi a1, a1, 1
   sd a1, 0(a0)
 
-  # Record the incoming timer-trap state.
-  la a0, b67c_mtimer_mie_before
-  csrr a1, mhartid
-  slli a1, a1, 6
-  add a0, a0, a1
+  # Keep the normal MTIP path small. Save full state only on an anomaly.
   csrr a1, mie
-  sd a1, 0(a0)
   andi a1, a1, MIP_MTIP
-  bnez a1, 2f
+  beqz a1, 2f
 
+  li a0, MIP_MTIP
+  csrc mie, a0
+  csrr a1, mie
+  andi a1, a1, MIP_MTIP
+  bnez a1, 3f
+  j 5f
+
+2:
   la a0, b67c_mtimer_mtie_zero_count
   csrr a1, mhartid
   slli a1, a1, 6
@@ -376,7 +382,27 @@ OLD
   ld a1, 0(a0)
   addi a1, a1, 1
   sd a1, 0(a0)
-2:
+  li a0, MIP_MTIP
+  csrc mie, a0
+  j 4f
+
+3:
+  la a0, b67c_mtimer_mtie_clear_fail_count
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  ld a1, 0(a0)
+  addi a1, a1, 1
+  sd a1, 0(a0)
+
+4:
+  la a0, b67c_mtimer_mie
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mie
+  sd a1, 0(a0)
+
   la a0, b67c_mtimer_mip
   csrr a1, mhartid
   slli a1, a1, 6
@@ -405,17 +431,7 @@ OLD
   csrr a1, mstatus
   sd a1, 0(a0)
 
-  # Clear MTIE and record the post-clear value before raising STIP.
-  li a0, MIP_MTIP
-  csrc mie, a0
-
-  la a0, b67c_mtimer_mie_after
-  csrr a1, mhartid
-  slli a1, a1, 6
-  add a0, a0, a1
-  csrr a1, mie
-  sd a1, 0(a0)
-
+5:
   li a0, MIP_STIP
   csrs mip, a0
 NEW
