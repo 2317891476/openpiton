@@ -123,6 +123,30 @@ protosyn -b a7203x -d system --core=ariane --uart-dmw ddr
 
 With `PITON_SKIP_ARIANE_FW_BUILD=1`, bootrom SV files must be built manually before synthesis (see Bootrom section below).
 
+### P3 Offline Ubuntu Vivado Build Host
+
+For P3 Pro / VP1902 scaling builds, use the offline Ubuntu machine as the real Vivado build host. The remote Windows machine is only an SSH TCP jump host; do not run long nested commands such as `ssh windows "ssh ubuntu '...'"`, because Windows should not parse build scripts, shell quoting, or Tcl.
+
+Known endpoints and paths:
+- Jump host: `23178@100.70.176.125`
+- Build host: `cs@202.197.4.150`
+- Remote workspace: `/home/cs/openpiton`
+- Remote Vivado: `/media/d1/Xilinx/Vivado/2024.2/bin/vivado` (validated as 2024.2.2)
+
+Standard access pattern:
+
+```bash
+ssh -J 23178@100.70.176.125 cs@202.197.4.150
+
+scp -o ProxyJump=23178@100.70.176.125 <local-file-or-archive> \
+  cs@202.197.4.150:/home/cs/openpiton/
+
+ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
+  'cd /home/cs/openpiton && /media/d1/Xilinx/Vivado/2024.2/bin/vivado -mode batch -source <script>.tcl'
+```
+
+Transfer sources to `/home/cs/openpiton` only when starting a real remote build. Generate `bit` / `pdi` / `ltx` / reports / logs on offline Ubuntu, then retrieve artifacts with the same `scp -o ProxyJump=...` path. Do not store passwords in repository files or helper scripts.
+
 ### Key Board Files
 
 | File | Purpose |

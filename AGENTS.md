@@ -125,6 +125,30 @@ ssh illya@100.93.77.36 '
 
 The readback hash must match the local image hash for the written size. For a 128 MiB image, `count=32` with `bs=4M` reads back the full image. Never write to `/dev/sda` or `/dev/nvme*` on the remote host.
 
+## P3 Offline Ubuntu Vivado Build Host
+
+For P3 Pro / VP1902 scaling builds that need the dedicated offline Ubuntu Vivado machine, connect through the remote Windows host only as an SSH TCP jump. Do not run long nested commands such as `ssh windows "ssh ubuntu '...'"`; Windows must not parse build scripts, shell quoting, or Vivado Tcl.
+
+Known endpoints:
+- Windows jump host: `23178@100.70.176.125`
+- Offline Ubuntu build host: `cs@202.197.4.150`
+- Offline Ubuntu workspace: `/home/cs/openpiton`
+- Offline Ubuntu Vivado: `/media/d1/Xilinx/Vivado/2024.2/bin/vivado` (validated as Vivado 2024.2.2)
+
+Use `ProxyJump` / `-J` directly from the local machine:
+
+```bash
+ssh -J 23178@100.70.176.125 cs@202.197.4.150
+
+scp -o ProxyJump=23178@100.70.176.125 <local-file-or-archive> \
+  cs@202.197.4.150:/home/cs/openpiton/
+
+ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
+  'cd /home/cs/openpiton && /media/d1/Xilinx/Vivado/2024.2/bin/vivado -mode batch -source <script>.tcl'
+```
+
+Transfer source archives or project snapshots into `/home/cs/openpiton` only when a real remote build is about to start. Keep passwords out of repository files and scripts; use interactive authentication or an external credential mechanism. Build artifacts (`bit`, `pdi`, `ltx`, reports, and logs) should be generated on offline Ubuntu, copied back through the same `scp -o ProxyJump=...` path, and then archived locally as needed.
+
 ## P3 Build 66 Baseline
 
 Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.

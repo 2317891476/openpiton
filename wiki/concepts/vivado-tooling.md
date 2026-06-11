@@ -7,6 +7,9 @@ Synthesis and implementation scripts, tips, and known issues.
 - **Version**: Vivado 2024.2
 - **Windows path**: `D:\Xilinx\Vivado\2024.2`
 - **WSL wrapper**: `/home/illya/bin/vivado` (converts paths, forwards env vars, calls `vivado.bat` via `cmd.exe`)
+- **P3 offline Ubuntu path**: `/media/d1/Xilinx/Vivado/2024.2/bin/vivado` on `cs@202.197.4.150`, reached through `ssh -J 23178@100.70.176.125`; this installation has been validated as Vivado 2024.2.2.
+
+The local Windows wrapper remains the default for local WSL-driven flows. P3 Pro / VP1902 scaling builds that need the dedicated offline server should run Vivado directly on the offline Ubuntu host, not through a nested Windows shell command.
 
 ## Build Flow
 
@@ -35,6 +38,22 @@ vivado -mode tcl   -source scripts/p3_debug.tcl              # debug
 ```
 
 Note: Versal outputs `.pdi` (not `.bit`). ILA probes use `.ltx` files. Supplying the LTX to `p3_program_pdi.tcl` makes the programming step also set `PROBES.FILE`, print the DONE bit, run `refresh_hw_device`, and list the available ILA cores before hardware UART validation.
+
+#### P3 Offline Ubuntu Build Host
+
+The remote P3 Pro / VP1902 64-core build flow uses the offline Ubuntu host at `cs@202.197.4.150`, reached through the Windows jump host `23178@100.70.176.125`. The Windows host is only a TCP jump; avoid command shapes where Windows parses the inner Ubuntu build command.
+
+```bash
+ssh -J 23178@100.70.176.125 cs@202.197.4.150
+
+scp -o ProxyJump=23178@100.70.176.125 <local-file-or-archive> \
+  cs@202.197.4.150:/home/cs/openpiton/
+
+ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
+  'cd /home/cs/openpiton && /media/d1/Xilinx/Vivado/2024.2/bin/vivado -mode batch -source <script>.tcl'
+```
+
+Use `/home/cs/openpiton` as the standard remote workspace. Transfer source archives or self-contained project snapshots only when an actual remote build begins, run Vivado batch Tcl on Ubuntu, then retrieve generated `bit`, `pdi`, `ltx`, reports, and logs through the same `scp -o ProxyJump=...` path. Passwords must stay out of repository files and scripts.
 
 ### P3 UART Smoke Tests
 
