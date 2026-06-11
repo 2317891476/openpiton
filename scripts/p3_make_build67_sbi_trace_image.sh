@@ -152,10 +152,10 @@ void printm(const char* s, ...)
   va_end(vl);
 }
 
-uint32_t b67s_timer_count[MAX_HARTS];
-volatile uintptr_t b67s_mtimer_irq_count[MAX_HARTS];
-volatile uintptr_t b67s_msoft_irq_count[MAX_HARTS];
-volatile uintptr_t b67s_clear_ipi_count[MAX_HARTS];
+uint32_t b67s_timer_count[MAX_HARTS][16] __attribute__((aligned(64)));
+volatile uintptr_t b67s_mtimer_irq_count[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67s_msoft_irq_count[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67s_clear_ipi_count[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67s_soft_sent_count[MAX_HARTS][MAX_HARTS];
 static uint32_t b67s_ipi_count[16];
 
@@ -204,7 +204,7 @@ static uintptr_t mcall_clear_ipi()
 {
   uintptr_t hart = read_csr(mhartid);
   if (hart < MAX_HARTS)
-    b67s_clear_ipi_count[hart]++;
+    b67s_clear_ipi_count[hart][0]++;
   return clear_csr(mip, MIP_SSIP) & MIP_SSIP;
 }
 NEW
@@ -222,15 +222,15 @@ static uintptr_t mcall_set_timer(uint64_t when)
 {
   uintptr_t hart = read_csr(mhartid);
   uint32_t idx = hart < MAX_HARTS ? hart : 0;
-  if (b67s_should_trace(&b67s_timer_count[idx])) {
+  if (b67s_should_trace(&b67s_timer_count[idx][0])) {
     printm("B67S set_timer hart=%ld count=%u when=%p timecmp=%p\r\n",
-           hart, b67s_timer_count[idx], (void*)(uintptr_t)when, HLS()->timecmp);
+           hart, b67s_timer_count[idx][0], (void*)(uintptr_t)when, HLS()->timecmp);
     if (hart == 0)
       printm("B67I irq_snapshot set0=%u set1=%u mt0=%ld mt1=%ld ms0=%ld ms1=%ld clear0=%ld clear1=%ld send01=%ld send10=%ld mip=0x%lx mie=0x%lx\r\n",
-             b67s_timer_count[0], b67s_timer_count[1],
-             b67s_mtimer_irq_count[0], b67s_mtimer_irq_count[1],
-             b67s_msoft_irq_count[0], b67s_msoft_irq_count[1],
-             b67s_clear_ipi_count[0], b67s_clear_ipi_count[1],
+             b67s_timer_count[0][0], b67s_timer_count[1][0],
+             b67s_mtimer_irq_count[0][0], b67s_mtimer_irq_count[1][0],
+             b67s_msoft_irq_count[0][0], b67s_msoft_irq_count[1][0],
+             b67s_clear_ipi_count[0][0], b67s_clear_ipi_count[1][0],
              b67s_soft_sent_count[0][1], b67s_soft_sent_count[1][0],
              read_csr(mip), read_csr(mie));
   }
@@ -341,7 +341,7 @@ OLD
   # Count per-hart MTIP entries before redirecting the interrupt to S-mode.
   la a0, b67s_mtimer_irq_count
   csrr a1, mhartid
-  slli a1, a1, 3
+  slli a1, a1, 6
   add a0, a0, a1
   ld a1, 0(a0)
   addi a1, a1, 1
@@ -363,7 +363,7 @@ OLD
   # Count per-hart MSIP entries before clearing the CLINT MIPI bit.
   la a0, b67s_msoft_irq_count
   csrr a1, mhartid
-  slli a1, a1, 3
+  slli a1, a1, 6
   add a0, a0, a1
   ld a1, 0(a0)
   addi a1, a1, 1
