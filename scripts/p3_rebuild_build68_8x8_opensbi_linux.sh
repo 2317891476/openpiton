@@ -34,6 +34,19 @@ elif [[ -f /usr/lib/picolibc/riscv64-unknown-elf/include/stdint.h ]]; then
     echo "Using system riscv64-unknown-elf-gcc with picolibc headers."
 fi
 
+baremetal_bootrom_dir="$repo_dir/piton/design/chipset/rv64_platform/bootrom/baremetal"
+cd "$baremetal_bootrom_dir"
+
+make clean
+rm -f bootrom.bin bootrom.elf bootrom.h
+make all
+
+if ! grep -qE '^module[[:space:]]+bootrom([[:space:]]|\\(|#)' bootrom.sv; then
+    echo "ERROR: Build 68 baremetal bootrom.sv does not define module bootrom" >&2
+    exit 1
+fi
+echo "Build 68 companion baremetal bootrom generated: $baremetal_bootrom_dir/bootrom.sv"
+
 bootrom_dir="$repo_dir/piton/design/chipset/rv64_platform/bootrom/linux"
 cd "$bootrom_dir"
 
@@ -68,6 +81,10 @@ for symbol in init_uart print_uart init_sd sd_copy; do
 done
 if riscv64-unknown-elf-nm bootrom_linux.elf | grep -qE ' gpt_find_boot_partition$|startup_asm_uart|startup_asm_uart16550'; then
     echo "ERROR: Build 68 bootrom linked an unexpected BBL or assembly UART-only path" >&2
+    exit 1
+fi
+if ! grep -qE '^module[[:space:]]+bootrom_linux([[:space:]]|\\(|#)' bootrom_linux.sv; then
+    echo "ERROR: Build 68 bootrom_linux.sv does not define module bootrom_linux" >&2
     exit 1
 fi
 

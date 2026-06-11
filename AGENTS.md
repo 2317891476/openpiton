@@ -174,6 +174,8 @@ The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-b
 - DTB: `0x88000000`
 - initramfs: `0x90000000`
 
+Build 68 must regenerate both generated ROM sources before Vivado project creation. `riscv_peripherals.sv` instantiates `bootrom` and `bootrom_linux` unconditionally, then selects between them with `ariane_boot_sel_i`; therefore the OpenSBI/Linux path still needs `piton/design/chipset/rv64_platform/bootrom/baremetal/bootrom.sv` in addition to `piton/design/chipset/rv64_platform/bootrom/linux/bootrom_linux.sv`. Do not rely on stale untracked local generated ROM files; a remote clean archive must be able to reproduce both modules.
+
 Use the prebuilt 64core package artifacts only for local image-structure smoke tests:
 
 ```bash

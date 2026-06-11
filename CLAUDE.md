@@ -164,6 +164,8 @@ Default DDR layout:
 - DTB: `0x88000000`
 - initramfs: `0x90000000`
 
+The Build 68 rebuild step must generate both ROM modules used by `riscv_peripherals.sv`: `bootrom/baremetal/bootrom.sv` for the baremetal ROM instance and `bootrom/linux/bootrom_linux.sv` for the OpenSBI bundle ROM. Even when `ariane_boot_sel_i` selects the Linux/OpenSBI path, Vivado still elaborates the baremetal `bootrom` instance. Remote clean archives must not depend on stale untracked generated ROM files left in a local workspace.
+
 `P3_64CORE_USE_PREBUILT=1 scripts/p3_prepare_64core_opensbi_image.sh` is only a local image-structure smoke test. The board candidate should rebuild OpenSBI/Linux on offline Ubuntu so `FW_JUMP_ADDR=0x80200000` and `FW_JUMP_FDT_ADDR=0x88000000` are correct for P3.
 
 Remote Ubuntu toolchain state as of 2026-06-11: `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1` are installed on `cs@202.197.4.150`. Build 68 requires `riscv64-unknown-elf-gcc` during bootrom rebuild before Vivado project creation.
