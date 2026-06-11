@@ -76,6 +76,8 @@ The Jammy embedded RISC-V GCC package still needs `picolibc-riscv64-unknown-elf`
 
 P3 Vivado project creation must also expose the repo's PyHP tool directory to Vivado Tcl. `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to `env(PATH)` before sourcing the common PyHP preprocessing flow, because `piton/tools/src/proto/common/pyhp_preprocess.tcl` still calls `exec pyhp.py` by tool name.
 
+The 2026-06-11 remote Build 68 run reached the first OOC synthesis run after BD output generation, but the offline Ubuntu host failed license checkout for `Synthesis` and/or device `xcvp1902`. Resolve the Vivado license environment before interpreting 8x8 resource feasibility; this run produced no 64-core synthesis utilization.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
