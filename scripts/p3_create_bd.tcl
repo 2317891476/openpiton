@@ -56,6 +56,20 @@ set part "xcvp1902-vsva6865-1MP-e-S"
 set ref_xdc_dir [file normalize "${script_dir}/../huaprop3onecore/huaprop3onecore.srcs/constrs_1"]
 set piton_root [file normalize "${script_dir}/.."]
 set source_snapshot_dir "${proj_dir}/source_snapshot"
+set p3_tools_bin [file normalize "${piton_root}/piton/tools/bin"]
+if {[file isdirectory $p3_tools_bin]} {
+    if {$::tcl_platform(platform) eq "windows"} {
+        set p3_path_sep ";"
+    } else {
+        set p3_path_sep ":"
+    }
+    if {![info exists ::env(PATH)] || $::env(PATH) eq ""} {
+        set ::env(PATH) $p3_tools_bin
+    } elseif {[lsearch -exact [split $::env(PATH) $p3_path_sep] $p3_tools_bin] < 0} {
+        set ::env(PATH) "${p3_tools_bin}${p3_path_sep}$::env(PATH)"
+    }
+    puts "P3 tools bin on PATH: ${p3_tools_bin}"
+}
 
 proc p3_bool {value} {
     set value_lc [string tolower [string trim $value]]

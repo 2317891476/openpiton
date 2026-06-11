@@ -74,6 +74,8 @@ That specific blocker was cleared later on 2026-06-11 by installing Jammy packag
 
 The Jammy embedded RISC-V GCC package still needs `picolibc-riscv64-unknown-elf` for C headers such as `stdint.h`. Build 68 handles this by passing `P3_BOOTROM_EXTRA_CFLAGS=-isystem /usr/lib/picolibc/riscv64-unknown-elf/include` when the local OpenPiton scratch toolchain is absent and picolibc headers are present. Do not replace this with `picolibc.specs` for the bootrom path; the bootrom intentionally keeps `-nostdlib`, `-nodefaultlibs`, and `-nostartfiles`.
 
+P3 Vivado project creation must also expose the repo's PyHP tool directory to Vivado Tcl. `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to `env(PATH)` before sourcing the common PyHP preprocessing flow, because `piton/tools/src/proto/common/pyhp_preprocess.tcl` still calls `exec pyhp.py` by tool name.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:

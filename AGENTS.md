@@ -194,6 +194,8 @@ Remote Ubuntu toolchain state as of 2026-06-11: the offline host has Jammy packa
 
 For the Jammy system-packaged toolchain, `picolibc-riscv64-unknown-elf` is also required for headers such as `stdint.h`. `scripts/p3_rebuild_build68_8x8_opensbi_linux.sh` passes the picolibc include directory through `P3_BOOTROM_EXTRA_CFLAGS` only when the OpenPiton scratch toolchain is absent. Keep the bootrom on its `-nostdlib`/`-nostartfiles` link path; do not switch it to `picolibc.specs`.
 
+P3 Vivado create scripts must make repo-local PyHP visible. `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to Tcl `env(PATH)` because the common PyHP preprocessing helper executes `pyhp.py` by name. If a remote run reports `couldn't execute "pyhp.py"`, check that this PATH setup reached the remote copy before changing generated `.tmp` files.
+
 The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 
 ## P3 Build 66 Baseline

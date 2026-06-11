@@ -170,6 +170,8 @@ Remote Ubuntu toolchain state as of 2026-06-11: `gcc-riscv64-unknown-elf` 10.2.0
 
 For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown-elf` supplies headers such as `stdint.h`. Build 68 passes that include path through `P3_BOOTROM_EXTRA_CFLAGS` when the OpenPiton scratch toolchain is absent, while keeping the bootrom `-nostdlib`/`-nostartfiles` link model.
 
+`scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to Vivado Tcl `env(PATH)` so the common PyHP preprocessing helper can execute `pyhp.py` by name on the offline Ubuntu host.
+
 ### Key Board Files
 
 | File | Purpose |
