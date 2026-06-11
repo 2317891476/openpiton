@@ -37,9 +37,13 @@ fi
 baremetal_bootrom_dir="$repo_dir/piton/design/chipset/rv64_platform/bootrom/baremetal"
 cd "$baremetal_bootrom_dir"
 
-make clean
-rm -f bootrom.bin bootrom.elf bootrom.h
-make all
+rm -f bootrom.img bootrom.sv bootrom.bin bootrom.elf bootrom.h rv64_platform.dtb
+dtc -I dts rv64_platform.dts -O dtb -o rv64_platform.dtb
+"${CROSSCOMPILE:-riscv64-unknown-elf-}gcc" -Tlinker.ld bootrom.S -nostdlib -static -Wl,--no-gc-sections -o bootrom.elf
+"${CROSSCOMPILE:-riscv64-unknown-elf-}objcopy" -O binary bootrom.elf bootrom.bin
+dd if=bootrom.bin of=bootrom.img bs=128
+python3 ./gen_rom.py bootrom.img
+rm -f bootrom.bin bootrom.elf rv64_platform.dtb
 
 if ! awk -v module_name="bootrom" '$1 == "module" && $2 == module_name { found = 1 } END { exit found ? 0 : 1 }' bootrom.sv; then
     echo "ERROR: Build 68 baremetal bootrom.sv does not define module bootrom" >&2
