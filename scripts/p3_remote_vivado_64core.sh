@@ -24,8 +24,11 @@ while read -r submodule_path; do
     if [[ -d "$repo_dir/$submodule_path/.git" || -f "$repo_dir/$submodule_path/.git" ]]; then
         mkdir -p "$pack_dir/$submodule_path"
         git -C "$repo_dir/$submodule_path" archive --format=tar HEAD | tar -x -C "$pack_dir/$submodule_path"
+    else
+        echo "ERROR: submodule is not initialized and cannot be packed: $submodule_path" >&2
+        exit 1
     fi
-done < <(git -C "$repo_dir" config --file .gitmodules --get-regexp path | awk '{print $2}')
+done < <(git -C "$repo_dir" submodule status --recursive | awk '{print $2}')
 
 tar -czf "$archive" -C "$pack_dir" .
 

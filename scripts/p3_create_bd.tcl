@@ -122,7 +122,19 @@ proc p3_snapshot_files {files repo_dir snapshot_dir} {
 }
 
 proc p3_snapshot_include_dir {dir repo_dir snapshot_dir} {
-    if {$dir eq "" || ![file isdirectory $dir]} {
+    if {$dir eq ""} {
+        return $dir
+    }
+
+    set dir_norm [p3_normalized_slash_path $dir]
+    set repo_norm [p3_normalized_slash_path $repo_dir]
+    set repo_local [expr {$dir_norm eq $repo_norm || [string first "${repo_norm}/" $dir_norm] == 0}]
+    if {![file isdirectory $dir]} {
+        if {$repo_local} {
+            puts "ERROR: self-contained include directory is missing: $dir"
+            puts "       Initialize recursive submodules before creating the P3 Vivado project."
+            exit 1
+        }
         return $dir
     }
 

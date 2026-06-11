@@ -66,7 +66,7 @@ scripts/p3_prepare_64core_opensbi_image.sh
 
 The SD bundle uses these default DDR addresses: OpenSBI `0x80000000`, Linux `Image` `0x80200000`, DTB `0x88000000`, and initramfs `0x90000000`. The DTB must list `cpu@0` through `cpu@63`, CLINT and PLIC contexts for every hart, UART interrupt source 1, and `riscv,ndev = <2>`. `P3_64CORE_USE_PREBUILT=1` is only for local packaging smoke tests; final board images should rebuild OpenSBI/Linux so `FW_JUMP_ADDR` and `FW_JUMP_FDT_ADDR` match the P3 layout.
 
-Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends an archive of `HEAD` plus the currently checked-out submodule contents, and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host.
+Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends an archive of `HEAD` plus the currently checked-out recursive submodule contents, and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host. The recursive submodule rule is mandatory because Ariane include directories such as `common/submodules/common_cells/include` and `corev_apu/register_interface/include` must be copied into `<workdir>/source_snapshot/` and then referenced by Vivado `include_dirs`; a live `$PPRDIR/../piton/...` include path in the XPR is a build-flow failure.
 
 The 2026-06-11 first remote Build 68 run reached Vivado 2024.2.2, but stopped before project creation or synthesis because the offline Ubuntu host did not have `riscv64-unknown-elf-gcc` on the bootrom rebuild path. Build 68 still requires the OpenPiton bare-metal toolchain for `piton/design/chipset/rv64_platform/bootrom/linux/Makefile`; make `$HOME/scratch/riscv_install/bin/riscv64-unknown-elf-gcc` available, or export an equivalent `RISCV`/`PATH`, before rerunning the remote flow.
 
@@ -76,7 +76,7 @@ The Jammy embedded RISC-V GCC package still needs `picolibc-riscv64-unknown-elf`
 
 P3 Vivado project creation must also expose the repo's PyHP tool directory to Vivado Tcl. `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to `env(PATH)` before sourcing the common PyHP preprocessing flow, because `piton/tools/src/proto/common/pyhp_preprocess.tcl` still calls `exec pyhp.py` by tool name.
 
-The 2026-06-11 remote Build 68 run reached the first OOC synthesis run after BD output generation, but the offline Ubuntu host failed license checkout for `Synthesis` and/or device `xcvp1902`. Resolve the Vivado license environment before interpreting 8x8 resource feasibility; this run produced no 64-core synthesis utilization.
+The 2026-06-11 remote Build 68 run first reached the OOC synthesis license gate, then passed it after installing `/home/cs/.Xilinx/xilinx_ise_vivado.lic` and exporting `XILINXD_LICENSE_FILE`/`LM_LICENSE_FILE`. All four BD-owned ILA OOC synthesis runs completed with 0 errors and 0 critical warnings. The next blocker occurred before main `synth_1`: the remote archive was missing recursive Ariane submodules, so the self-contained XPR validation rejected live `$PPRDIR/../piton/...` include paths. Treat that as a packaging/source-snapshot failure, not a 64-core RTL/resource/timing result.
 
 ### P3 UART Smoke Tests
 
