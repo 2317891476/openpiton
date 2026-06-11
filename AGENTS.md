@@ -149,6 +149,49 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
 
 Transfer source archives or project snapshots into `/home/cs/openpiton` only when a real remote build is about to start. Keep passwords out of repository files and scripts; use interactive authentication or an external credential mechanism. Build artifacts (`bit`, `pdi`, `ltx`, reports, and logs) should be generated on offline Ubuntu, copied back through the same `scp -o ProxyJump=...` path, and then archived locally as needed.
 
+## P3 Build 68 64-Core OpenSBI/Linux Target
+
+Build 68 is the direct 8x8 / 64-core P3 Pro target. The goal is not only synthesis; the target milestone is a VP1902 board boot that reaches Linux with 64 harts online. Use the OpenSBI boot chain instead of the old BBL payload path.
+
+Hardware wrapper:
+- Build script: `scripts/p3_build68_8x8_opensbi_linux.tcl`
+- Bootrom rebuild: `scripts/p3_rebuild_build68_8x8_opensbi_linux.sh`
+- Tile config: `PITON_X_TILES=8`, `PITON_Y_TILES=8`, `PITON_NUM_TILES=64`
+- Vivado project: `huaprop3_build68_8x8_opensbi_linux`
+- Default work directory: `p3b68_8x8/`
+- Output basename: `p3_top_build68_8x8_opensbi_linux`
+
+Software/image path:
+- Package source: `riscv64-linux-64core-src-20260610.tar.gz`
+- Main script: `scripts/p3_prepare_64core_opensbi_image.sh`
+- DTB generator: `scripts/p3_generate_opensbi_dts.py`
+- SD bundle packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Output directory: `build/huaprop3/opensbi64/`
+
+The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-byte `P3OS`/`BI64` bundle header. The bootrom copies components by LBA to fixed DDR addresses, then all harts enter OpenSBI. Default addresses are:
+- OpenSBI `fw_jump.bin`: `0x80000000`
+- Linux `Image`: `0x80200000`
+- DTB: `0x88000000`
+- initramfs: `0x90000000`
+
+Use the prebuilt 64core package artifacts only for local image-structure smoke tests:
+
+```bash
+P3_64CORE_USE_PREBUILT=1 scripts/p3_prepare_64core_opensbi_image.sh
+```
+
+For the actual board candidate, rebuild OpenSBI/Linux on the offline Ubuntu host so `FW_JUMP_ADDR=0x80200000` and `FW_JUMP_FDT_ADDR=0x88000000` match the P3 bundle layout:
+
+```bash
+scripts/p3_remote_vivado_64core.sh
+ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
+  'cd /home/cs/openpiton && scripts/p3_prepare_64core_opensbi_image.sh'
+```
+
+`scripts/p3_remote_vivado_64core.sh` archives the tracked repository state with `git archive`, transfers it through `ProxyJump`, and also copies `riscv64-linux-64core-src-20260610.tar.gz` into `/home/cs/openpiton/`. If local Build 68 changes are not committed, they will not be included in that archive.
+
+The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
+
 ## P3 Build 66 Baseline
 
 Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.

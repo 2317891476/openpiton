@@ -2,11 +2,14 @@ UART_FREQ ?= 30000000
 MAX_HARTS ?= 1
 PITON_SIFIVE_UART ?= 0
 BOOTROM_MODE ?= normal
+P3_OPENSBI_FW_ADDR ?= 0x80000000
+P3_OPENSBI_DTB_ADDR ?= 0x88000000
 CROSSCOMPILE ?= riscv64-unknown-elf-
 CC = ${CROSSCOMPILE}gcc
 PYTHON=python3
+DTB_DEPS = rv64_platform.dtb
 
-CFLAGS = -DMAX_HARTS=$(MAX_HARTS) -DUART_FREQ=$(UART_FREQ) -Os -ggdb -march=rv64imac -mabi=lp64 -Wall -mcmodel=medany -mexplicit-relocs
+CFLAGS = -DMAX_HARTS=$(MAX_HARTS) -DUART_FREQ=$(UART_FREQ) -DP3_OPENSBI_FW_ADDR=$(P3_OPENSBI_FW_ADDR) -DP3_OPENSBI_DTB_ADDR=$(P3_OPENSBI_DTB_ADDR) -Os -ggdb -march=rv64imac -mabi=lp64 -Wall -mcmodel=medany -mexplicit-relocs
 ifeq ($(PITON_SIFIVE_UART),1)
 CFLAGS += -DPITON_SIFIVE_UART
 endif
@@ -30,6 +33,10 @@ SRCS_ASM = startup_asm_uart16550_sdprobe.S
 else ifeq ($(BOOTROM_MODE),sd_smoke)
 SRCS_C = src/main_sd_smoke.c src/uart.c
 SRCS_ASM = startup.S
+else ifeq ($(BOOTROM_MODE),opensbi_bundle)
+SRCS_C = src/main_opensbi_bundle.c src/uart.c src/spi.c src/sd.c
+SRCS_ASM = startup_opensbi_bundle.S
+DTB_DEPS =
 else
 SRCS_C = src/main.c src/uart.c src/spi.c src/sd.c src/gpt.c
 SRCS_ASM = startup.S
@@ -44,7 +51,7 @@ MAIN_SV = $(MAIN:.elf=.sv)
 
 #.PHONY: clean
 
-$(MAIN): rv64_platform.dtb $(OBJS_C) $(OBJS_S) linker.lds
+$(MAIN): $(DTB_DEPS) $(OBJS_C) $(OBJS_S) linker.lds
 	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) -Tlinker.lds $(OBJS_S) $(OBJS_C) -o $(MAIN)
 	@echo "LD    >= $(MAIN)"
 
@@ -75,7 +82,7 @@ rv64_platform.dts: FORCE
 	@echo "PYTHON >= $(MAIN_SV)"
 
 clean:
-	$(RM) $(OBJS_C) $(OBJS_S) src/main_sd_smoke.o startup_asm_uart.o startup_asm_uart16550.o startup_asm_uart16550_ddrprobe.o startup_asm_uart16550_sdprobe.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
+	$(RM) $(OBJS_C) $(OBJS_S) src/main_sd_smoke.o src/main_opensbi_bundle.o startup_opensbi_bundle.o startup_asm_uart.o startup_asm_uart16550.o startup_asm_uart16550_ddrprobe.o startup_asm_uart16550_sdprobe.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
 
 all: $(MAIN) $(MAIN_BIN) $(MAIN_IMG) $(MAIN_SV)
 	@echo "zero stage bootloader has been compiled!"

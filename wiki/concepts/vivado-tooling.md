@@ -55,6 +55,19 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
 
 Use `/home/cs/openpiton` as the standard remote workspace. Transfer source archives or self-contained project snapshots only when an actual remote build begins, run Vivado batch Tcl on Ubuntu, then retrieve generated `bit`, `pdi`, `ltx`, reports, and logs through the same `scp -o ProxyJump=...` path. Passwords must stay out of repository files and scripts.
 
+#### Build 68 8x8 OpenSBI/Linux Flow
+
+Build 68 is the direct 64-core P3 Pro target. It reuses the Build 66/67 self-contained Vivado flow but sets `PITON_X_TILES=8`, `PITON_Y_TILES=8`, and `PITON_NUM_TILES=64` in `scripts/p3_build68_8x8_opensbi_linux.tcl`. The bootrom rebuild script uses `BOOTROM_MODE=opensbi_bundle`, so the board no longer expects a BBL binary at the first GPT partition. Instead, hart 0 reads a small P3 OpenSBI bundle header from SD, copies OpenSBI, Linux, DTB, and initramfs into DDR, then releases all harts into OpenSBI.
+
+```bash
+vivado -mode batch -source scripts/p3_build68_8x8_opensbi_linux.tcl -tclargs -jobs 8
+scripts/p3_prepare_64core_opensbi_image.sh
+```
+
+The SD bundle uses these default DDR addresses: OpenSBI `0x80000000`, Linux `Image` `0x80200000`, DTB `0x88000000`, and initramfs `0x90000000`. The DTB must list `cpu@0` through `cpu@63`, CLINT and PLIC contexts for every hart, UART interrupt source 1, and `riscv,ndev = <2>`. `P3_64CORE_USE_PREBUILT=1` is only for local packaging smoke tests; final board images should rebuild OpenSBI/Linux so `FW_JUMP_ADDR` and `FW_JUMP_FDT_ADDR` match the P3 layout.
+
+Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends a `git archive` of `HEAD` and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:

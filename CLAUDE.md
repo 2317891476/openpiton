@@ -147,6 +147,25 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
 
 Transfer sources to `/home/cs/openpiton` only when starting a real remote build. Generate `bit` / `pdi` / `ltx` / reports / logs on offline Ubuntu, then retrieve artifacts with the same `scp -o ProxyJump=...` path. Do not store passwords in repository files or helper scripts.
 
+### P3 Build 68 64-Core OpenSBI/Linux
+
+The current P3 Pro direction is direct 8x8 / 64-core Linux boot on VP1902. Build 68 switches the 64-core path from BBL to an OpenSBI `fw_jump` bundle:
+
+```bash
+vivado -mode batch -source scripts/p3_build68_8x8_opensbi_linux.tcl -tclargs -jobs 8
+scripts/p3_prepare_64core_opensbi_image.sh
+```
+
+The hardware wrapper sets `PITON_X_TILES=8`, `PITON_Y_TILES=8`, and `PITON_NUM_TILES=64`, keeps self-contained source snapshots, and rebuilds the bootrom with `BOOTROM_MODE=opensbi_bundle`. The SD image is generated from `riscv64-linux-64core-src-20260610.tar.gz` and contains a 512-byte `P3OS`/`BI64` bundle header followed by OpenSBI, Linux `Image`, DTB, and initramfs payloads.
+
+Default DDR layout:
+- OpenSBI `fw_jump.bin`: `0x80000000`
+- Linux `Image`: `0x80200000`
+- DTB: `0x88000000`
+- initramfs: `0x90000000`
+
+`P3_64CORE_USE_PREBUILT=1 scripts/p3_prepare_64core_opensbi_image.sh` is only a local image-structure smoke test. The board candidate should rebuild OpenSBI/Linux on offline Ubuntu so `FW_JUMP_ADDR=0x80200000` and `FW_JUMP_FDT_ADDR=0x88000000` are correct for P3.
+
 ### Key Board Files
 
 | File | Purpose |

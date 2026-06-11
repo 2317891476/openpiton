@@ -17,7 +17,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | Build 67 `2x1` PDI/LTX programmed; SBI trace image proves bootrom/SPI-SD/DDR/BBL/`mret`, Linux early console, 2-hart SMP, post-RPC initcall progress, 8250 console registration, and `/bin/sh` launch; next image regenerates the DTB with PLIC `riscv,ndev=<2>` and low-noise `keep_bootcon`/`initcall_debug`; interactive shell/XSBench validation remains open |
+| Current scaling candidate | Build 68 8x8 / 64-core OpenSBI/Linux path created; wrapper, OpenSBI bundle bootrom mode, 64-hart DTB generator, and SD bundle packer are in place. Build 67 remains the latest programmed multicore hardware result and exposes the unresolved 2-hart SMP forward-progress risk. |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
@@ -63,5 +63,5 @@ Entries in `devlog/` are organized by month, newest first, append-only.
 | P0 | Single core | Linux shell, SD ext2 mount, and XSBench smoke launch verified on P3 |
 | P1 | 2x2 (4 cores) | Multi-core coherence validated |
 | P2 | 4x4 (16 cores) | Speedup measurement baseline |
-| P3 | 8x8 (64 cores) | Large-FPGA or multi-FPGA prototype |
+| P3 | 8x8 (64 cores) | P3 Pro / VP1902 board boots Linux with 64 CPUs online |
 | P4 | 32x32 (1024 cores) | Kilo-core target, final speedup measurement |
