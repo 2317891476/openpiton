@@ -84,6 +84,8 @@ That same 2026-06-12 `synth_1` run failed during RTL elaboration before resource
 
 The fix is to make the Ariane submodule state part of the committed remote input, not to edit generated `.tmp` files. The missing `p3_ariane_debug_bus` port was committed in the CVA6/Ariane submodule as `bf55dcba`, and the OpenPiton superproject gitlink must point at that commit for remote Build 68 runs. `scripts/p3_remote_vivado_64core.sh` now rejects recursive submodules with staged or unstaged tracked changes before creating the archive, because it packs submodule `HEAD` contents and dirty submodule edits would otherwise be silently omitted.
 
+The next Build 68 rerun cleared the Ariane debug-port error and failed later in `riscv_peripherals`: Vivado reported `Synth 8-439 module 'bootrom' not found` at `riscv_peripherals.sv:381`. Treat this as a bootrom source/filelist/snapshot problem before synthesis resource reporting. The debug path to inspect is the generated Build 68 bootrom source, its module name, and whether `scripts/p3_create_bd.tcl` copies and adds that generated file into the self-contained Vivado project.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
