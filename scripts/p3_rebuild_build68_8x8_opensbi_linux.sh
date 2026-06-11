@@ -41,7 +41,7 @@ make clean
 rm -f bootrom.bin bootrom.elf bootrom.h
 make all
 
-if ! grep -qE '^module[[:space:]]+bootrom([[:space:]]|\\(|#)' bootrom.sv; then
+if ! awk -v module_name="bootrom" '$1 == "module" && $2 == module_name { found = 1 } END { exit found ? 0 : 1 }' bootrom.sv; then
     echo "ERROR: Build 68 baremetal bootrom.sv does not define module bootrom" >&2
     exit 1
 fi
@@ -83,7 +83,7 @@ if riscv64-unknown-elf-nm bootrom_linux.elf | grep -qE ' gpt_find_boot_partition
     echo "ERROR: Build 68 bootrom linked an unexpected BBL or assembly UART-only path" >&2
     exit 1
 fi
-if ! grep -qE '^module[[:space:]]+bootrom_linux([[:space:]]|\\(|#)' bootrom_linux.sv; then
+if ! awk -v module_name="bootrom_linux" '$1 == "module" && $2 == module_name { found = 1 } END { exit found ? 0 : 1 }' bootrom_linux.sv; then
     echo "ERROR: Build 68 bootrom_linux.sv does not define module bootrom_linux" >&2
     exit 1
 fi
