@@ -190,6 +190,8 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
 
 `scripts/p3_remote_vivado_64core.sh` archives the tracked repository state and the currently checked-out submodule contents, transfers that archive through `ProxyJump`, and also copies `riscv64-linux-64core-src-20260610.tar.gz` into `/home/cs/openpiton/`. If local Build 68 changes are not committed, they will not be included in that archive.
 
+Remote Ubuntu toolchain state as of 2026-06-11: the offline host has Jammy packages `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1` installed. Build 68 failed before synthesis when these were missing, because the bootrom Makefile requires `riscv64-unknown-elf-gcc`. If the host is reverted, reinstall those packages before rerunning `scripts/p3_remote_vivado_64core.sh`.
+
 The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 
 ## P3 Build 66 Baseline

@@ -70,6 +70,8 @@ Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 sour
 
 The 2026-06-11 first remote Build 68 run reached Vivado 2024.2.2, but stopped before project creation or synthesis because the offline Ubuntu host did not have `riscv64-unknown-elf-gcc` on the bootrom rebuild path. Build 68 still requires the OpenPiton bare-metal toolchain for `piton/design/chipset/rv64_platform/bootrom/linux/Makefile`; make `$HOME/scratch/riscv_install/bin/riscv64-unknown-elf-gcc` available, or export an equivalent `RISCV`/`PATH`, before rerunning the remote flow.
 
+That specific blocker was cleared later on 2026-06-11 by installing Jammy packages on the offline Ubuntu host: `gcc-riscv64-unknown-elf` 10.2.0, `binutils-riscv64-unknown-elf` 2.35.1, `device-tree-compiler` 1.6.1, and `libfdt1`. If the host is rebuilt or reverted, restore those packages before starting Build 68.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
