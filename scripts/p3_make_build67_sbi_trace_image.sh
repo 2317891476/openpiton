@@ -157,7 +157,14 @@ volatile uintptr_t b67s_mtimer_irq_count[MAX_HARTS][8] __attribute__((aligned(64
 volatile uintptr_t b67s_msoft_irq_count[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67s_clear_ipi_count[MAX_HARTS][8] __attribute__((aligned(64)));
 volatile uintptr_t b67s_soft_sent_count[MAX_HARTS][MAX_HARTS];
-static uint32_t b67s_ipi_count[16];
+volatile uintptr_t b67c_mtimer_mtie_zero_count[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mie_before[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mie_after[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mip[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mcause[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mepc[MAX_HARTS][8] __attribute__((aligned(64)));
+volatile uintptr_t b67c_mtimer_mstatus[MAX_HARTS][8] __attribute__((aligned(64)));
+static uint32_t b67s_ipi_count[MAX_HARTS][16] __attribute__((aligned(64)));
 
 static int b67s_should_trace(uint32_t *count)
 {
@@ -233,6 +240,12 @@ static uintptr_t mcall_set_timer(uint64_t when)
              b67s_clear_ipi_count[0][0], b67s_clear_ipi_count[1][0],
              b67s_soft_sent_count[0][1], b67s_soft_sent_count[1][0],
              read_csr(mip), read_csr(mie));
+    if (hart == 0)
+      printm("B67C mt1z=%ld mie1b=0x%lx mie1a=0x%lx mip1=0x%lx cause1=0x%lx epc1=%p status1=0x%lx\r\n",
+             b67c_mtimer_mtie_zero_count[1][0],
+             b67c_mtimer_mie_before[1][0], b67c_mtimer_mie_after[1][0],
+             b67c_mtimer_mip[1][0], b67c_mtimer_mcause[1][0],
+             (void*)b67c_mtimer_mepc[1][0], b67c_mtimer_mstatus[1][0]);
   }
   *HLS()->timecmp = when;
   clear_csr(mip, MIP_STIP);
@@ -280,10 +293,9 @@ static void send_ipi_many(uintptr_t* pmask, int event)
     mask &= load_uintptr_t(pmask, read_csr(mepc));
 
   uintptr_t current_hart = read_csr(mhartid);
+  uintptr_t trace_hart = current_hart < MAX_HARTS ? current_hart : 0;
   uint32_t event_idx = event < 16 ? event : 0;
-  int trace_this = event != IPI_SOFT || b67s_should_trace(&b67s_ipi_count[event_idx]);
-  if (event != IPI_SOFT)
-    b67s_ipi_count[event_idx]++;
+  int trace_this = b67s_should_trace(&b67s_ipi_count[trace_hart][event_idx]);
 
   if (trace_this)
     printm("B67S ipi_enter hart=%ld event=%d mask=0x%lx pmask=%p mepc=%p\r\n",
@@ -347,9 +359,63 @@ OLD
   addi a1, a1, 1
   sd a1, 0(a0)
 
-  # Clear MTIE and raise STIP.
+  # Record the incoming timer-trap state.
+  la a0, b67c_mtimer_mie_before
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mie
+  sd a1, 0(a0)
+  andi a1, a1, MIP_MTIP
+  bnez a1, 2f
+
+  la a0, b67c_mtimer_mtie_zero_count
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  ld a1, 0(a0)
+  addi a1, a1, 1
+  sd a1, 0(a0)
+2:
+  la a0, b67c_mtimer_mip
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mip
+  sd a1, 0(a0)
+
+  la a0, b67c_mtimer_mcause
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mcause
+  sd a1, 0(a0)
+
+  la a0, b67c_mtimer_mepc
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mepc
+  sd a1, 0(a0)
+
+  la a0, b67c_mtimer_mstatus
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mstatus
+  sd a1, 0(a0)
+
+  # Clear MTIE and record the post-clear value before raising STIP.
   li a0, MIP_MTIP
   csrc mie, a0
+
+  la a0, b67c_mtimer_mie_after
+  csrr a1, mhartid
+  slli a1, a1, 6
+  add a0, a0, a1
+  csrr a1, mie
+  sd a1, 0(a0)
+
   li a0, MIP_STIP
   csrs mip, a0
 NEW

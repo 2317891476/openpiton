@@ -268,6 +268,8 @@ The 2026-06-11 hardware run found that break. Linux completed SMP bring-up and l
 
 The stronger timer evidence is that hart1's `set1` counter stops at 5266 while `mt1` continues from 6144 to at least 38912. The MTIP counter is incremented only after BBL `mentry.S` decodes `mcause` as `IRQ_M_TIMER`; the next instructions clear `mie.MTIE` and raise `mip.STIP`. Without a later hart1 `SBI_SET_TIMER`, MTIE should remain disabled, so a second MTIP entry should not occur. Treat this as a precise RTL/CSR boundary, not yet as a final named bug: record incoming and post-clear `mie`, `mip`, `mcause`, `mepc`, and `mstatus`, and count MTIP entries observed with incoming `mie.MTIE=0`. If that counter advances, inspect CVA6 interrupt qualification and per-hart CSR state. If incoming MTIE remains set despite the preceding `csrc`, inspect CSR write/restore behavior. If the cause is not actually machine timer in the stored raw CSR, inspect interrupt cause encoding and tile1 interrupt routing.
 
+Use `scripts/p3_make_build67_mtip_state_trace_image.sh` for that split. Its `B67C` line reports hart1's count of MTIP entries with incoming MTIE clear, incoming and post-clear `mie`, plus the last `mip`, `mcause`, `mepc`, and `mstatus`. The SBI fence/IPI text is throttled per hart to the first eight events and every 1024th event so the observation path does not dominate the single UART. A nonzero and increasing `mt1z` is direct evidence that the core accepts a machine-timer trap while its local enable is clear; `mie1a` retaining bit 7 instead points to the MTIE CSR clear not taking effect; `cause1` differing from interrupt cause 7 points to decode or instrumentation error.
+
 #### 1.4 ODDR Primitive
 
 **ODDR (7-series) and ODDRE1 (UltraScale+) do not exist on Versal.**
