@@ -17,7 +17,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | Build 68 8x8 / 64-core OpenSBI/Linux path created; wrapper, OpenSBI bundle bootrom mode, 64-hart DTB generator, and SD bundle packer are in place. Build 67 remains the latest programmed multicore hardware result and exposes the unresolved 2-hart SMP forward-progress risk. |
+| Current scaling candidate | Build 68 8x8 / 64-core OpenSBI/Linux completed main `synth_1` on VP1902 and entered `impl_1`; placement, routing, timing, PDI generation, and board boot remain pending. Build 67 remains the latest programmed multicore hardware result and exposes the unresolved 2-hart SMP forward-progress risk. |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
