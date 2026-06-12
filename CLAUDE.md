@@ -186,6 +186,8 @@ P3_REMOTE_SCRIPT=scripts/p3_build69_8x8_opensbi_diag.tcl scripts/p3_remote_vivad
 
 Capture and decode with `scripts/p3_ila_capture_build69_8x8_opensbi_diag.tcl` and `scripts/p3_decode_build69_ila_csv.py`. Do not classify UART 0 bytes as a bootrom failure until the programming run reports `DONE bit: HIGH`; a Vivado stall inside `program_hw_devices` is a programming/XVC gate.
 
+If a completed Build 69 programming run reports `DONE bit: HIGH` and UART still prints nothing, immediately move to a new remote diagnostic PDI instead of repeating the same artifact. The next PDI must isolate the path in order: no-stack UART marker and UART16550 AXI/TX activity, DDR probe, SPI-SD/GPT/`P3OS` bundle reads, and only then core release/OpenSBI/Linux. Capture Build 69 ILAs first when the LTX/debug hub are usable, so the new PDI is based on observed layer failure rather than speculation.
+
 ### Key Board Files
 
 | File | Purpose |

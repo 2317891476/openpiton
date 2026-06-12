@@ -114,6 +114,8 @@ Build 69 expected UART order:
 
 Use this discriminator literally: no `B69 ASM` after a confirmed `DONE bit: HIGH` points below the C bootrom, such as UART/reset/bootrom fetch/core start. `B69 ASM` without the C banner points at stack/DDR/early C entry. A DDR failure line points at the DDR path. GPT/header/copy failures point at SD image or SPI-SD block-read behavior. Reaching the OpenSBI handoff line moves debug to core release, OpenSBI, CLINT/PLIC, timer/IPI, cache/coherence, or Linux SMP.
 
+Board-test escalation rule: a 0-byte UART log is actionable only after the PDI programming command returns successfully and prints `DONE bit: HIGH`. If that condition is met and Build 69 still prints nothing, do not keep rerunning the same image. First capture the Build 69 ILAs if the LTX/debug hub are available, then build the next remote diagnostic PDI with the chain split in this order: UART no-stack marker and UART16550 AXI/TX activity, DDR write/read/fence probe, SPI-SD/GPT/`P3OS` bundle reads, then core release/OpenSBI handoff. This keeps the investigation ordered from the externally visible serial path inward to DDR, SD, and finally multicore execution.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:
