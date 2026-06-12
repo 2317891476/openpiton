@@ -150,7 +150,43 @@ grep -q "cpu@$((harts - 1))" "$out_dir/p3_opensbi_${harts}hart.roundtrip.dts"
 grep -q "riscv,ndev = <0x02>" "$out_dir/p3_opensbi_${harts}hart.roundtrip.dts"
 
 echo "[4/5] Selecting initramfs"
-initrd="${P3_64CORE_INITRD:-$pkg_dir/artifacts/rootfs_exp_min.cpio.gz}"
+if [[ -n "${P3_64CORE_INITRD:-}" ]]; then
+    initrd="$P3_64CORE_INITRD"
+else
+    rootfs_src="$pkg_dir/rootfs/static_rootfs"
+    require_file "$rootfs_src/bin/busybox"
+    rootfs_tmp="$(mktemp -d "$work_dir/p3_rootfs_64hart.XXXXXX")"
+    cleanup_rootfs() {
+        rm -rf "$rootfs_tmp"
+    }
+    trap cleanup_rootfs EXIT
+    cp -a "$rootfs_src/." "$rootfs_tmp/"
+    cat > "$rootfs_tmp/init" <<'EOF'
+#!/bin/busybox sh
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mkdir -p /tmp /root /dev/shm
+mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
+
+echo "=== P3_64CORE_INIT_START ==="
+echo "nproc=$(/bin/nproc)"
+echo "cpuinfo_processors=$(grep -c '^processor' /proc/cpuinfo)"
+echo "=== P3_64CORE_SHELL_READY ==="
+
+exec /bin/sh
+EOF
+    chmod 0755 "$rootfs_tmp/init"
+    initrd="$out_dir/p3_rootfs_64hart.cpio.gz"
+    (
+        cd "$rootfs_tmp"
+        find . -print0 | LC_ALL=C sort -z | \
+            cpio --null --quiet -o --format=newc
+    ) | gzip -9n > "$initrd"
+    cleanup_rootfs
+    trap - EXIT
+fi
 require_file "$initrd"
 
 echo "[5/5] Creating SD bundle image"
