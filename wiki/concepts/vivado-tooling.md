@@ -116,7 +116,7 @@ Use this discriminator literally: no `B69 ASM` after a confirmed `DONE bit: HIGH
 
 Board-test escalation rule: a 0-byte UART log is actionable only after the PDI programming command returns successfully and prints `DONE bit: HIGH`. If that condition is met and Build 69 still prints nothing, do not keep rerunning the same image. First capture the Build 69 ILAs if the LTX/debug hub are available, then build the next remote diagnostic PDI with the chain split in this order: UART no-stack marker and UART16550 AXI/TX activity, DDR write/read/fence probe, SPI-SD/GPT/`P3OS` bundle reads, then core release/OpenSBI handoff. This keeps the investigation ordered from the externally visible serial path inward to DDR, SD, and finally multicore execution.
 
-Remote synthesis checkpoint: on 2026-06-13, Build 69's main `synth_design` on the offline Ubuntu host completed with 0 errors and 0 critical warnings. The reported design size was 8,009,722 and the raw cell-usage snapshot included 1,153 DSP groups, 4,805 `RAMB36E5_INT`, 64 `RAMB18E5_INT`, and 128 `URAM288E5`. This is only the synthesis gate; the run still needed to finish post-synthesis netlist translation, implementation, route, PDI/LTX generation, and board testing.
+Remote synthesis checkpoint: on 2026-06-13, Build 69's main `synth_1` on the offline Ubuntu host completed with 0 errors and 0 critical warnings, wrote `p3_top.dcp`, and generated `p3_top_utilization_synth.rpt`. The formal synthesized utilization was 4,424,784 CLB LUTs, 2,553,637 registers, 4,837 block RAM tiles, 128 URAMs, and 1,153 DSP slices. `impl_1` launched after synthesis; route, PDI/LTX generation, and board testing remain separate gates.
 
 ### P3 UART Smoke Tests
 
