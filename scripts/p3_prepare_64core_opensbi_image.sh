@@ -7,6 +7,7 @@ pkg_archive="${P3_64CORE_ARCHIVE:-$repo_dir/riscv64-linux-64core-src-20260610.ta
 work_dir="${P3_64CORE_WORK_DIR:-$repo_dir/build/p3_64core}"
 pkg_dir="$work_dir/riscv64-linux-64core-src-20260610"
 out_dir="$repo_dir/build/huaprop3/opensbi64"
+linux_vmlinux_lds_fallback="$repo_dir/scripts/p3_linux_v6.6_riscv_vmlinux.lds.S"
 
 harts="${P3_64CORE_HARTS:-64}"
 jobs="${JOBS:-$(nproc)}"
@@ -57,6 +58,17 @@ if [[ ! -d "$pkg_dir" ]]; then
     tar -xzf "$pkg_archive" -C "$work_dir"
 fi
 
+require_file "$pkg_dir/opensbi/Makefile"
+require_file "$pkg_dir/linux/Makefile"
+require_file "$pkg_dir/configs/linux.config.64core"
+
+linux_vmlinux_lds="$pkg_dir/linux/arch/riscv/kernel/vmlinux.lds.S"
+if [[ ! -f "$linux_vmlinux_lds" ]]; then
+    require_file "$linux_vmlinux_lds_fallback"
+    echo "Restoring Linux v6.6 RISC-V linker script omitted from the source archive"
+    cp "$linux_vmlinux_lds_fallback" "$linux_vmlinux_lds"
+fi
+
 if [[ "$use_prebuilt" == "1" ]]; then
     echo "[1/5] Using prebuilt 64core OpenSBI/Linux artifacts"
     fw_elf="$pkg_dir/artifacts/fw_jump.batch-tested.elf"
@@ -83,9 +95,12 @@ require_file "$fw_elf"
 if [[ "$use_prebuilt" != "1" ]]; then
     echo "[2/5] Building Linux Image NR_CPUS=$harts"
     cp "$pkg_dir/configs/linux.config.64core" "$pkg_dir/linux/.config"
-    "$pkg_dir/linux/scripts/config" --set-val CONFIG_NR_CPUS "$harts"
-    "$pkg_dir/linux/scripts/config" --enable CONFIG_SMP
-    "$pkg_dir/linux/scripts/config" --enable CONFIG_RISCV_SBI
+    "$pkg_dir/linux/scripts/config" --file "$pkg_dir/linux/.config" \
+        --set-val CONFIG_NR_CPUS "$harts"
+    "$pkg_dir/linux/scripts/config" --file "$pkg_dir/linux/.config" \
+        --enable CONFIG_SMP
+    "$pkg_dir/linux/scripts/config" --file "$pkg_dir/linux/.config" \
+        --enable CONFIG_RISCV_SBI
     PATH=/usr/bin:/bin:$PATH make -C "$pkg_dir/linux" \
         ARCH=riscv \
         CROSS_COMPILE="$cross" \

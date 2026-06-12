@@ -943,3 +943,9 @@ Build 65 hardware passed this discriminator. The PDI generated from `D:/p3b65` p
 
 - Multihart firmware diagnostics must not print from both harts inside `SBI_SET_TIMER` before rearming the timer. BBL's `printm()` polls and writes the shared 16550 without serialization; simultaneous timer-boundary traces visibly interleave bytes and can perturb forward progress. Complete `mtimecmp`/STIP/MTIE updates first, keep hart0 as the sole firmware UART writer, and save full trap state only when an anomaly predicate fires.
 - riscv-pk's tiny `snprintf` is not libc. It supports `%p`, `%x`, `%d`, `%s`, and `%c`; it does not support `%u`. Firmware trace strings must cast unsigned counters to `long` and print them with `%ld`, otherwise varargs consumption falls out of sync and the UART log itself becomes corrupted.
+
+## 14. Build 68 Software Image Rebuild Boundary
+
+Build 68 separates FPGA and software work by tool dependency. VP1902 synthesis, placement, routing, and PDI/LTX generation run on the offline Ubuntu Vivado host. OpenSBI, Linux, DTB, initramfs, and SD bundle generation run locally when the local machine has a working `riscv64-linux-gnu-` toolchain; this avoids coupling a software-only rebuild to the remote Vivado host or its older bare-metal linker.
+
+The supplied `riscv64-linux-64core-src-20260610.tar.gz` omits Linux 6.6 `arch/riscv/kernel/vmlinux.lds.S`. `scripts/p3_prepare_64core_opensbi_image.sh` restores the exact upstream v6.6 file from `scripts/p3_linux_v6.6_riscv_vmlinux.lds.S`, whose recorded SHA256 is `c49cb1ad6e4e026f55e4b27300ff025f33d5b21f75d056970eb0768462bb4a2a`. The script also validates the extracted OpenSBI, Linux, and config inputs before building, and passes `--file` to Linux `scripts/config` so `CONFIG_NR_CPUS=64`, `CONFIG_SMP=y`, and `CONFIG_RISCV_SBI=y` are applied to the kernel tree rather than an accidental repository-root `.config`.
