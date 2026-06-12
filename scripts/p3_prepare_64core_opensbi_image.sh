@@ -7,7 +7,8 @@ pkg_archive="${P3_64CORE_ARCHIVE:-$repo_dir/riscv64-linux-64core-src-20260610.ta
 work_dir="${P3_64CORE_WORK_DIR:-$repo_dir/build/p3_64core}"
 pkg_dir="$work_dir/riscv64-linux-64core-src-20260610"
 out_dir="$repo_dir/build/huaprop3/opensbi64"
-linux_vmlinux_lds_fallback="$repo_dir/scripts/p3_linux_v6.6_riscv_vmlinux.lds.S"
+linux_base_archive="${P3_64CORE_LINUX_BASE_ARCHIVE:-$work_dir/linux-6.6.tar.xz}"
+linux_base_sha256="d926a06c63dd8ac7df3f86ee1ffc2ce2a3b81a2d168484e76b5b389aba8e56d0"
 
 harts="${P3_64CORE_HARTS:-64}"
 jobs="${JOBS:-$(nproc)}"
@@ -62,12 +63,32 @@ require_file "$pkg_dir/opensbi/Makefile"
 require_file "$pkg_dir/linux/Makefile"
 require_file "$pkg_dir/configs/linux.config.64core"
 
-linux_vmlinux_lds="$pkg_dir/linux/arch/riscv/kernel/vmlinux.lds.S"
-if [[ ! -f "$linux_vmlinux_lds" ]]; then
-    require_file "$linux_vmlinux_lds_fallback"
-    echo "Restoring Linux v6.6 RISC-V linker script omitted from the source archive"
-    cp "$linux_vmlinux_lds_fallback" "$linux_vmlinux_lds"
+linux_required_files=(
+    "$pkg_dir/linux/arch/riscv/kernel/vmlinux.lds.S"
+    "$pkg_dir/linux/include/asm-generic/vmlinux.lds.h"
+)
+linux_tree_incomplete=0
+for path in "${linux_required_files[@]}"; do
+    if [[ ! -f "$path" ]]; then
+        linux_tree_incomplete=1
+    fi
+done
+if [[ "$linux_tree_incomplete" == "1" ]]; then
+    require_file "$linux_base_archive"
+    actual_linux_base_sha256="$(sha256sum "$linux_base_archive" | awk '{print $1}')"
+    if [[ "$actual_linux_base_sha256" != "$linux_base_sha256" ]]; then
+        echo "ERROR: Linux v6.6 base archive hash mismatch: $actual_linux_base_sha256" >&2
+        exit 1
+    fi
+    echo "Restoring files omitted from the packaged Linux tree"
+    tar -xJf "$linux_base_archive" \
+        --strip-components=1 \
+        --skip-old-files \
+        -C "$pkg_dir/linux"
 fi
+for path in "${linux_required_files[@]}"; do
+    require_file "$path"
+done
 
 if [[ "$use_prebuilt" == "1" ]]; then
     echo "[1/5] Using prebuilt 64core OpenSBI/Linux artifacts"
