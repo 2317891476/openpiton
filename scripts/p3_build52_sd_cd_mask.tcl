@@ -80,7 +80,11 @@ if {[info exists env(P3_SELF_CONTAINED_SOURCES)] && $env(P3_SELF_CONTAINED_SOURC
 set run_create 1
 set run_prepare 1
 set reuse_synth 0
-set jobs 1
+if {[info exists env(P3_BUILD52_DEFAULT_JOBS)] && $env(P3_BUILD52_DEFAULT_JOBS) ne ""} {
+    set jobs $env(P3_BUILD52_DEFAULT_JOBS)
+} else {
+    set jobs 1
+}
 
 for {set i 0} {$i < [llength $argv]} {incr i} {
     set arg [lindex $argv $i]
@@ -107,6 +111,10 @@ for {set i 0} {$i < [llength $argv]} {incr i} {
             exit 1
         }
     }
+}
+if {![string is integer -strict $jobs] || $jobs < 1} {
+    puts "ERROR: -jobs must be a positive integer, got '$jobs'"
+    exit 1
 }
 
 proc p3_runmgr_check_status {run_name phase} {
@@ -220,6 +228,23 @@ proc p3_seed_build52_impl_caches {project_dir project_name repo_dir} {
         if {[catch {get_param $param} old_value] == 0} {
             puts "Build 52 setting ${param} from ${old_value} to 1 for implementation child IP generation."
             catch {set_param $param 1}
+        }
+    }
+}
+
+proc p3_set_vivado_thread_params {threads phase} {
+    foreach param [list general.maxThreads synth.maxThreads] {
+        if {[catch {get_param $param} old_value] == 0} {
+            if {$old_value ne $threads} {
+                puts "Setting ${param} from ${old_value} to ${threads} for ${phase}."
+            } else {
+                puts "${param} already ${threads} for ${phase}."
+            }
+            if {[catch {set_param $param $threads} err]} {
+                puts "WARNING: failed to set ${param}=${threads}: $err"
+            }
+        } else {
+            puts "WARNING: Vivado parameter ${param} is unavailable; cannot set it to ${threads}"
         }
     }
 }
@@ -637,6 +662,8 @@ if {$reuse_synth && $run_prepare} {
     puts "ERROR: -reuse_synth requires -skip_prepare because prepare regenerates synth_1 scripts and resets the run."
     exit 1
 }
+
+p3_set_vivado_thread_params $jobs "top synthesis and place/route"
 
 if {$reuse_synth} {
     set synth_progress [get_property PROGRESS [get_runs $synth_run]]

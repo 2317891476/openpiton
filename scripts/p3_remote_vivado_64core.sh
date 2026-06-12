@@ -10,7 +10,12 @@ vivado_bin="${P3_OFFLINE_VIVADO:-/media/d1/Xilinx/Vivado/2024.2/bin/vivado}"
 remote_archive="${P3_REMOTE_ARCHIVE:-/tmp/openpiton-p3-64core-src.tar.gz}"
 remote_script="${P3_REMOTE_SCRIPT:-scripts/p3_build68_8x8_opensbi_linux.tcl}"
 core_archive="${P3_64CORE_ARCHIVE:-$repo_dir/riscv64-linux-64core-src-20260610.tar.gz}"
-jobs="${JOBS:-8}"
+jobs="${JOBS:-16}"
+
+if ! [[ "$jobs" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: JOBS must be a positive integer, got '$jobs'" >&2
+    exit 1
+fi
 
 archive="$repo_dir/build/p3_64core/openpiton-p3-64core-src.tar.gz"
 pack_dir="$repo_dir/build/p3_64core/archive_root"

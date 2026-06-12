@@ -152,7 +152,7 @@ Transfer sources to `/home/cs/openpiton` only when starting a real remote build.
 The current P3 Pro direction is direct 8x8 / 64-core Linux boot on VP1902. Build 68 switches the 64-core path from BBL to an OpenSBI `fw_jump` bundle:
 
 ```bash
-vivado -mode batch -source scripts/p3_build68_8x8_opensbi_linux.tcl -tclargs -jobs 8
+vivado -mode batch -source scripts/p3_build68_8x8_opensbi_linux.tcl -tclargs -jobs 16
 scripts/p3_prepare_64core_opensbi_image.sh
 ```
 
@@ -175,6 +175,8 @@ For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown
 `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to Vivado Tcl `env(PATH)` so the common PyHP preprocessing helper can execute `pyhp.py` by name on the offline Ubuntu host.
 
 `scripts/p3_remote_vivado_64core.sh` archives the committed top-level repository state plus committed recursive submodule HEAD contents. It intentionally does not package dirty tracked submodule changes; it now fails before packing if any recursive submodule has staged or unstaged tracked diffs. Commit and push submodule RTL fixes, then update the superproject gitlink, before launching a remote Build 68 run.
+
+Build 68 remote runs default to `JOBS=16`; use `JOBS=<N> scripts/p3_remote_vivado_64core.sh` only when deliberately comparing runtime or stability. The 2026-06-12 active run used `-jobs 8`, and Vivado reported up to 7 synthesis processes and up to 8 CPUs for place/route. The offline Ubuntu host has 384 logical CPUs and 1.5 TiB RAM, so 16 is the conservative next default. The shared Build 52 wrapper sets `general.maxThreads` and `synth.maxThreads` before top synthesis/place/route, then keeps the generated child-IP synthesis serialization workaround after top synthesis.
 
 ### Key Board Files
 

@@ -60,13 +60,15 @@ Use `/home/cs/openpiton` as the standard remote workspace. Transfer source archi
 Build 68 is the direct 64-core P3 Pro target. It reuses the Build 66/67 self-contained Vivado flow but sets `PITON_X_TILES=8`, `PITON_Y_TILES=8`, and `PITON_NUM_TILES=64` in `scripts/p3_build68_8x8_opensbi_linux.tcl`. The bootrom rebuild script uses `BOOTROM_MODE=opensbi_bundle`, so the board no longer expects a BBL binary at the first GPT partition. Instead, hart 0 reads a small P3 OpenSBI bundle header from SD, copies OpenSBI, Linux, DTB, and initramfs into DDR, then releases all harts into OpenSBI.
 
 ```bash
-vivado -mode batch -source scripts/p3_build68_8x8_opensbi_linux.tcl -tclargs -jobs 8
+vivado -mode batch -source scripts/p3_build68_8x8_opensbi_linux.tcl -tclargs -jobs 16
 scripts/p3_prepare_64core_opensbi_image.sh
 ```
 
 The SD bundle uses these default DDR addresses: OpenSBI `0x80000000`, Linux `Image` `0x80200000`, DTB `0x88000000`, and initramfs `0x90000000`. The DTB must list `cpu@0` through `cpu@63`, CLINT and PLIC contexts for every hart, UART interrupt source 1, and `riscv,ndev = <2>`. `P3_64CORE_USE_PREBUILT=1` is only for local packaging smoke tests; final board images should rebuild OpenSBI/Linux so `FW_JUMP_ADDR` and `FW_JUMP_FDT_ADDR` match the P3 layout.
 
 Use `scripts/p3_remote_vivado_64core.sh` only after committing the Build 68 source changes: it sends an archive of `HEAD` plus the currently checked-out recursive submodule contents, and separately copies `riscv64-linux-64core-src-20260610.tar.gz` to `/home/cs/openpiton/` on the offline Ubuntu host. The recursive submodule rule is mandatory because Ariane include directories such as `common/submodules/common_cells/include` and `corev_apu/register_interface/include` must be copied into `<workdir>/source_snapshot/` and then referenced by Vivado `include_dirs`; a live `$PPRDIR/../piton/...` include path in the XPR is a build-flow failure.
+
+Build 68 remote runs default to `JOBS=16` after the 2026-06-12 route result. The earlier active run used `-jobs 8`; Vivado reported main synthesis using up to 7 processes and place/route using up to 8 CPUs. The offline Ubuntu host has 384 logical CPUs and 1.5 TiB RAM, while the 8x8 run peaked below 100 GiB in synthesis/place/route, so a 16-job default is a conservative next setting. Override with `JOBS=<N> scripts/p3_remote_vivado_64core.sh` when running a controlled experiment. The shared Build 52 wrapper also sets `general.maxThreads` and `synth.maxThreads` to the chosen job count before top synthesis and place/route; its implementation child-IP cache workaround still serializes generated child-IP synthesis after the top synthesis stage.
 
 The 2026-06-11 first remote Build 68 run reached Vivado 2024.2.2, but stopped before project creation or synthesis because the offline Ubuntu host did not have `riscv64-unknown-elf-gcc` on the bootrom rebuild path. Build 68 still requires the OpenPiton bare-metal toolchain for `piton/design/chipset/rv64_platform/bootrom/linux/Makefile`; make `$HOME/scratch/riscv_install/bin/riscv64-unknown-elf-gcc` available, or export an equivalent `RISCV`/`PATH`, before rerunning the remote flow.
 
