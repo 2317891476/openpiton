@@ -178,6 +178,14 @@ For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown
 
 Build 68 remote runs default to `JOBS=32`; use `JOBS=<N> scripts/p3_remote_vivado_64core.sh` only when deliberately comparing runtime or stability. The 2026-06-12 active run used `-jobs 8`, and Vivado reported up to 7 synthesis processes and up to 8 CPUs for place/route. The offline Ubuntu host has 384 logical CPUs, 192 physical cores, and 1.5 TiB RAM. Do not use 64+ as the default until scaling evidence is collected and file-descriptor pressure is checked (`ulimit -n` was 1024). The shared Build 52 wrapper sets `general.maxThreads` and `synth.maxThreads` before top synthesis/place/route, then keeps the generated child-IP synthesis serialization workaround after top synthesis. During long remote Vivado runs, monitor progress at roughly 15-minute intervals unless the user asks for a different cadence.
 
+Build 69 is the 8x8 / 64-core diagnostic PDI path for the same OpenSBI target. It keeps the Build 68 hardware and bundle addresses, but rebuilds the bootrom with `BOOTROM_MODE=opensbi_bundle_diag`. The diagnostic order is `B69 ASM` from no-stack startup, C banner, DDR probe at `0x84001000`, SD init, GPT and `P3OS`/`BI64` header reads, per-component DDR copies, then hart release and OpenSBI jump. Use:
+
+```bash
+P3_REMOTE_SCRIPT=scripts/p3_build69_8x8_opensbi_diag.tcl scripts/p3_remote_vivado_64core.sh
+```
+
+Capture and decode with `scripts/p3_ila_capture_build69_8x8_opensbi_diag.tcl` and `scripts/p3_decode_build69_ila_csv.py`. Do not classify UART 0 bytes as a bootrom failure until the programming run reports `DONE bit: HIGH`; a Vivado stall inside `program_hw_devices` is a programming/XVC gate.
+
 ### Key Board Files
 
 | File | Purpose |

@@ -202,6 +202,14 @@ P3 Vivado create scripts must make repo-local PyHP visible. `scripts/p3_create_b
 
 The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 
+Build 69 is the 8x8 / 64-core diagnostic successor to Build 68. Use it when a completed programming run with `DONE bit: HIGH` still produces no useful UART/OpenSBI progress, or when Build 68 needs layer-by-layer proof before another full Linux attempt. Scripts:
+- `scripts/p3_build69_8x8_opensbi_diag.tcl`
+- `scripts/p3_rebuild_build69_8x8_opensbi_diag.sh`
+- `scripts/p3_ila_capture_build69_8x8_opensbi_diag.tcl`
+- `scripts/p3_decode_build69_ila_csv.py`
+
+Build 69 keeps the Build 68 tile config and OpenSBI bundle addresses but uses `BOOTROM_MODE=opensbi_bundle_diag`. Expected UART order is `B69 ASM` from no-stack startup, then C-level `B69 OpenSBI bundle diag bootrom`, `B69 DDR OK`, SD/GPT/bundle-header prints, per-component copy prints, and `B69 releasing harts and jumping OpenSBI`. Use `P3_REMOTE_SCRIPT=scripts/p3_build69_8x8_opensbi_diag.tcl scripts/p3_remote_vivado_64core.sh` to build the diagnostic PDI on offline Ubuntu. Do not treat a 0-byte UART log as a boot failure unless Vivado first reports `DONE bit: HIGH`; a stall in `program_hw_devices` is a programming/XVC gate.
+
 ## P3 Build 66 Baseline
 
 Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.

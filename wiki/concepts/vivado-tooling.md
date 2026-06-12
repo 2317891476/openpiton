@@ -92,6 +92,28 @@ The 2026-06-12 remote Build 68 run completed through `write_device_image` and pu
 
 Hardware programming passed later on 2026-06-12. The locally retrieved PDI/LTX hashes matched the offline-Ubuntu artifacts; programming `xcvp1902_1` reported `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four ILAs. A UART capture started before the verified programming run printed `B68 OpenSBI bundle bootrom`, `initializing SD...`, and `copying block 0 of 1 blocks (0 %)`. Therefore PDI programming, bootrom execution, UART, and initial SPI-SD access are no longer the first Build 68 gate. The card does not currently contain the final P3 OpenSBI bundle expected by this bootrom. The local 256 MiB image under `build/huaprop3/opensbi64/` was produced from the `P3_64CORE_USE_PREBUILT=1` smoke path and its manifest references `p3_64core_prebuilt_test2`; do not use that artifact as final board evidence. Generate the board candidate on offline Ubuntu with rebuilt OpenSBI/Linux, verify its `P3OS`/`BI64` header and hashes, then write it to the removable SD device and repeat programming/UART capture.
 
+The 2026-06-13 reprogramming attempt did not reach the board-boot gate. Vivado connected to `hw_server 100.93.77.36:3121`, opened XVC `202.197.4.99:2540`, found `arm_dap_0 xcvp1902_1`, and then remained in `program_hw_devices [current_hw_device]` without printing `DONE bit: HIGH`. UART capture was active and stayed at 0 bytes, but without a completed programming result this is a programming-session/XVC gate, not proof of silent bootrom failure.
+
+#### Build 69 8x8 OpenSBI Diagnostic Flow
+
+Build 69 is the low-level diagnostic successor to Build 68. It uses the same 8x8 tile configuration, self-contained source snapshot policy, OpenSBI bundle layout, AXI16550 UART, translated DDR path, SPI-mode SD path, and four BD-owned ILA shape as Build 68/Build 52. The difference is the bootrom: `BOOTROM_MODE=opensbi_bundle_diag` makes the software path prove the bring-up chain in order before entering OpenSBI.
+
+```bash
+vivado -mode batch -source scripts/p3_build69_8x8_opensbi_diag.tcl -tclargs -jobs 32
+P3_REMOTE_SCRIPT=scripts/p3_build69_8x8_opensbi_diag.tcl scripts/p3_remote_vivado_64core.sh
+vivado -mode batch -source scripts/p3_ila_capture_build69_8x8_opensbi_diag.tcl
+python3 scripts/p3_decode_build69_ila_csv.py huaprop3_build69_8x8_opensbi_diag/debug_build
+```
+
+Build 69 expected UART order:
+- `B69 ASM` from no-stack assembly before C state or DDR stack dependence.
+- `B69 OpenSBI bundle diag bootrom` from C after setting the normal stack.
+- `B69 DDR OK` after a write/fence/read/compare probe at `0x84001000`.
+- `B69 SD init OK`, GPT signature/partition LBA prints, `B69 magic=...`, and component copy lines for the `P3OS`/`BI64` bundle.
+- `B69 releasing harts and jumping OpenSBI` immediately before the normal 64-hart OpenSBI handoff.
+
+Use this discriminator literally: no `B69 ASM` after a confirmed `DONE bit: HIGH` points below the C bootrom, such as UART/reset/bootrom fetch/core start. `B69 ASM` without the C banner points at stack/DDR/early C entry. A DDR failure line points at the DDR path. GPT/header/copy failures point at SD image or SPI-SD block-read behavior. Reaching the OpenSBI handoff line moves debug to core release, OpenSBI, CLINT/PLIC, timer/IPI, cache/coherence, or Linux SMP.
+
 ### P3 UART Smoke Tests
 
 Two isolated UART smoke tests compare the current OpenPiton top-level style with the reference project's BD-externalized UART style:

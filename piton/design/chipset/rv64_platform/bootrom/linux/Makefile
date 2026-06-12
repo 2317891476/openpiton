@@ -39,6 +39,10 @@ else ifeq ($(BOOTROM_MODE),opensbi_bundle)
 SRCS_C = src/main_opensbi_bundle.c src/uart.c src/spi.c src/sd.c
 SRCS_ASM = startup_opensbi_bundle.S
 DTB_DEPS =
+else ifeq ($(BOOTROM_MODE),opensbi_bundle_diag)
+SRCS_C = src/main_opensbi_bundle_diag.c src/uart.c src/spi.c src/sd.c
+SRCS_ASM = startup_opensbi_bundle_diag.S
+DTB_DEPS =
 else
 SRCS_C = src/main.c src/uart.c src/spi.c src/sd.c src/gpt.c
 SRCS_ASM = startup.S
@@ -84,7 +88,7 @@ rv64_platform.dts: FORCE
 	@echo "PYTHON >= $(MAIN_SV)"
 
 clean:
-	$(RM) $(OBJS_C) $(OBJS_S) src/main_sd_smoke.o src/main_opensbi_bundle.o startup_opensbi_bundle.o startup_asm_uart.o startup_asm_uart16550.o startup_asm_uart16550_ddrprobe.o startup_asm_uart16550_sdprobe.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
+	$(RM) $(OBJS_C) $(OBJS_S) src/main_sd_smoke.o src/main_opensbi_bundle.o src/main_opensbi_bundle_diag.o startup_opensbi_bundle.o startup_opensbi_bundle_diag.o startup_asm_uart.o startup_asm_uart16550.o startup_asm_uart16550_ddrprobe.o startup_asm_uart16550_sdprobe.o $(MAIN) $(MAIN_BIN) $(MAIN_IMG) *.dtb
 
 all: $(MAIN) $(MAIN_BIN) $(MAIN_IMG) $(MAIN_SV)
 	@echo "zero stage bootloader has been compiled!"
