@@ -71,6 +71,11 @@ module sd_wishbone_transaction_manager (
     output reg  [7:0]                  dat_o,
     output reg                         stb_o,
     output reg                         we_o
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+    ,
+    output wire [15:0]                 p3_tm_seen_o,
+    output wire [31:0]                 p3_tm_debug_o
+`endif
 );
 
     //----------------------------------------------------------------------------
@@ -88,6 +93,10 @@ module sd_wishbone_transaction_manager (
     reg [`AXI_DATA_WIDTH-1:0] rword, next_rword;
 
     wire [`AXI_DATA_WIDTH-1:0] rdata_shift = (cache_r_data >> ({bcntr, 3'b000}));
+
+`ifdef HUAPROP3_BOARD
+    wire [31:0] sd_spi_addr = addr[40:9];
+`endif
 
     localparam INIT_WAIT_TIME = 80;
 
@@ -132,6 +141,32 @@ module sd_wishbone_transaction_manager (
 
     // Intermediate State
     localparam WB_CHILL        = 5'b11111; // Pause between wishbone transactions.
+
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+    reg [15:0] p3_seen_r;
+    reg [7:0]  p3_last_dat_i_r;
+
+    wire p3_req_fire          = req_val & req_rdy;
+    wire p3_resp_fire         = resp_val & resp_rdy;
+    wire p3_r_status_done     = (state == R_TRANS_STS) && ack_i && (dat_i[0] != `TRANS_BUSY);
+    wire p3_read_error        = (state == R_TRANS_ERR) && ack_i &&
+                                (ttype == `SD_WB_BLK_RD) &&
+                                (dat_i[`READ_ERR_SLOT] != `READ_NO_ERROR);
+    wire p3_r_data_byte_fire  = (state == R_DATA_BYTES) && ack_i;
+
+    assign p3_tm_seen_o = p3_seen_r;
+    assign p3_tm_debug_o = {
+        state,
+        after_state,
+        wcntr,
+        bcntr,
+        p3_last_dat_i_r,
+        succ,
+        resp_val,
+        req_rdy,
+        p3_seen_r[11]
+    };
+`endif
 
     //----------------------------------------------------------------------------
     // Combinational Next State Logic
@@ -476,28 +511,44 @@ module sd_wishbone_transaction_manager (
             W_ADDR_0:
             begin
                 adr_o = `CTRL_STS_REG_BASE + `SD_ADDR_7_0_REG;
+`ifdef HUAPROP3_BOARD
+                dat_o = sd_spi_addr[7:0];
+`else
                 dat_o = 8'd0;
+`endif
                 stb_o = 1'b1;
                 we_o  = 1'b1;
             end
             W_ADDR_1:
             begin
                 adr_o = `CTRL_STS_REG_BASE + `SD_ADDR_15_8_REG;
+`ifdef HUAPROP3_BOARD
+                dat_o = sd_spi_addr[15:8];
+`else
                 dat_o = {addr[15:9], 1'b0};
+`endif
                 stb_o = 1'b1;
                 we_o  = 1'b1;
             end
             W_ADDR_2:
             begin
                 adr_o = `CTRL_STS_REG_BASE + `SD_ADDR_23_16_REG;
+`ifdef HUAPROP3_BOARD
+                dat_o = sd_spi_addr[23:16];
+`else
                 dat_o = addr[23:16];
+`endif
                 stb_o = 1'b1;
                 we_o  = 1'b1;
             end
             W_ADDR_3:
             begin
                 adr_o = `CTRL_STS_REG_BASE + `SD_ADDR_31_24_REG;
+`ifdef HUAPROP3_BOARD
+                dat_o = sd_spi_addr[31:24];
+`else
                 dat_o = addr[31:24];
+`endif
                 stb_o = 1'b1;
                 we_o  = 1'b1;
             end
@@ -612,5 +663,38 @@ module sd_wishbone_transaction_manager (
             rword <= next_rword;
         end
     end
+
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+    always @(posedge clk)
+    begin
+        if (rst) begin
+            p3_seen_r       <= 16'd0;
+            p3_last_dat_i_r <= 8'h00;
+        end
+        else begin
+            p3_seen_r <= p3_seen_r |
+                         {(state == RDY),
+                          (p3_r_data_byte_fire && (dat_i != 8'h00)),
+                          (p3_r_data_byte_fire && (dat_i != 8'hff)),
+                          p3_resp_fire,
+                          (state == DONE),
+                          (state == R_DATA_WORD),
+                          p3_r_data_byte_fire,
+                          p3_read_error,
+                          ((state == R_TRANS_ERR) && ack_i),
+                          p3_r_status_done,
+                          ((state == W_TRANS_CTRL) && ack_i),
+                          ((state == W_TRANS_TYPE) && ack_i),
+                          ((state == W_ADDR_3) && ack_i),
+                          ((state == W_ADDR_0) && ack_i),
+                          p3_req_fire,
+                          1'b1};
+
+            if (ack_i) begin
+                p3_last_dat_i_r <= dat_i;
+            end
+        end
+    end
+`endif
 
 endmodule

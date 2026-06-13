@@ -75,6 +75,10 @@ module send_cmd(
     output reg        send_cmd_rdy,
     output reg  [7:0] tx_data_out,
     output reg        tx_data_wen
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+    ,
+    output wire [31:0] p3_send_debug_o
+`endif
 );
 
     reg [7:0] next_resp_byte;
@@ -119,6 +123,11 @@ module send_cmd(
     localparam CMD_DEL          = 5'b10011;
 
     reg [4:0] state, next_state;
+
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+    reg [5:0] p3_tx_count;
+    reg [7:0] p3_last_tx_byte;
+`endif
 
     // Diagram actions (continuous assignments allowed only: assign ...)
     // diagram ACTION
@@ -298,6 +307,10 @@ module send_cmd(
             resp_tout       <= 1'b0;
             send_cmd_rdy    <= 1'b0;
             time_out_cnt    <= 10'h000;
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+            p3_tx_count     <= 6'd0;
+            p3_last_tx_byte <= 8'h00;
+`endif
         end
         else begin
             tx_data_wen     <= next_tx_data_wen;
@@ -307,7 +320,29 @@ module send_cmd(
             resp_tout       <= next_resp_tout;
             send_cmd_rdy    <= next_send_cmd_rdy;
             time_out_cnt    <= next_time_out_cnt;
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+            if (state == WT_CMD && send_cmd_req == 1'b1) begin
+                p3_tx_count     <= 6'd0;
+                p3_last_tx_byte <= 8'h00;
+            end
+            else if (tx_data_wen == 1'b1) begin
+                p3_tx_count     <= p3_tx_count + 1'b1;
+                p3_last_tx_byte <= tx_data_out;
+            end
+`endif
         end
     end
+
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+    assign p3_send_debug_o = {state,
+                              p3_tx_count,
+                              p3_last_tx_byte,
+                              resp_byte,
+                              resp_tout,
+                              send_cmd_rdy,
+                              rx_data_rdy,
+                              tx_data_full,
+                              tx_data_empty};
+`endif
 
 endmodule

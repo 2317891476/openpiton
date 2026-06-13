@@ -67,6 +67,14 @@ module spi_master(
     output wire       spi_clk_out,
     output wire       spi_data_out,
     output wire       spi_cs_n
+`ifdef P3_BD_SD_INIT_ILA
+    ,
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+    output wire [63:0] p3_init_debug_o
+`else
+    output wire [31:0] p3_init_debug_o
+`endif
+`endif
 );
 
 
@@ -118,9 +126,22 @@ module spi_master(
     wire        spi_cs_n_init;
     wire        spi_cs_n_rw_sd;
     wire        spi_cs_n_ctrl;
+`ifdef P3_BD_SD_INIT_ILA
+    wire [31:0] p3_init_debug_from_init;
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+    wire [31:0] p3_send_debug;
+`endif
+`endif
 
 
     assign spi_cs_n = spi_cs_n_init & spi_cs_n_rw_sd & spi_cs_n_ctrl;
+`ifdef P3_BD_SD_INIT_ILA
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+    assign p3_init_debug_o = {p3_init_debug_from_init, p3_send_debug};
+`else
+    assign p3_init_debug_o = p3_init_debug_from_init;
+`endif
+`endif
 
     // -----------------------------------
     // Instance of Module: wishBoneBI
@@ -202,7 +223,11 @@ module spi_master(
     // -----------------------------------
     // Instance of Module: initSD
     // -----------------------------------
+`ifdef HUAPROP3_BOARD
+    init_sd_p3 init(
+`else
     init_sd init(
+`endif
         .clk               (spi_sys_clk),
         .rst               (rst_sync_to_spi_clk),
 
@@ -229,6 +254,9 @@ module spi_master(
         .rx_data_rdy_clr   (rx_data_rdy_clr_init),
         .tx_data_out       (tx_data_init),
         .tx_data_wen       (tx_data_wen_init)
+`ifdef P3_BD_SD_INIT_ILA
+       ,.p3_init_debug_o   (p3_init_debug_from_init)
+`endif
     );
 
     // -----------------------------------
@@ -297,6 +325,9 @@ module spi_master(
         .send_cmd_rdy     (send_cmd_rdy),
         .tx_data_out      (tx_data_scmd),
         .tx_data_wen      (tx_data_wen_scmd)
+`ifdef P3_SPI_SD_HISTORY_DEBUG
+       ,.p3_send_debug_o  (p3_send_debug)
+`endif
     );
 
     // -----------------------------------
@@ -379,4 +410,3 @@ module spi_master(
     );
 
 endmodule
-

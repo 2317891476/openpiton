@@ -34,6 +34,7 @@ spi_master_wishbone_decoder.v
 status_register_control.v
 spi_control.v
 init_sd.v
+init_sd_p3.v
 read_write_sd_block.v
 send_cmd.v
 spi_tx_rx_data.v

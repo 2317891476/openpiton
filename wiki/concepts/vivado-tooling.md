@@ -55,6 +55,15 @@ ssh -J 23178@100.70.176.125 cs@202.197.4.150 \
 
 Use `/home/cs/openpiton` as the standard remote workspace. Transfer source archives or self-contained project snapshots only when an actual remote build begins, run Vivado batch Tcl on Ubuntu, then retrieve generated `bit`, `pdi`, `ltx`, reports, and logs through the same `scp -o ProxyJump=...` path. Passwords must stay out of repository files and scripts.
 
+`scripts/p3_remote_vivado_64core.sh` packages `git archive HEAD`, so untracked
+local RTL is never a remote build input. Build 70 exposed this failure mode:
+generated `chipset_impl.tmp.v` instantiated `piton_spi_sd_top`, but the
+untracked module source was absent from the archive and main synthesis stopped
+at RTL elaboration. The packer now verifies that `piton_spi_sd_top.v`,
+`init_sd_p3.v`, and both `rtl_setup.tcl` registrations exist in the committed
+archive before any transfer. Build 71 repeats the same diagnostic hardware only
+after that source-closure gate passes.
+
 #### Build 68 8x8 OpenSBI/Linux Flow
 
 Build 68 is the direct 64-core P3 Pro target. It reuses the Build 66/67 self-contained Vivado flow but sets `PITON_X_TILES=8`, `PITON_Y_TILES=8`, and `PITON_NUM_TILES=64` in `scripts/p3_build68_8x8_opensbi_linux.tcl`. The bootrom rebuild script uses `BOOTROM_MODE=opensbi_bundle`, so the board no longer expects a BBL binary at the first GPT partition. Instead, hart 0 reads a small P3 OpenSBI bundle header from SD, copies OpenSBI, Linux, DTB, and initramfs into DDR, then releases all harts into OpenSBI.

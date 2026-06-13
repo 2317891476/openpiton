@@ -6,6 +6,7 @@ piton_sd_cache_tag.v
 piton_sd_cache_manager.v
 piton_sd_core_ctrl.v
 piton_sd_init.v
+piton_spi_sd_top.v
 piton_sd_top.v
 piton_sd_transaction_manager.v
 sd_clock_divider.v

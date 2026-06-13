@@ -219,6 +219,20 @@ Build 70 is that automatic UART-first successor. Build 69 hardware capture prove
 
 Launch it with `P3_REMOTE_SCRIPT=scripts/p3_build70_8x8_uart_sd_diag.tcl scripts/p3_remote_vivado_64core.sh`. It defaults to 32 jobs. If Build 70 implementation or board validation fails, record and push the concrete stage result, then automatically create the next build around the first unproven layer; do not wait for another request and do not rerun an unchanged failed PDI.
 
+Build 70 failed main RTL elaboration because `piton_spi_sd_top` was instantiated
+by the generated chipset RTL but its local source was untracked and therefore
+absent from the committed remote archive. Build 71 is the automatic source
+closure rerun:
+- `scripts/p3_build71_8x8_uart_sd_source_closure.tcl`
+- `scripts/p3_ila_capture_build71_8x8_uart_sd_source_closure.tcl`
+
+Build 71 preserves the Build 70 UART/SD diagnostic payload and adds preflight
+checks for `piton_spi_sd_top.v`, `init_sd_p3.v`, and their
+`rtl_setup.tcl` registrations. Launch it with
+`P3_REMOTE_SCRIPT=scripts/p3_build71_8x8_uart_sd_source_closure.tcl scripts/p3_remote_vivado_64core.sh`.
+The remote packer must reject an archive that omits either new source; do not
+assume an untracked local file will be included by `git archive HEAD`.
+
 ## P3 Build 66 Baseline
 
 Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.

@@ -82,6 +82,11 @@ module axi_sd_bridge (
      output wire [7:0]                   dat_o,
      output wire                         stb_o,
      output wire                         we_o
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+     ,
+     output wire [15:0]                  p3_block_seen_o,
+     output wire [63:0]                  p3_block_debug_o
+`endif
 );
     //----------------------------------------------------------------------------
     // FSM States
@@ -166,6 +171,53 @@ module axi_sd_bridge (
     wire                       tm_cache_w_en;
     wire [5:0]                 tm_cache_w_addr;
     wire [`AXI_DATA_WIDTH-1:0] tm_cache_w_data; 
+
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+    wire [15:0]                p3_tm_seen;
+    wire [31:0]                p3_tm_debug;
+    reg  [15:0]                p3_block_seen_r;
+    reg  [9:0]                 p3_axi_state_seen_r;
+    reg  [7:0]                 p3_last_axi_rdata8_r;
+
+    wire [9:0]                 p3_axi_state_bit = (10'd1 << state);
+    wire                       p3_axi_ar_fire = s_axi_arvalid & s_axi_arready;
+    wire                       p3_axi_r_fire = (state == SEND_RESP) & rd_resp_go;
+    wire                       p3_sd_req_fire = sd_req_val & sd_req_rdy;
+    wire                       p3_sd_resp_fire = sd_resp_val & sd_resp_rdy;
+    wire                       p3_valid_match_nonzero = (valid_match != `N_ENTRIES'd0);
+    wire                       p3_selected_block_valid = block_val[entry_sel];
+    wire [15:0]                p3_block_seen_bits = {
+        (p3_tm_seen[14] | (p3_last_axi_rdata8_r != 8'h00) |
+            (p3_axi_r_fire & (s_axi_rdata[7:0] != 8'h00))),
+        p3_axi_r_fire,
+        (state == SEND_RESP),
+        p3_sd_resp_fire,
+        p3_tm_seen[11],
+        p3_tm_seen[10],
+        p3_tm_seen[9],
+        p3_tm_seen[8],
+        p3_tm_seen[7],
+        p3_tm_seen[6],
+        p3_tm_seen[5],
+        p3_tm_seen[4],
+        p3_tm_seen[1],
+        p3_sd_req_fire,
+        p3_axi_ar_fire,
+        1'b1
+    };
+
+    assign p3_block_seen_o = p3_block_seen_r;
+    assign p3_block_debug_o = {
+        state,
+        p3_axi_state_seen_r,
+        p3_valid_match_nonzero,
+        p3_selected_block_valid,
+        sd_resp_succ,
+        p3_last_axi_rdata8_r,
+        raddr_buf[8:2],
+        p3_tm_debug
+    };
+`endif
 
     // Cache Control Wires
     reg                        cache_ctrl_local;
@@ -618,8 +670,31 @@ module axi_sd_bridge (
         .dat_o     (dat_o),
         .stb_o     (stb_o),
         .we_o      (we_o)
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+       ,.p3_tm_seen_o  (p3_tm_seen),
+        .p3_tm_debug_o (p3_tm_debug)
+`endif
     );
 
+`ifdef P3_SPI_SD_BLOCK_DEBUG
+    always @(posedge clk)
+    begin
+        if (rst)
+        begin
+            p3_block_seen_r      <= 16'd0;
+            p3_axi_state_seen_r  <= 10'd0;
+            p3_last_axi_rdata8_r <= 8'h00;
+        end
+        else
+        begin
+            p3_block_seen_r     <= p3_block_seen_r | p3_block_seen_bits;
+            p3_axi_state_seen_r <= p3_axi_state_seen_r | p3_axi_state_bit;
+            if (p3_axi_r_fire)
+            begin
+                p3_last_axi_rdata8_r <= s_axi_rdata[7:0];
+            end
+        end
+    end
+`endif
 
 endmodule
-

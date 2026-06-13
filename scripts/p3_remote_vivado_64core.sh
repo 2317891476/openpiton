@@ -25,6 +25,26 @@ rm -rf "$pack_dir"
 mkdir -p "$pack_dir"
 git -C "$repo_dir" archive --format=tar HEAD | tar -x -C "$pack_dir"
 
+required_p3_sources=(
+    piton/design/chipset/noc_sd_bridge/rtl/piton_spi_sd_top.v
+    piton/design/chipset/axi_sd_bridge/rtl/init_sd_p3.v
+    piton/tools/src/proto/common/rtl_setup.tcl
+)
+for rel_path in "${required_p3_sources[@]}"; do
+    if [[ ! -s "$pack_dir/$rel_path" ]]; then
+        echo "ERROR: committed P3 source is missing from the remote archive: $rel_path" >&2
+        echo "Commit the source and its RTL setup entry before launching Vivado." >&2
+        exit 1
+    fi
+done
+if ! grep -q 'noc_sd_bridge/rtl/piton_spi_sd_top.v' \
+        "$pack_dir/piton/tools/src/proto/common/rtl_setup.tcl" ||
+   ! grep -q 'axi_sd_bridge/rtl/init_sd_p3.v' \
+        "$pack_dir/piton/tools/src/proto/common/rtl_setup.tcl"; then
+    echo "ERROR: the committed RTL setup does not register the P3 SPI-SD source closure" >&2
+    exit 1
+fi
+
 require_clean_submodule() {
     local submodule_path="$1"
     local submodule_dir="$repo_dir/$submodule_path"

@@ -42,7 +42,11 @@
 `define FIFO_CONTROL_REG 3'b100
 
 // MODIFY THIS IF YOU CHANGE SPI LOGIC CLOCK SPEED
+`ifdef HUAPROP3_BOARD
+`define SLOW_SPI_CLK 8'h25     // P3 sd_sys_clk is 30MHz; startup SPI is ~395KHz.
+`else
 `define SLOW_SPI_CLK 8'h18     // startup SPI clk adjuster, aim @ 400KHz.
+`endif
                                // SLOW_SPI_CLK = (spi_sys_clk / (2 * target_freq)) - 1
 `define FAST_SPI_CLK 8'h00     // data SPI clk adjuster, aim @ 20MHz.
                                // FAST_SPI_CLK = (spi_sys_clk / (2 * target_freq)) - 1
@@ -85,9 +89,10 @@
 `define INIT_NO_ERROR 2'b00
 `define INIT_CMD0_ERROR 2'b01
 `define INIT_CMD1_ERROR 2'b10
+`define INIT_CMD8_ERROR 2'b10
+`define INIT_ACMD41_ERROR 2'b11
 
 `define TX_FIFO_DEPTH 512
 `define TX_FIFO_ADDR_WIDTH 9
 `define RX_FIFO_DEPTH 512
 `define RX_FIFO_ADDR_WIDTH 9
-

@@ -668,6 +668,7 @@ set CHIPSET_RTL_IMPL_FILES [list \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/axi_sd_bridge.v" \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/spi_master.v" \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/init_sd.v" \
+    "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/init_sd_p3.v" \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/read_write_sd_block.v" \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/rwspi_wire_data.v" \
     "${DV_ROOT}/design/chipset/axi_sd_bridge/rtl/sd_block_cache.v" \
@@ -694,6 +695,7 @@ set CHIPSET_RTL_IMPL_FILES [list \
     "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/piton_sd_core_ctrl.v" \
     "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/piton_sd_define.vh" \
     "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/piton_sd_init.v" \
+    "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/piton_spi_sd_top.v" \
     "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/piton_sd_top.v" \
     "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/piton_sd_transaction_manager.v" \
     "${DV_ROOT}/design/chipset/noc_sd_bridge/rtl/sd_clock_divider.v" \

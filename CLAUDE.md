@@ -198,6 +198,20 @@ python3 scripts/p3_decode_build70_ila_csv.py huaprop3_build70_8x8_uart_sd_diag/d
 
 Build 70 defaults to 32 jobs. A failed implementation or `DONE bit: HIGH` board test must be documented and followed automatically by a new build targeting the first unproven layer; never repeat an unchanged failed PDI.
 
+Build 70 failed main synthesis because `piton_spi_sd_top` was instantiated but
+the untracked local source was omitted by `git archive HEAD`. Build 71 keeps the
+same UART/SD diagnostic hardware and closes that reproducibility gap:
+
+```bash
+P3_REMOTE_SCRIPT=scripts/p3_build71_8x8_uart_sd_source_closure.tcl scripts/p3_remote_vivado_64core.sh
+vivado -mode batch -source scripts/p3_ila_capture_build71_8x8_uart_sd_source_closure.tcl
+python3 scripts/p3_decode_build70_ila_csv.py huaprop3_build71_8x8_uart_sd_source_closure/debug_build
+```
+
+The Build 71 wrapper and remote packer require the committed
+`piton_spi_sd_top.v` and `init_sd_p3.v` sources plus their RTL setup entries.
+An untracked source is not a valid remote build input.
+
 ### Key Board Files
 
 | File | Purpose |

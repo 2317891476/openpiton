@@ -108,6 +108,7 @@ module rwspi_wire_data(
             WT_TX_DATA: begin
                 next_rx_data_rdy_set = 1'b0;
                 next_tx_data_empty   = 1'b1;
+                next_spi_data_out    = 1'b1;
                 if (tx_data_full == 1'b1) begin
                     next_state             = CLK_HI;
                     next_tx_data_shift_reg = tx_data_in;
@@ -138,7 +139,7 @@ module rwspi_wire_data(
                     next_rx_data_rdy_set   = 1'b1;
                     next_rx_data_out       = rx_data_shift_reg;
                     next_tx_data_shift_reg = tx_data_in;
-                    next_bit_cnt           = 3'b000;
+                    next_bit_cnt           = 4'h0;
                     next_clk_delay_cnt     = 8'h00;
                     next_tx_data_full_clr  = 1'b1;
                 end
@@ -162,7 +163,7 @@ module rwspi_wire_data(
                 next_tx_data_shift_reg = 8'h00;
                 next_rx_data_shift_reg = 8'h00;
                 next_rx_data_out       = 8'h00;
-                next_spi_data_out      = 1'b0;
+                next_spi_data_out      = 1'b1;
                 next_spi_clk_out       = 1'b0;
                 next_tx_data_empty     = 1'b0;
                 next_state             = WT_TX_DATA;
@@ -185,7 +186,7 @@ module rwspi_wire_data(
             tx_data_empty     <= 1'b0;
             tx_data_full_clr  <= 1'b0;
             spi_clk_out       <= 1'b0;
-            spi_data_out      <= 1'b0;
+            spi_data_out      <= 1'b1;
             rx_data_out       <= 8'h00;
             tx_data_shift_reg <= 8'h00;
             rx_data_shift_reg <= 8'h00;
