@@ -17,7 +17,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | Build 68 8x8 / 64-core OpenSBI/Linux completed VP1902 implementation, PDI/LTX generation, P3 Pro programming, debug-hub refresh, bundle-bootrom UART, and final source-rebuilt Linux 6.6/OpenSBI/64-hart SD image generation. A 2026-06-13 reprogram attempt stalled inside Vivado `program_hw_devices` before `DONE`, so UART 0 bytes from that attempt is not a boot failure. Build 69 is the next debug PDI path for UART -> DDR -> SD -> core/OpenSBI handoff isolation. |
+| Current scaling candidate | Build 68 8x8 / 64-core OpenSBI/Linux completed VP1902 implementation, PDI/LTX generation, P3 Pro programming, debug-hub refresh, bundle-bootrom UART, and final source-rebuilt Linux 6.6/OpenSBI/64-hart SD image generation. A 2026-06-13 reprogram attempt stalled inside Vivado `program_hw_devices` before `DONE`, so UART 0 bytes from that attempt is not a boot failure. Build 69 has now completed 8x8 synthesis, implementation, routing, and diagnostic PDI/LTX generation for UART -> DDR -> SD -> core/OpenSBI handoff isolation; artifact retrieval and board validation are the active gate. |
 | Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
