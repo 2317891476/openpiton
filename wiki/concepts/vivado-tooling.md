@@ -103,6 +103,8 @@ Hardware programming passed later on 2026-06-12. The locally retrieved PDI/LTX h
 
 The 2026-06-13 reprogramming attempt did not reach the board-boot gate. Vivado connected to `hw_server 100.93.77.36:3121`, opened XVC `202.197.4.99:2540`, found `arm_dap_0 xcvp1902_1`, and then remained in `program_hw_devices [current_hw_device]` without printing `DONE bit: HIGH`. UART capture was active and stayed at 0 bytes, but without a completed programming result this is a programming-session/XVC gate, not proof of silent bootrom failure.
 
+Build 71 reproduced the same programming-session gate on 2026-06-14 despite having a complete, hash-verified PDI/LTX pair. Vivado remained in `program_hw_devices` for 32 minutes 39 seconds, compared with 13 minutes 25 seconds for the successful similar-size Build 69 download. Manual cancellation then produced `Operation canceled by user` and `DONE bit: LOW`, which is expected for an interrupted configuration and is not a Build 71 functional result. Rebuild the hw_server/XVC session and retry the same verified artifact before creating Build 72; only a completed `DONE bit: HIGH` run may advance to UART/ILA diagnosis.
+
 #### Build 69 8x8 OpenSBI Diagnostic Flow
 
 Build 69 is the low-level diagnostic successor to Build 68. It uses the same 8x8 tile configuration, self-contained source snapshot policy, OpenSBI bundle layout, AXI16550 UART, translated DDR path, SPI-mode SD path, and four BD-owned ILA shape as Build 68/Build 52. The difference is the bootrom: `BOOTROM_MODE=opensbi_bundle_diag` makes the software path prove the bring-up chain in order before entering OpenSBI.
