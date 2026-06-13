@@ -751,7 +751,10 @@ begin
     end
 end
 
-`ifdef P3_BD_UART_RAW_DEBUG_ILA
+`ifdef P3_BD_UART_SD_DIAG_ILA
+assign p3_chipset_debug_seen = p3_chipset_impl_debug_seen;
+assign p3_chipset_debug_bus = p3_chipset_impl_debug_bus;
+`elsif P3_BD_UART_RAW_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_chipset_impl_debug_seen;
 assign p3_chipset_debug_bus = p3_chipset_impl_debug_bus;
 `elsif P3_BD_UART_WR_NARROW_DEBUG_ILA

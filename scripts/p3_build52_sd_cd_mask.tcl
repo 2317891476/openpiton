@@ -590,6 +590,7 @@ foreach define $defs {
         $define ne "P3_BD_SIFIVE_DEBUG_ILA" &&
         $define ne "P3_SIFIVE_UART_DEBUG_ILA" &&
         $define ne "P3_BD_UART_RAW_DEBUG_ILA" &&
+        $define ne "P3_BD_UART_SD_DIAG_ILA" &&
         $define ne "P3_BD_BUILD41_DEBUG_ILA" &&
         $define ne "P3_BD_DDR_DEBUG_ILA" &&
         $define ne "P3_BD_BOOT_DEBUG_ILA" &&

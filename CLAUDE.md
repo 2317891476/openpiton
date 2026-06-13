@@ -188,6 +188,16 @@ Capture and decode with `scripts/p3_ila_capture_build69_8x8_opensbi_diag.tcl` an
 
 If a completed Build 69 programming run reports `DONE bit: HIGH` and UART still prints nothing, immediately move to a new remote diagnostic PDI instead of repeating the same artifact. The next PDI must isolate the path in order: no-stack UART marker and UART16550 AXI/TX activity, DDR probe, SPI-SD/GPT/`P3OS` bundle reads, and only then core release/OpenSBI/Linux. Capture Build 69 ILAs first when the LTX/debug hub are usable, so the new PDI is based on observed layer failure rather than speculation.
 
+Build 70 is the automatic successor selected by that rule. Build 69 ILAs proved clocks/resets, core/NOC activity, and DDR reads, then retained an SPI-SD transaction-manager read error, but did not expose the AXI16550 write path. Build 70 reuses the Build 69 bootrom and 8x8 hardware while retaining core-side UART writes, UART-IP-side writes/responses, TX transitions, and compact SD progress/error flags. Build and inspect it with:
+
+```bash
+P3_REMOTE_SCRIPT=scripts/p3_build70_8x8_uart_sd_diag.tcl scripts/p3_remote_vivado_64core.sh
+vivado -mode batch -source scripts/p3_ila_capture_build70_8x8_uart_sd_diag.tcl
+python3 scripts/p3_decode_build70_ila_csv.py huaprop3_build70_8x8_uart_sd_diag/debug_build
+```
+
+Build 70 defaults to 32 jobs. A failed implementation or `DONE bit: HIGH` board test must be documented and followed automatically by a new build targeting the first unproven layer; never repeat an unchanged failed PDI.
+
 ### Key Board Files
 
 | File | Purpose |

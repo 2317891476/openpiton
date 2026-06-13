@@ -269,3 +269,12 @@ set_false_path -to [get_ports {leds[*]}]
 set_false_path -to [get_ports sd_vsd_en]
 set_false_path -to [get_ports sd_sel]
 set_false_path -to [get_ports sd_resetn]
+
+# The native SD debug sampler observes the generated SD clock only for ILA
+# status. Constrain the asynchronous input to the first synchronizer stage;
+# the second stage and all functional SD paths remain timed normally.
+set p3_sd_debug_sync_d [get_pins -quiet -hier -filter {NAME =~ */p3_sd_clk_sample_q_reg/D}]
+if {[llength $p3_sd_debug_sync_d] > 0} {
+    set_false_path -to $p3_sd_debug_sync_d
+}
+unset p3_sd_debug_sync_d

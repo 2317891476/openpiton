@@ -1019,6 +1019,31 @@ uart_top        uart_top (
 `ifdef PITON_FPGA_SD_BOOT
 
     /* Bridge between NOCs and SD Card */
+`ifdef P3_SPI_SD_BOOT
+    piton_spi_sd_top piton_spi_sd_top (
+        .sys_clk          ( chipset_clk       ),
+        .sd_clk           ( sd_clk            ),
+        .sys_rst          ( ~chipset_rst_n    ),
+
+        .splitter_sd_val  ( buf_sd_noc2_valid ),
+        .splitter_sd_data ( buf_sd_noc2_data  ),
+        .sd_splitter_rdy  ( sd_buf_noc2_ready ),
+
+        .sd_splitter_val  ( sd_buf_noc3_valid ),
+        .sd_splitter_data ( sd_buf_noc3_data  ),
+        .splitter_sd_rdy  ( buf_sd_noc3_ready ),
+
+        .sd_cd            ( sd_cd             ),
+        .sd_reset         ( sd_reset          ),
+        .sd_clk_out       ( sd_clk_out        ),
+        .sd_cmd           ( sd_cmd            ),
+        .sd_dat           ( sd_dat            )
+`ifdef P3_BD_SD_INIT_ILA
+       ,.p3_sd_init_seen_o( p3_sd_init_debug_seen ),
+        .p3_sd_init_bus_o ( p3_sd_init_debug_bus  )
+`endif
+        );
+`else
     piton_sd_top piton_sd_top (
         .sys_clk          ( chipset_clk       ),
         .sd_clk           ( sd_clk            ),
@@ -1042,6 +1067,7 @@ uart_top        uart_top (
         .p3_sd_init_bus_o ( p3_sd_init_debug_bus  )
 `endif
         );
+`endif
 
 `endif
 `endif
@@ -1386,7 +1412,20 @@ begin
     end
 end
 
-`ifdef P3_BD_UART_DEBUG_ILA
+`ifdef P3_BD_UART_SD_DIAG_ILA
+assign p3_chipset_debug_seen = p3_uart_debug_seen;
+assign p3_chipset_debug_bus = {
+                               p3_sd_init_debug_seen[15],
+                               p3_sd_init_debug_seen[14],
+                               p3_sd_init_debug_seen[12],
+                               p3_sd_init_debug_seen[11],
+                               p3_sd_init_debug_seen[9],
+                               p3_sd_init_debug_seen[8],
+                               p3_sd_init_debug_seen[3],
+                               p3_sd_init_debug_seen[1],
+                               p3_uart_debug_bus[55:0]
+                              };
+`elsif P3_BD_UART_DEBUG_ILA
 assign p3_chipset_debug_seen = p3_uart_debug_seen;
 assign p3_chipset_debug_bus = p3_uart_debug_bus;
 `elsif P3_BD_SD_INIT_ILA

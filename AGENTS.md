@@ -212,6 +212,13 @@ Build 69 keeps the Build 68 tile config and OpenSBI bundle addresses but uses `B
 
 If a completed Build 69 programming run reports `DONE bit: HIGH` and UART still prints nothing, stop repeating the same PDI and generate a narrower remote diagnostic PDI. The diagnostic order is UART first, then DDR, then SPI-SD/GPT/`P3OS`, then core release/OpenSBI/Linux. Capture Build 69 ILAs first when available; the next PDI should instrument the first layer that lacks evidence, not all layers equally.
 
+Build 70 is that automatic UART-first successor. Build 69 hardware capture proved reset release, core/NOC activity, successful DDR reads, and an SPI-SD transaction-manager read error, while both physical UART logs stayed empty. Build 70 keeps the Build 69 diagnostic bootrom and 8x8 tile configuration but changes the retained ILA payload to distinguish bootrom UART stores, core-side UART bridge handshakes, AXI16550-side handshakes/responses, TX transitions, and compact SD request/error progress. Scripts:
+- `scripts/p3_build70_8x8_uart_sd_diag.tcl`
+- `scripts/p3_ila_capture_build70_8x8_uart_sd_diag.tcl`
+- `scripts/p3_decode_build70_ila_csv.py`
+
+Launch it with `P3_REMOTE_SCRIPT=scripts/p3_build70_8x8_uart_sd_diag.tcl scripts/p3_remote_vivado_64core.sh`. It defaults to 32 jobs. If Build 70 implementation or board validation fails, record and push the concrete stage result, then automatically create the next build around the first unproven layer; do not wait for another request and do not rerun an unchanged failed PDI.
+
 ## P3 Build 66 Baseline
 
 Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.

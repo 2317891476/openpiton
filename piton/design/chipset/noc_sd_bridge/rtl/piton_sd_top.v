@@ -113,8 +113,8 @@ module piton_sd_top (
     wire    [15:0]      p3_sd_cmd_debug_seen;
     wire    [55:0]      p3_sd_cmd_debug_bus;
 `endif
-    reg                 p3_sd_clk_sample_q;
-    reg                 p3_sd_clk_sample_qq;
+    (* ASYNC_REG = "TRUE" *) reg p3_sd_clk_sample_q;
+    (* ASYNC_REG = "TRUE" *) reg p3_sd_clk_sample_qq;
     reg     [15:0]      p3_sd_init_seen_r;
     wire                p3_sd_clk_toggle = p3_sd_clk_sample_q ^ p3_sd_clk_sample_qq;
     wire    [15:0]      p3_sd_init_flags = {
@@ -123,7 +123,7 @@ module piton_sd_top (
                             sd_cmd_out_o,
                             sd_cmd_dat_i,
                             p3_sd_clk_toggle,
-                            sd_clk_out,
+                            p3_sd_clk_sample_qq,
                             sd_int_data,
                             sd_int_cmd,
                             m_wb_ack_i,
