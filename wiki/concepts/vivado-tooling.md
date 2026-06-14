@@ -111,6 +111,8 @@ The board-local retry on 2026-06-14 proved that the network transport and physic
 
 The X-EPIC management controller cannot substitute for that full power cycle in the observed failure state. Its `Clear FPGA0` operation did not complete, and rebooting the controller restored HTTP/XVC services without restoring Vivado target enumeration. Avoid remotely toggling an ambiguous board-power GPIO such as `CPLD_PWROFF_EN` when doing so may also remove the management path required to turn power back on. Require an explicit physical board power cycle, then restart `hw_server` and retry the unchanged artifact.
 
+When auditing `hw_server` contention, do not count its wrapper shell, loader, and unwrapped binary as independent servers. Confirm ownership with `ss -ltnp`, then inspect established connections to port 3121 and the XVC endpoint. On 2026-06-14, stale Vivado Lab and `cs_server` clients were present and were removed, but a verified single-listener, zero-client retry still failed at `open_hw_target`. Process cleanup is necessary for a trustworthy retry, but it does not explain the persistent PMC/DPC registration failure in this case.
+
 #### Build 69 8x8 OpenSBI Diagnostic Flow
 
 Build 69 is the low-level diagnostic successor to Build 68. It uses the same 8x8 tile configuration, self-contained source snapshot policy, OpenSBI bundle layout, AXI16550 UART, translated DDR path, SPI-mode SD path, and four BD-owned ILA shape as Build 68/Build 52. The difference is the bootrom: `BOOTROM_MODE=opensbi_bundle_diag` makes the software path prove the bring-up chain in order before entering OpenSBI.
