@@ -16,6 +16,10 @@ Deployment path: validate single-core first, then incrementally scale up.
 | P3 | 8x8 (64 cores) | Large-FPGA or multi-FPGA prototype |
 | P4 | 32x32 (1024 cores) | Kilo-core target, final speedup measurement |
 
+## Repository Structure
+
+OpenPiton source lives under `piton/`. `piton/design/` contains synthesizable RTL and platform logic: `design/chip/` for tile and chip RTL, `design/chipset/` for off-chip controllers and peripherals, `design/include/` for shared defines, and `design/xilinx/` or `design/aws/` for FPGA targets. Verification assets are in `piton/verif/`, with `env/` testbenches and monitors plus `diag/assembly/` and `diag/c/` diagnostics. Tool wrappers, preprocessors, PLI/VPI libraries, and regression utilities are under `piton/tools/`. Generated simulator output and local models belong in `build/`; manuals and images are in `docs/`.
+
 ## Wiki
 
 A project wiki is maintained at `wiki/` in the repository root. See `wiki/INDEX.md` for the full index.
@@ -85,6 +89,18 @@ wiki/
 - Each entry: `## YYYY-MM-DD -- <short title>` followed by bullet points
 - Never edit past entries (append corrections as new entries)
 - Entries should include build numbers, error codes, root cause analysis, and PDI file paths
+
+### R1-E: Git Commit Requirement (ABSOLUTE)
+
+**Every wiki update MUST be committed to git and pushed to GitHub immediately. No exceptions. No queuing for later.**
+
+- After writing ANY wiki file (devlog, concept article, INDEX.md), immediately run `git add <file>` and `git commit` with a descriptive message.
+- Wiki commits should use the prefix `wiki:` (e.g., `wiki: add May 23 devlog — Build 19 reset fix verified`).
+- After committing, push to the remote: `git push origin openpiton`.
+- **Anti-pattern**: accumulating multiple wiki changes without committing. Each logical update gets its own commit.
+- **Anti-pattern**: "I'll commit after this build finishes." No — commit the wiki changes NOW. The build proceeds independently.
+- If a build or debug session spans hours, commit wiki updates incrementally — don't wait until the end of the session.
+- CLAUDE.md and AGENTS.md changes follow the same rule: commit and push immediately.
 
 ## Environment Setup
 
@@ -160,6 +176,19 @@ scripts/p3_prepare_64core_opensbi_image.sh
 
 The hardware wrapper sets `PITON_X_TILES=8`, `PITON_Y_TILES=8`, and `PITON_NUM_TILES=64`, keeps self-contained source snapshots, and rebuilds the bootrom with `BOOTROM_MODE=opensbi_bundle`. The SD image is generated from `riscv64-linux-64core-src-20260610.tar.gz` and contains a 512-byte `P3OS`/`BI64` bundle header followed by OpenSBI, Linux `Image`, DTB, and initramfs payloads.
 
+Hardware wrapper:
+- Build script: `scripts/p3_build68_8x8_opensbi_linux.tcl`
+- Bootrom rebuild: `scripts/p3_rebuild_build68_8x8_opensbi_linux.sh`
+- Vivado project: `huaprop3_build68_8x8_opensbi_linux`
+- Default work directory: `p3b68_8x8/`
+- Output basename: `p3_top_build68_8x8_opensbi_linux`
+
+Software/image path:
+- Main script: `scripts/p3_prepare_64core_opensbi_image.sh`
+- DTB generator: `scripts/p3_generate_opensbi_dts.py`
+- SD bundle packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Output directory: `build/huaprop3/opensbi64/`
+
 Default DDR layout:
 - OpenSBI `fw_jump.bin`: `0x80000000`
 - Linux `Image`: `0x80200000`
@@ -179,6 +208,8 @@ For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown
 `scripts/p3_remote_vivado_64core.sh` archives the committed top-level repository state plus committed recursive submodule HEAD contents. It intentionally does not package dirty tracked submodule changes; it now fails before packing if any recursive submodule has staged or unstaged tracked diffs. Commit and push submodule RTL fixes, then update the superproject gitlink, before launching a remote Build 68 run.
 
 Build 68 remote runs default to `JOBS=32`; use `JOBS=<N> scripts/p3_remote_vivado_64core.sh` only when deliberately comparing runtime or stability. The 2026-06-12 active run used `-jobs 8`, and Vivado reported up to 7 synthesis processes and up to 8 CPUs for place/route. The offline Ubuntu host has 384 logical CPUs, 192 physical cores, and 1.5 TiB RAM. Do not use 64+ as the default until scaling evidence is collected and file-descriptor pressure is checked (`ulimit -n` was 1024). The shared Build 52 wrapper sets `general.maxThreads` and `synth.maxThreads` before top synthesis/place/route, then keeps the generated child-IP synthesis serialization workaround after top synthesis. During long remote Vivado runs, monitor progress at roughly 15-minute intervals unless the user asks for a different cadence.
+
+The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 
 Build 69 is the 8x8 / 64-core diagnostic PDI path for the same OpenSBI target. It keeps the Build 68 hardware and bundle addresses, but rebuilds the bootrom with `BOOTROM_MODE=opensbi_bundle_diag`. The diagnostic order is `B69 ASM` from no-stack startup, C banner, DDR probe at `0x84001000`, SD init, GPT and `P3OS`/`BI64` header reads, per-component DDR copies, then hart release and OpenSBI jump. Use:
 
@@ -213,6 +244,22 @@ python3 scripts/p3_decode_build70_ila_csv.py huaprop3_build71_8x8_uart_sd_source
 The Build 71 wrapper and remote packer require the committed
 `piton_spi_sd_top.v` and `init_sd_p3.v` sources plus their RTL setup entries.
 An untracked source is not a valid remote build input.
+
+### P3 Build 66 Baseline & Build 67 Scaling
+
+Build 66 is the current validated HuaPro P3 OpenPiton+Ariane baseline. Use `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` and the matching `.ltx` for board programming unless a newer validated build supersedes it.
+
+The build wrapper is `scripts/p3_build66_normal_spi_sd_boot.tcl`. Future clean rebuilds should target the repository-root `p3b66/` work directory by default; override with `P3_BUILD66_WORK_DIR` only when debugging a path-specific Vivado issue. The repository-root `p3b66_validated_snapshot/` is a full copy of the previously validated `/mnt/d/p3b66` workspace and is only a recovery/cache source.
+
+Build 66 and all scaling successors such as Build 67 must be self-contained Vivado projects. The wrappers force `P3_SELF_CONTAINED_SOURCES=1`, causing `scripts/p3_create_bd.tcl` to copy RTL, headers, constraints, top files, and shims into `<workdir>/source_snapshot/` and add files from that snapshot. Include directories must be copied recursively while preserving subdirectory names; Ariane/CVA6 includes such as `register_interface/assign.svh` and `register_interface/typedef.svh` are resolved by relative `include` paths during synthesis. Do not accept `.xpr` files that reference live repository sources under `piton/`, stale mirrors under `Z:/tmp`, or old `D:/p3b*` workspaces; rerun project creation if the self-contained validation fails. Generated BD wrappers and IP products remain under the Vivado project `.gen/.srcs/.cache` directories.
+
+For multicore P3 builds, the PyHP-generated tile configuration must be regenerated as one consistent set before Vivado project creation: `piton/design/include/define.tmp.h`, `piton/design/chip/rtl/chip.tmp.v`, `piton/design/chipset/rtl/chipset_impl.tmp.v`, `piton/design/chip/tile/common/rtl/flat_id_to_xy.tmp.v`, and `piton/design/chip/tile/common/rtl/xy_to_flat_id.tmp.v`. The generated `define.tmp.h` inside both the live repo and `<workdir>/source_snapshot/` must match `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; otherwise synthesis can instantiate multiple tiles while sizing interrupt/debug vectors for one tile.
+
+The baseline keeps the original AXI16550 UART path, SPI-mode SD path, DDR address translation, and four compact BD-owned ILAs. Latest self-contained validation: the 2026-06-05 fresh `p3b66/source_snapshot/` rebuild programmed with `DONE bit: HIGH`, refreshed debug hub `0x3ffc0000000`, enumerated four ILAs, booted through BBL into Linux 5.1.0-rc7, reached `/bin/sh` on `/dev/ttyUSB0` at `115200 8N1`, and accepted slow UART input (`P3_B66_SELF_OK`, `uname -a`). Previous runtime validation also mounted `/dev/piton_sd2` as ext2 read-only and launched `/mnt/XSBench -s small -p 1 -l 1`.
+
+Build 67 is the first 2x1 scaling candidate and must follow the same self-contained source-snapshot rule. Its wrapper is `scripts/p3_build67_2x1_normal_spi_sd_boot.tcl`; the default work directory is `p3b67_2x1/`, and published artifacts are `huaprop3_build67_2x1_baseline/debug_build/p3_top_build67_2x1_normal_spi_sd_boot.pdi` plus `.ltx`. Before project creation, regenerate the tile-dependent PyHP outputs as a consistent set and validate both live and snapshot `define.tmp.h` against `PITON_X_TILES=2`, `PITON_Y_TILES=1`, and `PITON_NUM_TILES=2`. The 2026-06-05 implementation candidate routed successfully with 258,405 fully routed nets, 0 routing errors, `WNS=16.312 ns`, and PDI SHA256 `f979264a5e43e5f1e90061590da79ed0d54c080e7aac384762219f993c978ed0`. The 2026-06-08/09 hardware retests programmed successfully, refreshed debug hub `0x3ffc0000000`, enumerated four ILAs, booted through SPI-SD init, copied all 65,536 payload blocks to DDR, matched DDR/SD payload words, and entered BBL with a 2-hart DTB. Complete logs prove Linux 5.1.0-rc7 can print after BBL `mret` and reach `Run /bin/sh as init process`; the active Build 67 gate is now reproducible normal-image shell interaction and `/dev/piton_sd2`/XSBench validation. If the SD card currently contains a `B67M` marker image, rewrite `build/huaprop3/sd_images/huaprop3_linux_xsbench_2x1.img` before drawing conclusions from post-`mret` UART behavior.
+
+Old P3 debug projects are archived outside the repository root. Repo-local historical build folders are under `/home/illya/p3_cleanup_archive/2026-06-04-build66-baseline/repo_dirs/`; old Vivado workspaces are under `/mnt/d/p3_cleanup_archive/2026-06-04-build66-baseline/workspaces/`. Keep `huaprop3onecore/` as the board-level reference project. Do not commit `p3b66/`, `p3b66_validated_snapshot/`, PDI/LTX/CSV files, or SD-card images.
 
 ### Key Board Files
 
@@ -287,6 +334,10 @@ cd <date>_<id> && regreport $PWD > report.log
 contint --bundle=git_push
 ```
 
+## Testing Guidelines
+
+Add diagnostics near related tests and register reusable suites through the appropriate `.diaglist` or regression group. For narrow RTL changes, run a focused `sims ... -vcs_run <test>` first, then a relevant regression such as `tile1_mini`, `ariane_tile1_simple`, or `ariane_tile1_amo_tests_p`. Include `regreport` summaries when reporting results. For Ariane/RISC-V work, also source `piton/ariane_setup.sh` and pass `-ariane` to relevant `sims` commands.
+
 ## Architecture
 
 OpenPiton is a tiled manycore processor with a distributed directory-based cache coherence protocol over a 2D mesh NoC. It supports both SPARC v9 (OpenSPARC T1-derived) and RISC-V (Ariane/CVA6) cores.
@@ -351,6 +402,10 @@ The build flow: `.pyv` files → `pyhp.py` → `.tmp.v`/`.tmp.h` files → simul
 ### Configuration
 
 Tile count configured at build time via `-x_tiles`/`-y_tiles` (passed through to the pyhp preprocessor). Core selection via `-core=ariane` or default SPARC. Key defines in `piton/design/include/define.h.pyv`.
+
+## Coding Style & Naming Conventions
+
+Match nearby RTL and script style. Verilog/SystemVerilog uses 4-space indentation in module bodies, aligned declarations, lowercase module/file names, and explicit suffixes such as `_clk`, `_rst_n`, `_val`, `_rdy`, and `_top`. Preserve copyright headers. Treat `.pyv` files as PyHP templates; update the template source, not generated temporary files (`.tmp.v`/`.tmp.h`). Python and Perl tools are legacy style, so keep edits minimal and localized.
 
 ## Key Tools
 
@@ -436,6 +491,105 @@ python3 scripts/p3_serial.py
 ```
 
 Requires: `python3` with `pexpect` (`pip install pexpect`). SSH password auth to remote machine (illya@100.93.77.36).
+
+### P3 Remote Programming & UART Capture (detailed SSH)
+
+For HuaPro P3 / VP1902 board bring-up, use the remote Ubuntu host at `100.93.77.36` for both XVC/hw_server and FT2232 UART capture. Known endpoints:
+- `hw_server`: `100.93.77.36:3121`
+- XVC target: `202.197.4.99:2540`
+- Remote UART host/user: `illya@100.93.77.36`
+- FT2232 UART devices: `/dev/ttyUSB0` and `/dev/ttyUSB1`; current board UART output has been observed on `/dev/ttyUSB0`.
+
+Before programming a PDI, start UART capture on the remote host so bootrom/BBL output is not missed:
+
+```bash
+ssh -tt illya@100.93.77.36 '
+  mkdir -p ~/p3_uart_logs
+  sudo stty -F /dev/ttyUSB0 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw -echo
+  sudo stty -F /dev/ttyUSB1 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw -echo
+  ts=$(date +%Y%m%d_%H%M%S)
+  echo LOG_TS=$ts
+  timeout 240s sh -c "cat /dev/ttyUSB0 > ~/p3_uart_logs/ttyUSB0_${ts}.log" &
+  timeout 240s sh -c "cat /dev/ttyUSB1 > ~/p3_uart_logs/ttyUSB1_${ts}.log" &
+  wait
+  ls -l ~/p3_uart_logs/ttyUSB*_${ts}.log
+  wc -c ~/p3_uart_logs/ttyUSB*_${ts}.log
+'
+```
+
+Then program the PDI with the Windows full Vivado 2024.2.2 client using the same `hw_server` and XVC endpoints. Board-side Vivado Lab 2024.2 can return `No devices detected` for this VP1902 XVC chain even when Windows full Vivado enumerates `arm_dap_0 xcvp1902_1`; use the board Ubuntu host for `hw_server` and UART capture, not as the preferred hardware-manager client. Prefer a real Tcl file path, not shell process substitution, because the WSL-to-Windows Vivado wrapper cannot read `/dev/fd/*` paths. Use `scripts/p3_program_pdi.tcl` with both the PDI and matching LTX when probes are available:
+
+```bash
+vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs \
+  huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi \
+  huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.ltx
+```
+
+The script sets `PROGRAM.FILE`, sets `PROBES.FILE` when an LTX is supplied, runs `program_hw_devices`, prints the DONE bit, refreshes the hardware device, and lists discovered ILAs. A successful debug-capable programming run should confirm `DONE bit: HIGH` plus debug hub setup at `0x3ffc0000000`.
+
+After programming, inspect remote UART logs:
+
+```bash
+ssh -tt illya@100.93.77.36 '
+  cat -v ~/p3_uart_logs/<log-file>
+  xxd -g1 ~/p3_uart_logs/<log-file>
+'
+```
+
+If `/dev/ttyUSB0` only prints repeated `A` bytes, the physical UART path is healthy but the programmed design is likely using a no-stack assembly UART probe bootrom rather than the normal GPT/BBL/Linux bootrom. Check the build script's bootrom rebuild mode before debugging SD-card image contents.
+
+When Linux reaches an interactive shell on the AXI16550 console, do not paste several commands at once — bulk writes trigger `ttyS0 input overrun(s)` and corrupt characters. Use slow, per-character writes when testing shell interaction:
+
+```bash
+ssh illya@100.93.77.36 '
+  stty -F /dev/ttyUSB0 115200 cs8 -cstopb -parenb -ixon -ixoff -crtscts raw -echo
+  python3 - <<'"'"'PY'"'"'
+import os, time
+fd = os.open("/dev/ttyUSB0", os.O_WRONLY | os.O_NOCTTY)
+for ch in "echo P3_SHELL_OK\r":
+    os.write(fd, ch.encode("ascii"))
+    time.sleep(0.20)
+os.close(fd)
+PY
+'
+```
+
+Confirm the result from the active UART log under `~/p3_uart_logs/`; a successful Build 66 shell test printed `P3_SHELL_OK` and accepted `uname -a`.
+
+### P3 Remote SD-Card Image Write
+
+When an SD-card image is generated locally but the card is inserted in the remote Ubuntu host, first identify the removable disk on the remote side. Do not assume a stale `/dev/sdX`; the Kingston multi-reader exposes several empty 0B slots.
+
+```bash
+ssh illya@100.93.77.36 \
+  'lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS; ls -l /dev/disk/by-id'
+```
+
+Only write a disk that has a real nonzero size, `TYPE=disk`, `TRAN=usb`, `RM=1`, and the expected model/size. In the current setup the SD card has appeared as `/dev/sdc` with model `Multi-Reader -1` and size `31914983424`, while `/dev/sdb`, `/dev/sdd`, and `/dev/sde` may be empty 0B reader slots.
+
+Copy a local image to the remote host, verify the hash, then write the whole disk device and read back the written span:
+
+```bash
+img=build/huaprop3/sd_images/huaprop3_linux_shell.img
+sha256sum "$img"
+scp "$img" illya@100.93.77.36:/tmp/huaprop3_linux_shell.img
+
+ssh illya@100.93.77.36 '
+  sha256sum /tmp/huaprop3_linux_shell.img
+  lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS /dev/sdc
+  sudo sh -c "
+    umount /dev/sdc1 2>/dev/null || true
+    dd if=/tmp/huaprop3_linux_shell.img of=/dev/sdc bs=4M conv=fsync status=progress
+    sync
+    blockdev --rereadpt /dev/sdc 2>/dev/null || true
+    sha256sum /tmp/huaprop3_linux_shell.img
+    dd if=/dev/sdc bs=4M count=32 status=none | sha256sum
+    lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS /dev/sdc
+  "
+'
+```
+
+The readback hash must match the local image hash for the written size. For a 128 MiB image, `count=32` with `bs=4M` reads back the full image. Never write to `/dev/sda` or `/dev/nvme*` on the remote host.
 
 ## Porting OpenPiton+Ariane to a New FPGA Board
 
@@ -562,3 +716,11 @@ Reference addresses for AX7203 (must match across all layers):
 - `PITON_SKIP_ARIANE_FW_BUILD=1` skips bootrom build in protosyn; must manually build `bootrom_linux.sv` and `bootrom.sv` (baremetal) before synthesis.
 - DDR3 MIG `init_calib_complete` gates the entire chipset reset — if DDR3 calibration fails, no peripherals (including UART) will function.
 - The AX7203 reset pin (T6) is in Bank 34 (1.5V LVCMOS15), not 3.3V.
+
+## Commit & Pull Request Guidelines
+
+Recent history uses short imperative subjects, often scoped by subsystem, plus GitHub merge commits. Example: `Fix typo in l2 pipe1 causing wrong hazard detection`. Keep commits focused. PRs should describe the changed RTL, tools, or tests; list exact `sims` or `contint` commands run; link related issues; and note simulator/tool versions for environment-sensitive changes.
+
+## Security & Configuration Tips
+
+Do not commit generated build directories, local tool installs, simulator licenses, or machine-specific paths. Keep `VCS_HOME`, RISCV toolchain paths, Vivado settings, and license configuration in the local shell unless a documented default is intentionally changed. Do not store passwords in repository files or scripts; use interactive authentication or an external credential mechanism.
