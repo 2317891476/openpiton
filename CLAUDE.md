@@ -123,6 +123,8 @@ protosyn -b a7203x -d system --core=ariane --uart-dmw ddr
 
 With `PITON_SKIP_ARIANE_FW_BUILD=1`, bootrom SV files must be built manually before synthesis (see Bootrom section below).
 
+For P3 hardware-manager operations, use this Windows full Vivado 2024.2.2 client with board-side `hw_server 100.93.77.36:3121` and XVC `202.197.4.99:2540`. Board-side Vivado Lab 2024.2 has failed to enumerate this chain while the Windows client immediately found `arm_dap_0 xcvp1902_1`; do not classify that Lab-only result as a board or PMC/DPC failure.
+
 ### P3 Offline Ubuntu Vivado Build Host
 
 For P3 Pro / VP1902 scaling builds, use the offline Ubuntu machine as the real Vivado build host. The remote Windows machine is only an SSH TCP jump host; do not run long nested commands such as `ssh windows "ssh ubuntu '...'"`, because Windows should not parse build scripts, shell quoting, or Tcl.

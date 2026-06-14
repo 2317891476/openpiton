@@ -113,6 +113,8 @@ The X-EPIC management controller cannot substitute for that full power cycle in 
 
 When auditing `hw_server` contention, do not count its wrapper shell, loader, and unwrapped binary as independent servers. Confirm ownership with `ss -ltnp`, then inspect established connections to port 3121 and the XVC endpoint. On 2026-06-14, stale Vivado Lab and `cs_server` clients were present and were removed, but a verified single-listener, zero-client retry still failed at `open_hw_target`. Process cleanup is necessary for a trustworthy retry, but it does not explain the persistent PMC/DPC registration failure in this case.
 
+Correction from the 2026-06-14 cross-client test: the PMC/DPC power-cycle inference above is not the active diagnosis. Windows full Vivado 2024.2.2 connected to the same board-side `hw_server 100.93.77.36:3121`, added the same XVC endpoint `202.197.4.99:2540`, and immediately enumerated `arm_dap_0 xcvp1902_1`. Board-side Vivado Lab 2024.2 continued to report `No devices detected`. For this P3 setup, use the board Ubuntu host for `hw_server` and UART capture, but use Windows full Vivado 2024.2.2 as the hardware-manager client for enumeration, PDI programming, and ILA operations. Do not infer a board power or PMC/DPC failure from the older Lab client alone.
+
 #### Build 69 8x8 OpenSBI Diagnostic Flow
 
 Build 69 is the low-level diagnostic successor to Build 68. It uses the same 8x8 tile configuration, self-contained source snapshot policy, OpenSBI bundle layout, AXI16550 UART, translated DDR path, SPI-mode SD path, and four BD-owned ILA shape as Build 68/Build 52. The difference is the bootrom: `BOOTROM_MODE=opensbi_bundle_diag` makes the software path prove the bring-up chain in order before entering OpenSBI.

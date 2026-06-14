@@ -52,7 +52,7 @@ ssh -tt illya@100.93.77.36 '
 '
 ```
 
-Then program the PDI through Vivado/Vivado Lab using the same `hw_server` and XVC endpoints. Prefer a real Tcl file path, not shell process substitution, because the WSL-to-Windows Vivado wrapper cannot read `/dev/fd/*` paths. Use `scripts/p3_program_pdi.tcl` with both the PDI and matching LTX when probes are available:
+Then program the PDI with the Windows full Vivado 2024.2.2 client using the same `hw_server` and XVC endpoints. Board-side Vivado Lab 2024.2 can return `No devices detected` for this VP1902 XVC chain even when Windows full Vivado enumerates `arm_dap_0 xcvp1902_1`; use the board Ubuntu host for `hw_server` and UART capture, not as the preferred hardware-manager client. Prefer a real Tcl file path, not shell process substitution, because the WSL-to-Windows Vivado wrapper cannot read `/dev/fd/*` paths. Use `scripts/p3_program_pdi.tcl` with both the PDI and matching LTX when probes are available:
 
 ```bash
 vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs \
