@@ -43,6 +43,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
  
 ## Weekly Reports
 
+- [周报 - 64核OpenSBI启动调试 (2026-06-16~22)](weekly_report_2026-06-16_to_2026-06-22.md) — 5个根因定位+修复，首次跑到OpenSBI banner
 - [Weekly Report - 64-core Scaling and Toolchain Debugging](weekly_report_64core_diagnostics.md)
 - [Weekly Report - Single-core Boot and 2x1 Multicore Bring-up](weekly_report_multicore_bringup.md)
 - [Weekly Report - SD Card Issue on P3](weekly_report_sd_issue.md)
