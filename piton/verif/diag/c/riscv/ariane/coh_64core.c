@@ -64,8 +64,10 @@ int main(int argc, char **argv) {
 
     volatile uint64_t fresh = data;     // re-read: NEW iff our L1 line was invalidated
     for (volatile int i = 0; i < 16; i++) { fresh = data; }
-    if (fresh == NEW_VAL) ATOMIC_OP(ok_count, 1, add, d);
-    else                  ATOMIC_OP(bad_count, 1, add, d);
+    // NOTE: ATOMIC_OP macro expands with a trailing ';', so wrap in braces
+    // when used as an if/else body (else the extra ';' breaks the else).
+    if (fresh == NEW_VAL) { ATOMIC_OP(ok_count, 1, add, d); }
+    else                  { ATOMIC_OP(bad_count, 1, add, d); }
     ATOMIC_OP(done_count, 1, add, d);
 
     // Core 1 is the verifier: wait for all readers to finish, then verdict.
