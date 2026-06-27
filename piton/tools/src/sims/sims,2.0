@@ -1531,7 +1531,11 @@ sub generic_sim_build
       $build_cmd .= "--unroll-count 256 " ;
       $build_cmd .= "-CFLAGS -DVERILATOR " ;
       $build_cmd .= "-CFLAGS -DPITON_DPI " ;
-      $build_cmd .= "-CFLAGS -lstdc++ " ;
+      # -lstdc++ is a LINKER flag, not a compile flag. Putting it in -CFLAGS
+      # leaks it into Verilator's precompiled-header (PCH) g++ command on v5.x,
+      # which then tries to link (Scrt1.o -> undefined reference to `main').
+      # g++ links libstdc++ by default; keep it on -LDFLAGS for safety.
+      $build_cmd .= "-LDFLAGS -lstdc++ " ;
       $build_cmd .= "-CFLAGS -I$dv_root/tools/pli/iop " ;
       $build_cmd .= "-CFLAGS -I$dv_root/tools/verilator " ;
     }
