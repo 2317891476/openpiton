@@ -334,6 +334,36 @@ cd <date>_<id> && regreport $PWD > report.log
 contint --bundle=git_push
 ```
 
+### Ariane simulation with Verilator 5.046 (VCS not required) — VERIFIED WORKING 2026-06-27
+
+VCS is not installed on this machine, and Ariane's bundled Verilator 4.014 will not build (bison 3.8.2 incompatibility). The manycore Ariane design **does build and run on the system Verilator 5.046** (at `/usr/local/bin/verilator`) with three small, no-design-RTL fixes. This is the working local simulation path.
+
+Environment (the `unset VERILATOR_ROOT` is essential — otherwise ariane_setup points at the broken 4.014):
+```bash
+source $PITON_ROOT/piton/piton_settings.bash
+source $PITON_ROOT/piton/ariane_setup.sh
+export RISCV=$HOME/scratch/riscv_install          # newlib toolchain (has stdint.h); system 10.2.0 lacks it
+export PATH=$RISCV/bin:$PITON_ROOT/piton/tools/bin:$PATH
+export C_INCLUDE_PATH=$RISCV/include:${C_INCLUDE_PATH:-}
+unset VERILATOR_ROOT                               # use system verilator 5.046
+```
+
+Build + run (2-tile example; the `-vlt_build_args` flags are required on v5):
+```bash
+sims -sys=manycore -x_tiles=2 -y_tiles=1 -ariane -vlt_build \
+  -vlt_build_args=--no-timing \                    # v5 needs this for #delay stmts in monitors
+  -vlt_build_args=-Wno-WIDTHEXPAND -vlt_build_args=-Wno-WIDTHTRUNC \
+  -vlt_build_args=-Wno-WIDTH -vlt_build_args=-Wno-SELRANGE \
+  -vlt_build_args=-Wno-ASCRANGE -vlt_build_args=-Wno-WIDTHCONCAT
+# Model: build/manycore/rel-0.1/obj_dir/Vcmp_top
+sims -sys=manycore -x_tiles=2 -y_tiles=1 -ariane -vlt_run <diag>.c -finish_mask=0x3 -rtl_timeout=1000000
+```
+
+Fixes already applied to the tree (committed):
+- `piton/tools/src/sims/sims,2.0:1534` — `-CFLAGS -lstdc++` → `-LDFLAGS -lstdc++` (`-lstdc++` is a linker flag; as a CFLAG it leaked into v5's precompiled-header g++ command and failed with `undefined reference to main`. g++ links libstdc++ by default).
+
+Caveat discovered while testing 2-core coherency diags: the C runtime's `printbuf` (`piton/verif/diag/assembly/include/riscv/ariane/syscalls.c`) polls UART LSR bit 5 (`while(!((*(uartAddr+5)) & 0x20))`) before every character. The Verilator testbench does not model the UART, so **any diag that calls `printf` hangs the core forever** (the poll never sees THRE). For coherency/functional tests in Verilator, use **printf-free** diagnostics and signal pass/fail only via `pass()`/`fail()` (or `return 0`) — do not rely on UART output, which is not piped to the sim log anyway. Pass/fail is read from good/bad traps in `build/manycore/rel-0.1/status.log` and the `Info: spc(N) thread(T) Hit Good/Bad trap` lines.
+
 ## Testing Guidelines
 
 Add diagnostics near related tests and register reusable suites through the appropriate `.diaglist` or regression group. For narrow RTL changes, run a focused `sims ... -vcs_run <test>` first, then a relevant regression such as `tile1_mini`, `ariane_tile1_simple`, or `ariane_tile1_amo_tests_p`. Include `regreport` summaries when reporting results. For Ariane/RISC-V work, also source `piton/ariane_setup.sh` and pass `-ariane` to relevant `sims` commands.
