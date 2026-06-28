@@ -1577,7 +1577,10 @@ sub generic_sim_build
     }
 
     if ($opt{vlt_build}) {
-      $build_cmd = "make -j -C $model_path/obj_dir -f Vcmp_top.mk Vcmp_top" ;
+      # Bounded -j: unlimited "make -j" spawns one cc1plus per .cpp (~1-2GB each);
+      # for large manycore builds (1000s of files) this OOMs the host. Cap to a
+      # parallelism that fits RAM (16 cores, 94GB -> -j 16 ~= max 32GB peak).
+      $build_cmd = "make -j 16 -C $model_path/obj_dir -f Vcmp_top.mk Vcmp_top" ;
 
       print "$prg: $build_cmd\n";
 
