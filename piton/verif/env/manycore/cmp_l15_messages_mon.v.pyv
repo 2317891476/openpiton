@@ -629,7 +629,7 @@ begin
         $display("   Data1: 0x%x", `L15_TOP0.noc3encoder.l15_noc3encoder_req_data_1);
     end
 
-    do_print_stage_TILE0 = ((`L15_PIPE0.val_s1 && !`L15_PIPE0.stall_s1) || (`L15_PIPE0.val_s2 && !`L15_PIPE0.stall_s2) || (`L15_PIPE0.val_s3 && !`L15_PIPE0.stall_s3));
+    do_print_stage_TILE0 = 1'b0; // SIM SPEEDUP: disable verbose per-stage L1.5 dump (was: val_s1/s2/s3); the $display flood slowed Verilator ~100x
     if (do_print_stage_TILE0)
     begin
         // $display("");

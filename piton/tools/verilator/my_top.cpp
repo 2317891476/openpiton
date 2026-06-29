@@ -52,13 +52,18 @@ void tick() {
     main_time += 250;
     top->eval();
 #ifdef VERILATOR_VCD
-    tfp->dump(main_time);
+    // Open the trace ONLY near the error window. The L1.5 monitor error fired at
+    // $time(main_time) 40166000 (~80K cycles). Open at main_time 35e6 (~70K cyc)
+    // to capture ~10K cycles of lead-up.
+    static bool tr_open = false;
+    if (!tr_open && main_time > 35000000ULL) { tfp->open("my_top.vcd"); tr_open = true; }
+    if (tr_open) tfp->dump(main_time);
 #endif
     top->core_ref_clk = !top->core_ref_clk;
     main_time += 250;
     top->eval();
 #ifdef VERILATOR_VCD
-    tfp->dump(main_time);
+    if (tr_open) tfp->dump(main_time);
 #endif
 }
 
@@ -153,7 +158,10 @@ std::cout << "Vcmp_top created" << std::endl << std::flush;
 Verilated::traceEverOn(true);
 tfp = new VerilatedVcdC;
 top->trace (tfp, 99);
-tfp->open ("my_top.vcd");
+// do NOT open here; tick() opens it near the error window (cycle ~40.1M,
+// main_time ~= 40.1e6*500 = 2.005e10) to keep the VCD small. The error
+// observed: "40166000 L15 TILE0 ... L15_REQTYPE_STORE @0x8020e9c".
+//tfp->open ("my_top.vcd");
 
 Verilated::debug(1);
 #endif
