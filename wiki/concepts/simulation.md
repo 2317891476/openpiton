@@ -82,6 +82,36 @@ statements with `;` using a statement-aware script. Avoid comment-prefix edits
 that leave empty `case` labels, and avoid broad regex deletion that can consume
 `begin`/`end` structure.
 
+For the active `coh_ipi64.c` root-cause test, do not use full Verilator
+`--trace` as the default capture path. Full hierarchical VCD tracing is too slow
+for the intermittent failure loop. Instead, build the existing 8x8 model without
+global trace and compile the testbench with `-DCOH_IPI64_SMALL_VCD`. The custom
+writer in `piton/tools/verilator/my_top.cpp` emits `coh_ipi64_small.vcd` only
+after `main_time >= 20000000`, omits high-frequency clock toggles after the
+initial value, and records the CLINT MSIP/AXI bridge, CLINT NoC queues, and
+TILE0 L1.5 NOC1/NOC3/pipeline/MESI write signals needed around the previous
+`main_time ~40166000` failure window.
+
+Relink after changing the small-VCD harness:
+
+```bash
+make -j16 -C build/manycore/rel-0.1/obj_dir -f Vcmp_top.mk Vcmp_top
+```
+
+Then loop the reproducer from `$PITON_ROOT/build` until a messages-monitor
+failure appears:
+
+```bash
+for i in $(seq 1 20); do
+  rm -f coh_ipi64_small.vcd
+  log=/tmp/coh_ipi64_vcd_runs/small_run_${i}.log
+  sims -sys=manycore -x_tiles=8 -y_tiles=8 -ariane -vlt_run coh_ipi64.c \
+    -finish_mask=0x1 -rtl_timeout=20000000 > "$log" 2>&1
+  err=$(grep -acE "SIGDIE|L1\\.5 MON|error message type|L15 mon|Simulation -> FAIL" "$log" || true)
+  [ "$err" != "0" ] && cp coh_ipi64_small.vcd /tmp/coh_ipi64_vcd_runs/coh_ipi64_fail_small_${i}.vcd && break
+done
+```
+
 ## Quicksilver-Specific Testing (TBD)
 
 - Single-core functional correctness
