@@ -17,8 +17,8 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | Build 68 8x8 / 64-core OpenSBI/Linux completed VP1902 implementation. Build 69 programmed successfully with `DONE bit: HIGH` and 4 ILAs but emitted 0 UART bytes (ILA showed active core execution & DDR access but SD read error). Build 70 failed synthesis due to untracked sources (`piton_spi_sd_top`). Build 71 closed sources and programmed successfully with `DONE bit: HIGH` after XVC latency watchdog was extended; UART showed bootrom successfully executing through DDR, SPI-SD, and GPT checks, then halting on bad header magic (need to rewrite SD image). |
-| Simulation | `sims -sys=manycore -x_tiles=N -y_tiles=M -vcs_build` |
+| Current scaling candidate | 8x8 / 64-core OpenSBI/Linux boots through 64-hart SMP bring-up. The stale DTB `linux,initrd-end` initramfs truncation is fixed in dbg26; the active blocker is an intermittent SMP `stop_machine` / CLINT MSIP/IPI forward-progress race. Local `coh_ipi64.c` simulation reproduces the strongest lead as an intermittent L1.5 messages-monitor failure. |
+| Simulation | VCS when licensed; current local Ariane path uses Verilator 5.046 with `--hierarchical + -O0` for 8x8 |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
 

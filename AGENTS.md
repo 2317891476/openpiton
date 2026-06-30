@@ -14,8 +14,72 @@ Set `PITON_ROOT` to the repository root and run `source $PITON_ROOT/piton/piton_
 
 For Ariane/RISC-V work, also source `piton/ariane_setup.sh` and pass `-ariane` to relevant `sims` commands.
 
+### Ariane Verilator 5.046 Flow
+
+VCS is not available in the current local environment. Use the system Verilator
+5.046 path for Ariane manycore debug; do not use the Ariane-bundled Verilator
+4.014, which is blocked by the local bison 3.8.2 toolchain.
+
+```bash
+source $PITON_ROOT/piton/piton_settings.bash
+source $PITON_ROOT/piton/ariane_setup.sh
+export RISCV=$HOME/scratch/riscv_install
+export PATH=$RISCV/bin:$PITON_ROOT/piton/tools/bin:$PATH
+unset VERILATOR_ROOT
+```
+
+Required Verilator 5 flags for Ariane monitor/testbench compatibility:
+
+```bash
+sims -sys=manycore -x_tiles=8 -y_tiles=8 -ariane -vlt_build \
+  -vlt_build_args=--no-timing \
+  -vlt_build_args=-Wno-WIDTHEXPAND -vlt_build_args=-Wno-WIDTHTRUNC \
+  -vlt_build_args=-Wno-WIDTH -vlt_build_args=-Wno-SELRANGE \
+  -vlt_build_args=-Wno-ASCRANGE -vlt_build_args=-Wno-WIDTHCONCAT \
+  -vlt_build_args=--hierarchical -vlt_build_args=-CFLAGS -vlt_build_args=-O0 \
+  -vlt_build_args=--trace -vlt_build_args=-CFLAGS -vlt_build_args=-DVERILATOR_VCD
+```
+
+For 8x8 / 64-tile simulation, `--hierarchical` and `-CFLAGS -O0` are both
+required: hierarchical mode avoids tens of thousands of duplicated tile files,
+while `-O0` avoids the 21 MB root-split `__11` file spending 50+ minutes in GCC
+`-Os` optimization. The `sims,2.0` flow is expected to use `make -j16`; never
+use unlimited `make -j` on this model because it can OOM the WSL environment.
+
+Do not use `printf` in Verilator Ariane diagnostics. The UART is not modeled,
+and the runtime `printbuf` waits forever on LSR THRE. Use `pass()`/`fail()` or
+return codes, and read good/bad traps from `status.log` and the simulator log.
+
+Current validated simulation facts:
+- `coh_2core.c` and `coh_64core.c` pass; L1 invalidation/coherence is not broken.
+- `wt_l15_adapter.sv` line 121 is an unused core-initiated outgoing invalidate,
+  not the incoming coherence-invalidation path. The real L15-to-D-cache
+  invalidate path is present through `L15_EVICT_REQ` to `DCACHE_INV_REQ`.
+- `coh_ipi64.c`, which exercises the CLINT MSIP path used by Linux
+  `stop_machine`, intermittently trips the L1.5 messages monitor. This is the
+  active 64-core root-cause lead, not generic L1 coherence.
+
+Next simulation task: capture a VCD around the intermittent `coh_ipi64.c`
+failure. First reduce verbose monitor output safely by replacing complete
+`$display`/`$write` statements with `;` using a line/state-machine script. Do
+not repeat the two failed approaches: prefixing `$display` with `//` can leave
+empty `case` labels, and a broad regex such as `\$display\b[^;]*;` can consume
+`begin`/`end` structure across lines.
+
 ## Coding Style & Naming Conventions
 Match nearby RTL and script style. Verilog/SystemVerilog uses 4-space indentation in module bodies, aligned declarations, lowercase module/file names, and explicit suffixes such as `_clk`, `_rst_n`, `_val`, `_rdy`, and `_top`. Preserve copyright headers. Treat `.pyv` files as PyHP templates; update the template source, not generated temporary files. Python and Perl tools are legacy style, so keep edits minimal and localized.
+
+Project-specific debugging discipline:
+- Read the real code path before naming a root cause. Do not infer a coherence
+  bug from a single assignment without tracing the request/response path and
+  running the targeted diagnostic.
+- Keep changes surgical. Do not reformat generated PyHP output or edit `.tmp.v`
+  files when the `.pyv` source is the correct ownership boundary.
+- Prefer a reproducible `sims` diagnostic or waveform over guess-and-synthesize
+  hardware experiments. Change one variable per debug round and record the
+  concrete pass/fail gate.
+- When a method has already failed, document why and avoid repeating it with
+  different syntax unless the failure mode has been removed.
 
 ## Testing Guidelines
 Add diagnostics near related tests and register reusable suites through the appropriate `.diaglist` or regression group. For narrow RTL changes, run a focused `sims ... -vcs_run <test>` first, then a relevant regression such as `tile1_mini`, `ariane_tile1_simple`, or `ariane_tile1_amo_tests_p`. Include `regreport` summaries when reporting results.
@@ -173,6 +237,23 @@ The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-b
 - Linux `Image`: `0x80200000`
 - DTB: `0x88000000`
 - initramfs: `0x90000000`
+
+Current 64-core boot status as of 2026-06-30:
+- The earlier "L1 coherence is broken" diagnosis is retired. Both 2-core and
+  64-core Verilator diagnostics pass, and the incoming invalidation path is
+  wired.
+- The stale DTB `linux,initrd-end` issue caused the previous initramfs
+  truncation and `No working init` panic. The dbg26 image corrected
+  `initrd-end` to `0x90107d9c`, clearing that panic.
+- The active blocker is an intermittent Linux SMP `stop_machine` / IPI forward
+  progress race. Hardware logs show the kernel reaching 64-hart SMP bring-up
+  and then hanging in `multi_cpu_stop`; local `coh_ipi64.c` simulation provides
+  the strongest reproducible lead by intermittently tripping an L1.5 monitor on
+  the CLINT MSIP path.
+- Do not claim a 64-core Linux shell or XSBench result until logs show a shell,
+  `nproc` or `/proc/cpuinfo` reporting 64 CPUs, and the benchmark command
+  actually executing. Earlier shell/XSBench claims were based on expired UART
+  captures and are not valid evidence.
 
 Build 68 must regenerate both generated ROM sources before Vivado project creation. `riscv_peripherals.sv` instantiates `bootrom` and `bootrom_linux` unconditionally, then selects between them with `ariane_boot_sel_i`; therefore the OpenSBI/Linux path still needs `piton/design/chipset/rv64_platform/bootrom/baremetal/bootrom.sv` in addition to `piton/design/chipset/rv64_platform/bootrom/linux/bootrom_linux.sv`. Do not rely on stale untracked local generated ROM files; a remote clean archive must be able to reproduce both modules. Generate the companion baremetal ROM from an inline minimal DTS, not by invoking `riscvlib.py` or following `bootrom/baremetal/rv64_platform.dts`, because the remote source archive intentionally lacks `.git` metadata and the symlink target `bootrom/rv64_platform.dts` is an ignored generated file.
 
