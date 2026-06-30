@@ -87,10 +87,13 @@ For the active `coh_ipi64.c` root-cause test, do not use full Verilator
 for the intermittent failure loop. Instead, build the existing 8x8 model without
 global trace and compile the testbench with `-DCOH_IPI64_SMALL_VCD`. The custom
 writer in `piton/tools/verilator/my_top.cpp` emits `coh_ipi64_small.vcd` only
-after `main_time >= 20000000`, omits high-frequency clock toggles after the
-initial value, and records the CLINT MSIP/AXI bridge, CLINT NoC queues, and
-TILE0 L1.5 NOC1/NOC3/pipeline/MESI write signals needed around the previous
-`main_time ~40166000` failure window.
+after `main_time >= 16000000`, omits high-frequency clock toggles after the
+initial value, and records the CLINT MSIP/AXI bridge, CLINT NoC queues, TILE0
+L1.5 NOC1/NOC3/pipeline/MESI write signals, and TILE36 L1.5/CSM signals. TILE36
+is included because the older failing verbose log ended at a `TILE36 L15_CSM REQ
+MON` line, while TILE0 is still needed for the earlier L1.5 monitor summaries.
+The harness also prints `COH_IPI64_PROGRESS main_time=<n>` every 1,000,000 time
+units so long 8x8 `-O0` runs are observable before the VCD window opens.
 
 Relink after changing the small-VCD harness:
 
