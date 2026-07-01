@@ -110,6 +110,16 @@ decoder classifies as a CSM/HMC operation, especially `write_val_s2 &&
 that condition; it is only the Perl wrapper's abort path after the monitor
 failure.
 
+The 2026-07-01 short-window result answers that specific TILE36 question
+negatively. At `main_time=23535250`, TILE36 is reading CSM metadata for a
+BootROM IFILL address `0xfff101000c`; it is not receiving a CLINT response and
+is not writing a CSM/HMC refill entry. The decoded NoC2 message is
+`MSG_TYPE_DATA_ACK` with `mshrid=1` and `noc2decoder_l15_hmc_fill=0`, while the
+CSM path has `read_val_s2=1`, `write_val_s2=0`, `ghid_val_s2=0`, and
+`wr_en_s2=0`. Therefore the next capture should instrument the actual
+messages-monitor failure condition and tile/time context, not the last verbose
+`TILE36 L15_CSM REQ MON` line.
+
 Relink after changing the small-VCD harness:
 
 ```bash
