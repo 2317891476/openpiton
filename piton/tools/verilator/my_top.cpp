@@ -54,10 +54,14 @@ VerilatedVcdC* tfp;
 #ifndef COH_IPI64_SMALL_VCD_STOP
 #define COH_IPI64_SMALL_VCD_STOP 0ULL
 #endif
+#endif
+#if defined(COH_IPI64_SMALL_VCD) || defined(COH_IPI64_PROGRESS_ONLY)
 #ifndef COH_IPI64_PROGRESS_PERIOD
 #define COH_IPI64_PROGRESS_PERIOD 1000000ULL
 #endif
+#endif
 
+#ifdef COH_IPI64_SMALL_VCD
 class CohIpi64SmallVcd {
   private:
     enum Signal {
@@ -550,12 +554,14 @@ void tick() {
     top->core_ref_clk = !top->core_ref_clk;
     main_time += 250;
     top->eval();
-#ifdef COH_IPI64_SMALL_VCD
+#if defined(COH_IPI64_SMALL_VCD) || defined(COH_IPI64_PROGRESS_ONLY)
     static uint64_t next_progress_time = COH_IPI64_PROGRESS_PERIOD;
     if (main_time >= next_progress_time) {
         std::cout << "COH_IPI64_PROGRESS main_time=" << main_time << std::endl << std::flush;
         next_progress_time += COH_IPI64_PROGRESS_PERIOD;
     }
+#endif
+#ifdef COH_IPI64_SMALL_VCD
     small_vcd.sample(main_time, top);
     if (COH_IPI64_SMALL_VCD_STOP != 0ULL && main_time >= COH_IPI64_SMALL_VCD_STOP) {
         small_vcd.close();
@@ -575,11 +581,13 @@ void tick() {
     top->core_ref_clk = !top->core_ref_clk;
     main_time += 250;
     top->eval();
-#ifdef COH_IPI64_SMALL_VCD
+#if defined(COH_IPI64_SMALL_VCD) || defined(COH_IPI64_PROGRESS_ONLY)
     if (main_time >= next_progress_time) {
         std::cout << "COH_IPI64_PROGRESS main_time=" << main_time << std::endl << std::flush;
         next_progress_time += COH_IPI64_PROGRESS_PERIOD;
     }
+#endif
+#ifdef COH_IPI64_SMALL_VCD
     small_vcd.sample(main_time, top);
     if (COH_IPI64_SMALL_VCD_STOP != 0ULL && main_time >= COH_IPI64_SMALL_VCD_STOP) {
         small_vcd.close();

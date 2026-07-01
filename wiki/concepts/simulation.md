@@ -126,6 +126,21 @@ Relink after changing the small-VCD harness:
 make -j16 -C build/manycore/rel-0.1/obj_dir -f Vcmp_top.mk Vcmp_top
 ```
 
+For probability sweeps, first use the progress-only harness mode rather than
+small VCD sampling:
+
+```bash
+make -C build/manycore/rel-0.1/obj_dir -f Vcmp_top.mk my_top.o \
+  -W $PITON_ROOT/piton/tools/verilator/my_top.cpp \
+  USER_CPPFLAGS='-DCOH_IPI64_PROGRESS_ONLY'
+make -C build/manycore/rel-0.1/obj_dir -f Vcmp_top.mk Vcmp_top
+```
+
+This prints `COH_IPI64_PROGRESS main_time=<n>` every 1,000,000 time units
+without dereferencing the TILE0/TILE36 hierarchy for VCD output. Use it to find
+the actual monitor fail string and approximate fail time. Only then rebuild with
+`COH_IPI64_SMALL_VCD_START/STOP` around that time.
+
 Then loop the reproducer from `$PITON_ROOT/build` until a messages-monitor
 failure appears:
 
