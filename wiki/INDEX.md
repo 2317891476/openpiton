@@ -55,6 +55,7 @@ Entries in `devlog/` are organized by month, newest first, append-only.
 
 | Month | File |
 |-------|------|
+| 2026-07 | [2026-07](devlog/2026-07.md) |
 | 2026-06 | [2026-06](devlog/2026-06.md) |
 | 2026-05 | [2026-05](devlog/2026-05.md) |
 

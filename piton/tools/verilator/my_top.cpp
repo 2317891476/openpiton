@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef COH_IPI64_SMALL_VCD
 #include "Vcmp_top___024root.h"
 #include "Vcmp_top_tile__T2.h"
+#include <cstddef>
 #include <fstream>
 #endif
 
@@ -321,7 +322,7 @@ class CohIpi64SmallVcd {
         return infos[sig];
     }
 
-    template <int N>
+    template <std::size_t N>
     static uint64_t wide64(const VlWide<N>& value, int low_word) {
         return (static_cast<uint64_t>(value[low_word + 1]) << 32)
              | static_cast<uint64_t>(value[low_word]);
