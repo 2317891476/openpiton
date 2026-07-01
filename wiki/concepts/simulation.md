@@ -71,10 +71,14 @@ the stale `linux,initrd-end` truncation issue; dbg26 fixes the initramfs range
 and exposes the next blocker: intermittent SMP `stop_machine` / IPI forward
 progress failure.
 
-The strongest local reproducer is `coh_ipi64.c`, which writes CLINT MSIP bits
-from hart0 to the other 63 harts. It intermittently trips the L1.5 messages
-monitor around a TILE0 store to `0x8020e9c`; this path is closer to Linux
-`stop_machine` than the AMO-based `coh_64core.c` test.
+The strongest earlier local lead was `coh_ipi64.c`, which writes CLINT MSIP
+bits from hart0 to the other 63 harts and is closer to Linux `stop_machine`
+than the AMO-based `coh_64core.c` test. Older logs suggested an intermittent
+L1.5 messages-monitor failure around a TILE0 store to `0x8020e9c`, but the
+2026-07-01 progress-only sweep did not reproduce it: three consecutive 8x8
+Verilator runs passed, and the third run crossed the old `main_time ~= 40M`
+window before reaching the good trap. Treat that older failure as an unconfirmed
+lead until a current run reaches a concrete `MONITOR_PATH.fail(...)` branch.
 
 The next diagnostic goal is a VCD for the failing `coh_ipi64.c` window. Before
 looping runs, reduce monitor output by replacing complete `$display`/`$write`
@@ -120,6 +124,16 @@ CSM path has `read_val_s2=1`, `write_val_s2=0`, `ghid_val_s2=0`, and
 messages-monitor failure condition and tile/time context, not the last verbose
 `TILE36 L15_CSM REQ MON` line.
 
+The 2026-07-01 progress-only sweep adds a second constraint: with
+`COH_IPI64_PROGRESS_ONLY`, runs 1, 2, and 3 all reached the good trap, and run 3
+passed through the old `~40M` window. Do not keep spending cycles on blind VCD
+windows from the stale log. The next RTL diagnostic should add compact context
+prints immediately before active `MONITOR_PATH.fail(...)` calls in
+`cmp_l15_messages_mon.v.pyv`, including the fail name, tile, `$time`, NoC message
+type/address/MSHRID when available, and CSM/HMC read/write qualifiers. Once a
+current run self-identifies the real fail branch and time, narrow VCD capture
+can be rebuilt around that point.
+
 Relink after changing the small-VCD harness:
 
 ```bash
@@ -138,8 +152,10 @@ make -C build/manycore/rel-0.1/obj_dir -f Vcmp_top.mk Vcmp_top
 
 This prints `COH_IPI64_PROGRESS main_time=<n>` every 1,000,000 time units
 without dereferencing the TILE0/TILE36 hierarchy for VCD output. Use it to find
-the actual monitor fail string and approximate fail time. Only then rebuild with
-`COH_IPI64_SMALL_VCD_START/STOP` around that time.
+the actual monitor fail string and approximate fail time. If several consecutive
+runs pass, switch to monitor-branch context instrumentation instead of extending
+the blind sweep. Only rebuild with `COH_IPI64_SMALL_VCD_START/STOP` after a
+current failure identifies a concrete branch and time.
 
 Then loop the reproducer from `$PITON_ROOT/build` until a messages-monitor
 failure appears:
