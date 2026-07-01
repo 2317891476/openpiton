@@ -615,7 +615,9 @@ begin
         ;
     end
 
-    do_print_stage_TILE0 = 1'b0; // SIM SPEEDUP: disable verbose per-stage L1.5 dump (was: val_s1/s2/s3); the ;
+    do_print_stage_TILE0 = 1'b0; // SIM SPEEDUP: disable verbose per-stage L1.5 dump.
+    if (do_print_stage_TILE0)
+    begin
         ;
         ;
         ;

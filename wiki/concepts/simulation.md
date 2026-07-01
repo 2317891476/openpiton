@@ -95,6 +95,21 @@ MON` line, while TILE0 is still needed for the earlier L1.5 monitor summaries.
 The harness also prints `COH_IPI64_PROGRESS main_time=<n>` every 1,000,000 time
 units so long 8x8 `-O0` runs are observable before the VCD window opens.
 
+For the 2026-06-30 root-cause pass, compile the harness with an explicit stop
+window, for example `-DCOH_IPI64_SMALL_VCD_START=22000000ULL` and
+`-DCOH_IPI64_SMALL_VCD_STOP=24000000ULL`, to capture the older TILE36
+`main_time ~= 23535500` failure window and exit automatically. The small VCD now
+also records TILE36 raw 512-bit NoC2 flits, `noc2decoder_l15_data_1`, CSM
+`write_val_s2/read_val_s2/ghid_val_s2/wr_en_s2/diag_en_s2/flush_en_s2`, the CSM
+request data words, and BootROM/CLINT NoC2 return flits and FIFO counters.
+Decode the NoC2 header with `MSG_MSHRID=13:6`, `MSG_TYPE=21:14`,
+`MSG_LENGTH=29:22`, and `MSG_ADDR=119:80`. The specific question is whether a
+BootROM or CLINT device response is returning a header that the TILE36 L1.5
+decoder classifies as a CSM/HMC operation, especially `write_val_s2 &&
+!ghid_val_s2`. Do not treat the older `sims: SIGDIE` line by itself as proof of
+that condition; it is only the Perl wrapper's abort path after the monitor
+failure.
+
 Relink after changing the small-VCD harness:
 
 ```bash
