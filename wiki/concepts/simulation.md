@@ -80,24 +80,22 @@ Verilator runs passed, and the third run crossed the old `main_time ~= 40M`
 window before reaching the good trap. Treat that older failure as an unconfirmed
 lead until a current run reaches a concrete `MONITOR_PATH.fail(...)` branch.
 
-The next diagnostic goal is a VCD for the failing `coh_ipi64.c` window. Before
-looping runs, reduce monitor output by replacing complete `$display`/`$write`
-statements with `;` using a statement-aware script. Avoid comment-prefix edits
-that leave empty `case` labels, and avoid broad regex deletion that can consume
-`begin`/`end` structure.
+The next simulation diagnostic is no longer a blind VCD for the old
+`coh_ipi64.c` window. Before any further VCD capture, a current run must first
+self-identify a concrete monitor fail branch and time. If monitor output must be
+reduced, replace complete `$display`/`$write` statements with `;` using a
+statement-aware script. Avoid comment-prefix edits that leave empty `case`
+labels, and avoid broad regex deletion that can consume `begin`/`end` structure.
 
-For the active `coh_ipi64.c` root-cause test, do not use full Verilator
-`--trace` as the default capture path. Full hierarchical VCD tracing is too slow
-for the intermittent failure loop. Instead, build the existing 8x8 model without
-global trace and compile the testbench with `-DCOH_IPI64_SMALL_VCD`. The custom
-writer in `piton/tools/verilator/my_top.cpp` emits `coh_ipi64_small.vcd` only
-after `main_time >= 16000000`, omits high-frequency clock toggles after the
-initial value, and records the CLINT MSIP/AXI bridge, CLINT NoC queues, TILE0
-L1.5 NOC1/NOC3/pipeline/MESI write signals, and TILE36 L1.5/CSM signals. TILE36
-is included because the older failing verbose log ended at a `TILE36 L15_CSM REQ
-MON` line, while TILE0 is still needed for the earlier L1.5 monitor summaries.
-The harness also prints `COH_IPI64_PROGRESS main_time=<n>` every 1,000,000 time
-units so long 8x8 `-O0` runs are observable before the VCD window opens.
+If the `coh_ipi64.c` lead is revisited, do not use full Verilator `--trace` as
+the default capture path. Full hierarchical VCD tracing is too slow for this
+loop. The custom writer in `piton/tools/verilator/my_top.cpp` can emit
+`coh_ipi64_small.vcd` after a configured start time, omit high-frequency clock
+toggles after the initial value, and record the CLINT MSIP/AXI bridge, CLINT
+NoC queues, TILE0 L1.5 NOC1/NOC3/pipeline/MESI write signals, and TILE36
+L1.5/CSM signals. However, use that mode only after a current failure identifies
+the branch and approximate time. TILE36 remains useful only for explaining the
+older stale log.
 
 For the 2026-06-30 root-cause pass, compile the harness with an explicit stop
 window, for example `-DCOH_IPI64_SMALL_VCD_START=22000000ULL` and
@@ -157,8 +155,8 @@ runs pass, switch to monitor-branch context instrumentation instead of extending
 the blind sweep. Only rebuild with `COH_IPI64_SMALL_VCD_START/STOP` after a
 current failure identifies a concrete branch and time.
 
-Then loop the reproducer from `$PITON_ROOT/build` until a messages-monitor
-failure appears:
+If a current branch-level monitor fail is found, loop the reproducer from
+`$PITON_ROOT/build` with a narrow capture window:
 
 ```bash
 for i in $(seq 1 20); do

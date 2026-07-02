@@ -56,15 +56,21 @@ Current validated simulation facts:
   not the incoming coherence-invalidation path. The real L15-to-D-cache
   invalidate path is present through `L15_EVICT_REQ` to `DCACHE_INV_REQ`.
 - `coh_ipi64.c`, which exercises the CLINT MSIP path used by Linux
-  `stop_machine`, intermittently trips the L1.5 messages monitor. This is the
-  active 64-core root-cause lead, not generic L1 coherence.
+  `stop_machine`, is an older root-cause lead, not a confirmed current
+  reproducer. A 2026-07-01 progress-only 8x8 sweep passed three consecutive
+  runs and crossed the old `~40M` suspected failure window without a
+  messages-monitor fail. Treat the older L1.5 log as stale until a current run
+  reaches a concrete `MONITOR_PATH.fail(...)` branch.
 
-Next simulation task: capture a VCD around the intermittent `coh_ipi64.c`
-failure. First reduce verbose monitor output safely by replacing complete
-`$display`/`$write` statements with `;` using a line/state-machine script. Do
-not repeat the two failed approaches: prefixing `$display` with `//` can leave
-empty `case` labels, and a broad regex such as `\$display\b[^;]*;` can consume
-`begin`/`end` structure across lines.
+Next simulation task, only if simulation is still used: instrument active
+`cmp_l15_messages_mon.v.pyv` `MONITOR_PATH.fail(...)` branches with compact
+context prints, then rerun until a current fail branch self-identifies. Do not
+spend more time on blind VCD windows derived from the stale `coh_ipi64.c` log.
+If monitor output must be reduced, replace complete `$display`/`$write`
+statements with `;` using a line/state-machine script. Do not repeat the two
+failed approaches: prefixing `$display` with `//` can leave empty `case` labels,
+and a broad regex such as `\$display\b[^;]*;` can consume `begin`/`end`
+structure across lines.
 
 ## Coding Style & Naming Conventions
 Match nearby RTL and script style. Verilog/SystemVerilog uses 4-space indentation in module bodies, aligned declarations, lowercase module/file names, and explicit suffixes such as `_clk`, `_rst_n`, `_val`, `_rdy`, and `_top`. Preserve copyright headers. Treat `.pyv` files as PyHP templates; update the template source, not generated temporary files. Python and Perl tools are legacy style, so keep edits minimal and localized.
@@ -75,9 +81,10 @@ Project-specific debugging discipline:
   running the targeted diagnostic.
 - Keep changes surgical. Do not reformat generated PyHP output or edit `.tmp.v`
   files when the `.pyv` source is the correct ownership boundary.
-- Prefer a reproducible `sims` diagnostic or waveform over guess-and-synthesize
-  hardware experiments. Change one variable per debug round and record the
-  concrete pass/fail gate.
+- Prefer a reproducible `sims` diagnostic or waveform when it is actually
+  reproducing. For 64-core P3 bring-up, if 8x8 Verilator no longer reproduces
+  the suspected fail, move to board-level layer evidence instead of extending
+  blind simulation sweeps.
 - When a method has already failed, document why and avoid repeating it with
   different syntax unless the failure mode has been removed.
 
@@ -238,18 +245,21 @@ The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-b
 - DTB: `0x88000000`
 - initramfs: `0x90000000`
 
-Current 64-core boot status as of 2026-06-30:
+Current 64-core boot status as of 2026-07-02:
 - The earlier "L1 coherence is broken" diagnosis is retired. Both 2-core and
   64-core Verilator diagnostics pass, and the incoming invalidation path is
   wired.
 - The stale DTB `linux,initrd-end` issue caused the previous initramfs
   truncation and `No working init` panic. The dbg26 image corrected
   `initrd-end` to `0x90107d9c`, clearing that panic.
-- The active blocker is an intermittent Linux SMP `stop_machine` / IPI forward
-  progress race. Hardware logs show the kernel reaching 64-hart SMP bring-up
-  and then hanging in `multi_cpu_stop`; local `coh_ipi64.c` simulation provides
-  the strongest reproducible lead by intermittently tripping an L1.5 monitor on
-  the CLINT MSIP path.
+- The active boot blocker remains in the 64-hart SMP / IPI / forward-progress
+  area, but the exact RTL root cause is not proven. Hardware logs have shown
+  progress through 64-hart SMP bring-up and later stop-machine-like symptoms,
+  while the local `coh_ipi64.c` L1.5 monitor failure is now only an older lead:
+  the 2026-07-01 progress-only sweep passed three consecutive runs.
+- Because 8x8 simulation is slow and the old fail no longer reproduces, the
+  current preferred path is board-level layer evidence: programming DONE, UART
+  TX path, DDR, SPI-SD/GPT/`P3OS` bundle, OpenSBI entry, and Linux SMP progress.
 - Do not claim a 64-core Linux shell or XSBench result until logs show a shell,
   `nproc` or `/proc/cpuinfo` reporting 64 CPUs, and the benchmark command
   actually executing. Earlier shell/XSBench claims were based on expired UART
