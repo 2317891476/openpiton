@@ -211,6 +211,23 @@ Build 68 remote runs default to `JOBS=32`; use `JOBS=<N> scripts/p3_remote_vivad
 
 The 64-core DTB must expose `cpu@0` through `cpu@63`, CLINT timer/software interrupt contexts for every hart, PLIC M/S contexts for every hart, UART source 1, and `riscv,ndev = <2>`. Do not claim a 64-core Linux boot until UART logs show OpenSBI entry, Linux banner, `SMP: Total of 64 processors activated`, `/bin/sh`, and `/proc/cpuinfo` or `nproc` reporting 64 CPUs.
 
+Current 64-core evidence status as of 2026-07-02:
+- L1 invalidation/coherence is not the confirmed blocker: `coh_2core.c` and
+  `coh_64core.c` pass, and the old `wt_l15_adapter.sv:121` diagnosis was
+  retired.
+- The stale DTB `linux,initrd-end` truncation was a real blocker and is fixed in
+  dbg26. The previous `No working init` panic should not be re-debugged unless a
+  new log reproduces it with a current DTB.
+- Older `coh_ipi64.c` logs are only a stale lead. A 2026-07-01 progress-only
+  8x8 sweep passed three consecutive runs and crossed the old `~40M` suspected
+  fail window without a monitor failure.
+- Current board evidence verifies progress through OpenSBI and Linux 64-CPU SMP
+  bring-up, but does not validate an interactive 64-core shell, `nproc=64`, or
+  XSBench completion. Treat stop-machine/IPI/timer/coherence explanations as
+  hypotheses until the failing hart and exact software/RTL edge are observed.
+- Prefer board-level layer evidence over blind 8x8 Verilator sweeps when the
+  suspected simulation failure no longer reproduces.
+
 Build 69 is the 8x8 / 64-core diagnostic PDI path for the same OpenSBI target. It keeps the Build 68 hardware and bundle addresses, but rebuilds the bootrom with `BOOTROM_MODE=opensbi_bundle_diag`. The diagnostic order is `B69 ASM` from no-stack startup, C banner, DDR probe at `0x84001000`, SD init, GPT and `P3OS`/`BI64` header reads, per-component DDR copies, then hart release and OpenSBI jump. Use:
 
 ```bash

@@ -265,6 +265,25 @@ Current 64-core boot status as of 2026-07-02:
   actually executing. Earlier shell/XSBench claims were based on expired UART
   captures and are not valid evidence.
 
+Current evidence ledger:
+- Verified: Build 66 single-core Linux shell, SD ext2 mount, and slow UART
+  interaction.
+- Verified: Build 67 2x1 hardware reaches Linux after BBL `mret`; later
+  image-only tests exposed Linux/SBI progress beyond the earlier RPC/NFS line,
+  but normal-image shell and XSBench remain separate validation gates.
+- Verified for 64-core path: early B69-style diagnostics proved the bootrom can
+  print, use DDR, initialize SPI-SD, parse GPT, and read a bundle header when a
+  completed `DONE bit: HIGH` programming run and correct SD contents are present.
+  Older `B69 ERROR bad header` logs were an SD-image content gate, not a UART,
+  DDR, or bitstream failure.
+- Verified for later 64-core OpenSBI/Linux: logs reached OpenSBI and Linux
+  64-CPU SMP bring-up. Available evidence does not validate an interactive
+  64-core shell, `nproc=64`, or XSBench completion.
+- Unproven: the exact reason some later 64-core Linux runs lose forward
+  progress around stop-machine/IPI behavior. Treat CLINT/IPI/timer/coherence
+  explanations as hypotheses until the specific hart and software/RTL edge are
+  observed.
+
 Build 68 must regenerate both generated ROM sources before Vivado project creation. `riscv_peripherals.sv` instantiates `bootrom` and `bootrom_linux` unconditionally, then selects between them with `ariane_boot_sel_i`; therefore the OpenSBI/Linux path still needs `piton/design/chipset/rv64_platform/bootrom/baremetal/bootrom.sv` in addition to `piton/design/chipset/rv64_platform/bootrom/linux/bootrom_linux.sv`. Do not rely on stale untracked local generated ROM files; a remote clean archive must be able to reproduce both modules. Generate the companion baremetal ROM from an inline minimal DTS, not by invoking `riscvlib.py` or following `bootrom/baremetal/rv64_platform.dts`, because the remote source archive intentionally lacks `.git` metadata and the symlink target `bootrom/rv64_platform.dts` is an ignored generated file.
 
 Use the prebuilt 64core package artifacts only for local image-structure smoke tests:

@@ -135,6 +135,29 @@ Build 69 expected UART order:
 
 Use this discriminator literally: no `B69 ASM` after a confirmed `DONE bit: HIGH` points below the C bootrom, such as UART/reset/bootrom fetch/core start. `B69 ASM` without the C banner points at stack/DDR/early C entry. A DDR failure line points at the DDR path. GPT/header/copy failures point at SD image or SPI-SD block-read behavior. Reaching the OpenSBI handoff line moves debug to core release, OpenSBI, CLINT/PLIC, timer/IPI, cache/coherence, or Linux SMP.
 
+2026-07-02 evidence audit: keep the Build 69/70/71 records in their original
+time order. The early "UART 0 bytes" and "SPI-SD transaction-manager read
+error" observations were pre-recovery layer evidence from a diagnostic stage.
+Later completed programming plus UART logs proved the bootrom UART path, DDR
+probe, SPI-SD init, GPT read, and bundle-header read can all work. The later
+`B69 ERROR bad header` result was an SD-card image-content gate: the card still
+contained an old BBL marker image rather than a `P3OS`/`BI64` OpenSBI bundle.
+Do not use that old bad-header run as evidence against UART, DDR, SPI-SD, or
+the 8x8 bitstream.
+
+Current 64-core board evidence hierarchy:
+- Verified lower layers: completed PDI programming when `DONE bit: HIGH` is
+  printed, bootrom UART output in diagnostic images, DDR probe, SPI-SD/GPT
+  access, and OpenSBI bundle-header parsing with the right SD contents.
+- Verified software progress: later logs reached OpenSBI and Linux 64-CPU SMP
+  bring-up.
+- Not verified by current retained evidence: interactive 64-core shell,
+  `nproc=64`, `/proc/cpuinfo` showing 64 CPUs from a live shell, or XSBench
+  completion.
+- Current high-level blocker: later Linux forward progress around
+  stop-machine/IPI behavior. Treat the exact CLINT/IPI/timer/coherence cause as
+  unproven until a log or ILA identifies the missing hart or transaction.
+
 Board-test escalation rule: a 0-byte UART log is actionable only after the PDI programming command returns successfully and prints `DONE bit: HIGH`. If that condition is met and Build 69 still prints nothing, do not keep rerunning the same image. First capture the Build 69 ILAs if the LTX/debug hub are available, then build the next remote diagnostic PDI with the chain split in this order: UART no-stack marker and UART16550 AXI/TX activity, DDR write/read/fence probe, SPI-SD/GPT/`P3OS` bundle reads, then core release/OpenSBI handoff. This keeps the investigation ordered from the externally visible serial path inward to DDR, SD, and finally multicore execution.
 
 Remote synthesis checkpoint: on 2026-06-13, Build 69's main `synth_1` on the offline Ubuntu host completed with 0 errors and 0 critical warnings, wrote `p3_top.dcp`, and generated `p3_top_utilization_synth.rpt`. The formal synthesized utilization was 4,424,784 CLB LUTs, 2,553,637 registers, 4,837 block RAM tiles, 128 URAMs, and 1,153 DSP slices. `impl_1` launched after synthesis; route, PDI/LTX generation, and board testing remain separate gates.

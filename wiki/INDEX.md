@@ -17,7 +17,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
 | Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | 8x8 / 64-core OpenSBI/Linux boots through 64-hart SMP bring-up in prior logs, but the exact forward-progress blocker is not proven. The stale DTB `linux,initrd-end` initramfs truncation is fixed in dbg26. Older `coh_ipi64.c` logs suggested an intermittent L1.5 messages-monitor failure, but the 2026-07-01 progress-only sweep passed three consecutive runs, so the next practical gate is board-level layer evidence rather than blind 8x8 VCD capture. |
+| Current scaling candidate | 8x8 / 64-core OpenSBI/Linux has verified OpenSBI and Linux 64-CPU SMP bring-up in prior logs, but no current evidence validates an interactive 64-core shell, `nproc=64`, or XSBench completion. The stale DTB `linux,initrd-end` issue is fixed in dbg26. Older `coh_ipi64.c` logs are now stale leads after a 2026-07-01 three-pass sweep, so the next practical gate is board-level layer evidence for the forward-progress stop. |
 | Simulation | VCS when licensed; current local Ariane path uses Verilator 5.046 with `--hierarchical + -O0` for 8x8 |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
 | Wiki sync rule | **R1** -- every code change must include wiki updates |
