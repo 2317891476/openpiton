@@ -1312,6 +1312,26 @@ for i in range (PITON_NUM_TILES):
     text2 = text2.replace("TOP0", "TOP" + repr(i));
     text2 = text2.replace("CORE0", "CORE" + repr(i));
     text2 = text2.replace("TRANSDUCER0", "TRANSDUCER" + repr(i));
+    # COH_IPI64 instrument: before every monitor fail, self-report which tile,
+    # what fail, at what time, plus the L1.5 CSM/pipeline state that the
+    # multi_cpu_stop / IPI-path coherence race would perturb. The literal
+    # "TILE0"/"L15_PIPE0"/"L15_TOP0" below were already substituted to TILE<i>
+    # above, so this print names the correct tile automatically.
+    fail_ctx = ('$display("COH_IPI64_MONFAIL t=%0d TILE' + repr(i) +
+        ' write_val_s2=%b ghid_val_s2=%b read_val_s2=%b val_s1=%b stall_s1=%b'
+        ' noc2_val=%b noc2_reqtype=%h noc2_mshrid=%0d hmc_fill=%b msg=",'
+        ' $time,'
+        ' `L15_TOP' + repr(i) + '.l15_csm.write_val_s2,'
+        ' `L15_TOP' + repr(i) + '.l15_csm.ghid_val_s2,'
+        ' `L15_TOP' + repr(i) + '.l15_csm.read_val_s2,'
+        ' `L15_PIPE' + repr(i) + '.val_s1,'
+        ' `L15_PIPE' + repr(i) + '.stall_s1,'
+        ' `L15_PIPE' + repr(i) + '.noc2decoder_l15_val,'
+        ' `L15_PIPE' + repr(i) + '.noc2decoder_l15_reqtype,'
+        ' `L15_PIPE' + repr(i) + '.noc2decoder_l15_mshrid,'
+        ' `L15_PIPE' + repr(i) + '.noc2decoder_l15_hmc_fill); ')
+    text2 = text2.replace("`MONITOR_PATH.fail(",
+                          fail_ctx + "`MONITOR_PATH.fail(")
     print(text2)
 %>
 
