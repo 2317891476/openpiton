@@ -39,11 +39,13 @@ It preserves the prior Linux, two-hart DTB, and initramfs byte-for-byte and is
 already uploaded and hash-verified at
 `illya@100.93.77.36:/tmp/p3_opensbi_linux_2hart_timerfix.img`.
 
-The new image is not yet on the SD card and has no board result.  The next
-physical step is FPGA to reader; then verify `/dev/sdc`, write/read back the
-full 256 MiB image, return the card to FPGA, and require the OpenSBI banner to
-show `aclint-mtimer @ 234375Hz`.  Linux SMP and shell validation remain separate
-gates after that banner check.
+The new image is not yet on the SD card and has no board result.  The latest
+read-only check sees the expected unmounted `/dev/sdc` in the remote reader:
+31,914,983,424 bytes, USB, removable, model `Multi-Reader -1`.  No write command
+was issued during image delivery.  Revalidate that identity, write and read
+back the full 256 MiB image, return the card to FPGA, and require the OpenSBI
+banner to show `aclint-mtimer @ 234375Hz`.  Linux SMP and shell validation
+remain separate gates after that banner check.
 
 ---
 
