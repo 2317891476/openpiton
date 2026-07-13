@@ -65,16 +65,16 @@ require_file "$pkg_dir/linux/Makefile"
 require_file "$pkg_dir/configs/linux.config.64core"
 
 opensbi_hart_file="$pkg_dir/opensbi/lib/sbi/sbi_hart.c"
-opensbi_csr701_patch="$repo_dir/scripts/p3_opensbi_csr701_hart_gate.patch"
+opensbi_p3_patch="$repo_dir/scripts/p3_opensbi_p3_platform_fixes.patch"
 require_file "$opensbi_hart_file"
-require_file "$opensbi_csr701_patch"
+require_file "$opensbi_p3_patch"
 if ! grep -q 'P3_CSR701_HART_GATE' "$opensbi_hart_file"; then
     if grep -q 'P3 2-core isolation' "$opensbi_hart_file"; then
         echo "ERROR: temporary 2-core OpenSBI probe tree detected; use a clean P3_64CORE_WORK_DIR" >&2
         exit 1
     fi
-    echo "Applying OpenSBI P3 CSR 0x701 hart-count gate"
-    patch --batch --forward -l -d "$pkg_dir/opensbi" -p1 < "$opensbi_csr701_patch"
+    echo "Applying OpenSBI P3 platform fixes and CSR 0x701 hart-count gate"
+    patch --batch --forward -d "$pkg_dir/opensbi" -p1 < "$opensbi_p3_patch"
 fi
 
 linux_required_files=(

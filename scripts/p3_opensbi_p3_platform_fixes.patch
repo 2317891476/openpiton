@@ -1,0 +1,312 @@
+--- a/Makefile
++++ b/Makefile
+@@ -397,7 +397,7 @@
+ CFLAGS		+=	$(RELAX_FLAG)
+ CFLAGS		+=	$(GENFLAGS)
+ CFLAGS		+=	$(platform-cflags-y)
+-CFLAGS		+=	-fPIE -pie
++CFLAGS		+=	-fno-pie
+ CFLAGS		+=	$(firmware-cflags-y)
+ 
+ CPPFLAGS	+=	$(GENFLAGS)
+@@ -406,7 +406,7 @@
+ 
+ ASFLAGS		=	-g -Wall -nostdlib
+ ASFLAGS		+=	-fno-omit-frame-pointer -fno-optimize-sibling-calls
+-ASFLAGS		+=	-fPIE
++ASFLAGS		+=	-fno-pie
+ ASFLAGS		+=	$(REPRODUCIBLE_FLAGS)
+ # Optionally supported flags
+ ifeq ($(CC_SUPPORT_SAVE_RESTORE),y)
+@@ -435,7 +435,7 @@
+ ELFFLAGS	+=	-Wl,--exclude-libs,ALL
+ endif
+ ELFFLAGS	+=	-Wl,--build-id=none
+-ELFFLAGS	+=	-Wl,--no-dynamic-linker -Wl,-pie
++ELFFLAGS	+=	-Wl,--no-dynamic-linker -no-pie
+ ELFFLAGS	+=	$(platform-ldflags-y)
+ ELFFLAGS	+=	$(firmware-ldflags-y)
+ 
+--- a/firmware/fw_base.ldS
++++ b/firmware/fw_base.ldS
+@@ -7,7 +7,7 @@
+  *   Anup Patel <anup.patel@wdc.com>
+  */
+ 
+-	. = FW_TEXT_START;
++	. = 0x80000000;
+ 	/* Don't add any section between FW_TEXT_START and _fw_start */
+ 	PROVIDE(_fw_start = .);
+ 
+--- a/firmware/objects.mk
++++ b/firmware/objects.mk
+@@ -16,7 +16,7 @@
+ ifdef FW_TEXT_START
+ firmware-genflags-y += -DFW_TEXT_START=$(FW_TEXT_START)
+ else
+-firmware-genflags-y += -DFW_TEXT_START=0x0
++firmware-genflags-y += -DFW_TEXT_START=0x80000000
+ endif
+ 
+ ifdef FW_FDT_PATH
+--- a/include/sbi_utils/timer/aclint_mtimer.h
++++ b/include/sbi_utils/timer/aclint_mtimer.h
+@@ -22,7 +22,7 @@
+ 
+ #define CLINT_MTIMER_OFFSET		0x4000
+ 
+-#define MTIMER_REGION_ALIGN		0x1000
++#define MTIMER_REGION_ALIGN		0x4000
+ 
+ struct aclint_mtimer_data {
+ 	/* Public details */
+--- a/lib/sbi/sbi_hart.c
++++ b/lib/sbi/sbi_hart.c
+@@ -19,6 +19,7 @@
+ #include <sbi/sbi_hart_pmp.h>
+ #include <sbi/sbi_platform.h>
+ #include <sbi/sbi_pmu.h>
++#include <sbi/sbi_scratch.h>
+ #include <sbi/sbi_string.h>
+ #include <sbi/sbi_trap.h>
+ 
+@@ -271,7 +272,12 @@
+ 	struct sbi_hart_features *hfeatures =
+ 			sbi_scratch_offset_ptr(scratch, hart_features_offset);
+ 
+-	return hfeatures->mhpm_mask;
++	/* Ariane implements mhpmcounter but NOT mhpmevent CSRs. OpenSBI's
++	 * probe (__check_hpm_csr) sees the counters, then mstatus_init writes
++	 * the (absent) event selectors -> illegal-instruction trap (cause=2,
++	 * csrw mhpmevent4). Force 0 hpm counters so no mhpmevent write happens. */
++	(void)hfeatures;
++	return 0;
+ }
+ 
+ unsigned int sbi_hart_mhpm_bits(struct sbi_scratch *scratch)
+@@ -758,6 +764,19 @@
+ 	 */
+ 	csr_write(CSR_MIP, 0);
+ 
++	/*
++	 * P3_CSR701_HART_GATE: CSR 0x701 is Ariane's M-mode D-cache
++	 * enable. Writing zero bypasses the private L1 and was introduced
++	 * for the 64-hart coherent-memory workaround. Board evidence shows
++	 * that the same write never returns on the 2-hart cold-boot path.
++	 *
++	 * sbi_scratch_init() has already populated sbi_hart_count() before
++	 * sbi_hart_init() runs. Keep the workaround for larger meshes while
++	 * omitting it for one- and two-hart P3 configurations.
++	 */
++	if (sbi_hart_count() > 2)
++		asm volatile("csrw 0x701, zero" ::: "memory");
++
+ 	if (cold_boot) {
+ 		if (misa_extension('H'))
+ 			sbi_hart_expected_trap = &__sbi_expected_trap_hext;
+--- a/lib/sbi/sbi_hart_pmp.c
++++ b/lib/sbi/sbi_hart_pmp.c
+@@ -270,6 +270,22 @@
+ 	pmp_bits = sbi_hart_pmp_addrbits(scratch) - 1;
+ 	pmp_addr_max = (1UL << pmp_bits) | ((1UL << pmp_bits) - 1);
+ 
++		{
++		unsigned int rcnt = 0;
++		struct sbi_domain_memregion *al = NULL;
++		sbi_domain_for_each_memregion(dom, reg) { rcnt++; al = reg; }
++		if (rcnt > pmp_count && al) {
++			pmp_flags = sbi_domain_get_oldpmp_flags(al);
++			pmp_addr = al->base >> PMP_SHIFT;
++			if (pmp_log2gran <= al->order && pmp_addr < pmp_addr_max)
++				pmp_set(0, pmp_flags, al->base, al->order);
++			for (pmp_idx = 1; pmp_idx < pmp_count; pmp_idx++)
++				pmp_disable(pmp_idx);
++			sbi_hart_pmp_fence();
++			return 0;
++		}
++	}
++
+ 	pmp_idx = 0;
+ 	sbi_domain_for_each_memregion(dom, reg) {
+ 		if (!is_valid_pmp_idx(pmp_count, pmp_idx))
+@@ -318,7 +334,7 @@
+ 	.unconfigure = sbi_hart_pmp_unconfigure,
+ };
+ 
+-static struct sbi_hart_protection epmp_protection = {
++static struct sbi_hart_protection epmp_protection __attribute__((unused)) = {
+ 	.name = "epmp",
+ 	.rating = 200,
+ 	.configure = sbi_hart_smepmp_configure,
+@@ -332,15 +348,9 @@
+ 	int rc;
+ 
+ 	if (sbi_hart_pmp_count(scratch)) {
+-		if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SMEPMP)) {
+-			rc = sbi_hart_protection_register(&epmp_protection);
+-			if (rc)
+-				return rc;
+-		} else {
+-			rc = sbi_hart_protection_register(&pmp_protection);
+-			if (rc)
+-				return rc;
+-		}
++				rc = sbi_hart_protection_register(&pmp_protection);
++		if (rc)
++			return rc;
+ 	}
+ 
+ 	return 0;
+--- a/lib/sbi/sbi_trap.c
++++ b/lib/sbi/sbi_trap.c
+@@ -302,6 +302,12 @@
+  *
+  * @param tcntx pointer to trap context
+  */
++
++/* Coherency barrier counter: write '.' for first 2000 non-IRQ traps
++ * (covers early init + SMP bringup), then disable to avoid runtime flood. */
++static volatile unsigned int coherency_barrier_count = 0;
++#define COHERENCY_BARRIER_LIMIT 2000000
++
+ struct sbi_trap_context *sbi_trap_handler(struct sbi_trap_context *tcntx)
+ {
+ 	int rc = SBI_ENOTSUPP;
+@@ -311,6 +317,20 @@
+ 	struct sbi_trap_regs *regs = &tcntx->regs;
+ 	ulong mcause = tcntx->trap.cause;
+ 
++	/* Coherency: uncached UART LSR MMIO read as a global NoC ordering barrier,
++	 * ONLY for exceptions (ecalls etc), NOT timer/software interrupts.
++	 * dbg22 proved that running it on EVERY trap (incl. IRQs) freezes early
++	 * boot — likely timer-IRQ livelock from barrier-before-ack. dbg21's
++	 * non-IRQ gating boots cleanly, so we keep that. NOTE: dbg23 additionally
++	 * disables the L1 D-cache via CSR 0x701 in sbi_hart_init(), which removes
++	 * stale L1 lines at the source; this barrier is retained only as a
++	 * known-good boot safety net and is cheap (non-IRQ traps are rare). */
++	if (!(mcause & MCAUSE_IRQ_MASK)) {
++		volatile unsigned char discard =
++			*(volatile unsigned char *)0xfff0c2c005UL;
++		(void)discard;
++	}
++
+ 	/* Update trap context pointer */
+ 	tcntx->prev_context = sbi_trap_get_context(scratch);
+ 	sbi_trap_set_context(scratch, tcntx);
+--- a/lib/utils/ipi/aclint_mswi.c
++++ b/lib/utils/ipi/aclint_mswi.c
+@@ -100,7 +100,7 @@
+ 	}
+ 
+ 	/* Add MSWI regions to the root domain */
+-	rc = sbi_domain_root_add_memrange(mswi->addr, mswi->size, ACLINT_MSWI_ALIGN,
++	rc = sbi_domain_root_add_memrange(mswi->addr, mswi->size, 0x4000,
+ 					  SBI_DOMAIN_MEMREGION_MMIO |
+ 					  SBI_DOMAIN_MEMREGION_M_READABLE |
+ 					  SBI_DOMAIN_MEMREGION_M_WRITABLE);
+--- a/platform/generic/openhwgroup/openpiton.c
++++ b/platform/generic/openhwgroup/openpiton.c
+@@ -14,7 +14,7 @@
+ #define OPENPITON_DEFAULT_PLIC_SIZE		(0x200000 + \
+ 				(OPENPITON_DEFAULT_HART_COUNT * 0x1000))
+ #define OPENPITON_DEFAULT_PLIC_NUM_SOURCES	2
+-#define OPENPITON_DEFAULT_HART_COUNT		3
++#define OPENPITON_DEFAULT_HART_COUNT		64
+ #define OPENPITON_DEFAULT_CLINT_ADDR		0xfff1020000ULL
+ #define OPENPITON_DEFAULT_ACLINT_MTIMER_FREQ	1000000
+ #define OPENPITON_DEFAULT_ACLINT_MSWI_ADDR	\
+@@ -32,6 +32,67 @@
+ 		[0] = { 0, 1 },
+ 		[1] = { 2, 3 },
+ 		[2] = { 4, 5 },
++		[3] = { 6, 7 },
++		[4] = { 8, 9 },
++		[5] = { 10, 11 },
++		[6] = { 12, 13 },
++		[7] = { 14, 15 },
++		[8] = { 16, 17 },
++		[9] = { 18, 19 },
++		[10] = { 20, 21 },
++		[11] = { 22, 23 },
++		[12] = { 24, 25 },
++		[13] = { 26, 27 },
++		[14] = { 28, 29 },
++		[15] = { 30, 31 },
++		[16] = { 32, 33 },
++		[17] = { 34, 35 },
++		[18] = { 36, 37 },
++		[19] = { 38, 39 },
++		[20] = { 40, 41 },
++		[21] = { 42, 43 },
++		[22] = { 44, 45 },
++		[23] = { 46, 47 },
++		[24] = { 48, 49 },
++		[25] = { 50, 51 },
++		[26] = { 52, 53 },
++		[27] = { 54, 55 },
++		[28] = { 56, 57 },
++		[29] = { 58, 59 },
++		[30] = { 60, 61 },
++		[31] = { 62, 63 },
++		[32] = { 64, 65 },
++		[33] = { 66, 67 },
++		[34] = { 68, 69 },
++		[35] = { 70, 71 },
++		[36] = { 72, 73 },
++		[37] = { 74, 75 },
++		[38] = { 76, 77 },
++		[39] = { 78, 79 },
++		[40] = { 80, 81 },
++		[41] = { 82, 83 },
++		[42] = { 84, 85 },
++		[43] = { 86, 87 },
++		[44] = { 88, 89 },
++		[45] = { 90, 91 },
++		[46] = { 92, 93 },
++		[47] = { 94, 95 },
++		[48] = { 96, 97 },
++		[49] = { 98, 99 },
++		[50] = { 100, 101 },
++		[51] = { 102, 103 },
++		[52] = { 104, 105 },
++		[53] = { 106, 107 },
++		[54] = { 108, 109 },
++		[55] = { 110, 111 },
++		[56] = { 112, 113 },
++		[57] = { 114, 115 },
++		[58] = { 116, 117 },
++		[59] = { 118, 119 },
++		[60] = { 120, 121 },
++		[61] = { 122, 123 },
++		[62] = { 124, 125 },
++		[63] = { 126, 127 },
+ 	},
+ };
+ 
+@@ -61,7 +122,6 @@
+ static int openpiton_early_init(bool cold_boot)
+ {
+ 	const void *fdt;
+-	struct plic_data plic_data = plic;
+ 	unsigned long aclint_freq;
+ 	uint64_t clint_addr;
+ 	int rc;
+@@ -74,9 +134,7 @@
+ 	if (rc)
+ 		return rc;
+ 
+-	rc = fdt_parse_plic(fdt, &plic_data, "riscv,plic0");
+-	if (!rc)
+-		plic = plic_data;
++	rc = fdt_parse_plic(fdt, &plic, "riscv,plic0");
+ 
+ 	rc = fdt_parse_timebase_frequency(fdt, &aclint_freq);
+ 	if (!rc)
+@@ -93,7 +151,6 @@
+ 
+ 	if (rc)
+ 		return rc;
+-
+ 	return aclint_mswi_cold_init(&mswi);
+ }
+ 
