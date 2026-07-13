@@ -296,6 +296,18 @@ Self-contained rebuild rule: Build 66 and scaling successors set `P3_SELF_CONTAI
 
 Multicore PyHP consistency rule: when scaling beyond 1x1, do not regenerate only `chip.tmp.v`. The P3 runner must regenerate the tile-dependent PyHP outputs as a single set: `piton/design/include/define.tmp.h`, `piton/design/chip/rtl/chip.tmp.v`, `piton/design/chipset/rtl/chipset_impl.tmp.v`, `piton/design/chip/tile/common/rtl/flat_id_to_xy.tmp.v`, and `piton/design/chip/tile/common/rtl/xy_to_flat_id.tmp.v`. The runner validates that the generated `define.tmp.h` in both the live repository and the self-contained `source_snapshot/` matches `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`. This prevents a failure mode where the chip topology is generated for multiple tiles while shared interrupt/debug vectors are sized from a stale one-tile header.
 
+Device-map-sensitive PyHP rule: `piton/design/chip/tile/rtl/tile.v.pyv` is also
+part of that consistency boundary even though its most visible outputs are not
+tile counts.  It derives CVA6's executable and cacheable memory apertures from
+the selected board's `devices_ariane.xml`.  Do not accept a pre-existing
+`tile.tmp.v` based only on `.pyv` modification time, because a newer generated
+file may have been produced under another board or Verilator device-map
+context.  Regenerate it with `PROTOSYN_RUNTIME_BOARD=huaprop3` and validate the
+self-contained snapshot against the 2 GiB P3 map: the DDR entry in both
+`ExecuteRegionLength` and `CachedRegionLength` must be `0x80000000`.  Build 72
+and Build 73 captured a stale `0x40000000` value while their DTBs advertised
+2 GiB; validated Build 66 and Build 67 contain `0x80000000`.
+
 ```bash
 vivado -mode batch -source scripts/p3_build66_normal_spi_sd_boot.tcl -tclargs -jobs 1
 vivado -mode batch -source scripts/p3_ila_capture_build66_normal_spi_sd_boot.tcl

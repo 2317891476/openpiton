@@ -64,6 +64,50 @@ The next work is the separate Linux-early internal-stall investigation,
 ideally with a single-CPU bootarg discriminator or a probe exposing
 PC/timer/IPI state.
 
+### Linux-early DDR aperture mismatch -- 2026-07-13
+
+Static inspection of the exact self-contained source used by the programmed
+PDI found a definite Build 73 configuration error.  The XPR points to
+`p3b73_2x1_diag/source_snapshot/piton/design/chip/tile/rtl/tile.tmp.v`, whose
+`ExecuteRegionLength` and `CachedRegionLength` are both `0x40000000`.  CVA6
+therefore regards only the first 1 GiB at `0x80000000` as executable and
+cacheable.  In contrast, both
+`piton/design/xilinx/huaprop3/devices_ariane.xml` and the current two-hart DTB
+declare 2 GiB (`0x80000000` bytes), ending at `0xffffffff`.  Validated Build 66
+and Build 67 snapshots contain the correct `0x80000000` CVA6 lengths; Build 72
+and Build 73 contain the same stale 1 GiB `tile.tmp.v` hash.
+
+A new immediate ILA capture, which did not reset or reprogram the FPGA, ties
+the mismatch to the live symptom.  The retained last L1.5 address is
+`0xffe5e000`, in the incorrectly classified upper GiB, and the DDR-side
+translation is `0x7fe5e000`.  Across 1024 samples the core repeatedly performs
+the same 8-byte load with accepted requests and returned responses; no L1.5 or
+DDR error is present.  The previous statement that the core was completely
+internally stalled is therefore too strong.  It is repeatedly polling or page
+walking the same upper-RAM location.
+
+The UART boundary is also consistent: after the final reserved-memory print,
+Linux enters `setup_vm_final()`, allocates/fills final page tables, builds the
+linear map, switches `satp`, and flushes the TLB without intervening console
+messages.  The timer, IRQ, and SMP initialization stages are later, so this is
+independent of the verified 234375 Hz OpenSBI timer correction.
+
+The generation defect is in the Build 52-derived flow: its forced PyHP list
+does not include `piton/design/chip/tile/rtl/tile.v.pyv`, and
+`p3_create_bd.tcl` reuses a pre-existing `.tmp.v` when its timestamp is newer
+than the template without checking the device-map context.  Treat the DDR
+aperture mismatch as a confirmed configuration bug and high-confidence current
+root-cause candidate, not fully causal-closed until one of these controls
+passes:
+
+1. Keep Build 73 programmed and boot a DTB/command line limited to `mem=1G`.
+2. Build a corrected PDI after regenerating `tile.tmp.v` in the HuaPro P3
+   context, with snapshot preflight assertions that both lengths equal
+   `0x80000000`, then boot the current timer-fix SD card unchanged.
+
+Do not rebuild OpenSBI, reopen the timer-frequency issue, or rewrite the current
+card as part of the formal PDI repair.
+
 ---
 
 ## 1. Project context (do not lose)
