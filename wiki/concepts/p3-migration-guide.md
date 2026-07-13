@@ -979,6 +979,29 @@ The package's experimental initramfs powers the board off immediately after prin
 
 The first complete board candidate was generated locally on 2026-06-12 as `build/huaprop3/opensbi64/p3_opensbi_linux_64hart.img`, size 268,435,456 bytes, SHA256 `2518b7c8b4585c5895816c49304c1d9cc70ce4b85c8179e8ffefe224356a43ae`. Its `P3OS`/`BI64` partition header has four components: OpenSBI at `0x80000000`, Linux 6.6 at `0x80200000`, the 64-hart DTB at `0x88000000`, and the shell-preserving initramfs at `0x90000000`. Independent readback from the image verified every embedded component against its source SHA256. This is a generated-image milestone, not a board-boot result; the next gate is a full SD-card write/readback followed by UART proof of OpenSBI, Linux, 64 online processors, `P3_64CORE_SHELL_READY`, and an interactive shell.
 
+### 14.1 OpenSBI must register the DTB timebase before mtimer cold init
+
+P3 drives `core_ref_clk` at 30 MHz and generates the CLINT RTC input from
+`rtc_div[6]`, so `mtime` advances at 30 MHz / 128 = 234375 Hz.  Both the
+two-hart and 64-hart DTBs declare that value.  The OpenSBI OpenPiton platform's
+historical 1 MHz fallback is not the P3 hardware frequency.
+
+Do not parse `timebase-frequency` only in the platform `early_init` callback.
+OpenSBI calls `sbi_timer_init()` before `sbi_platform_early_init()`, and
+`aclint_mtimer_cold_init()` copies the current platform frequency into the
+registered timer device.  Updating the platform structure afterward leaves
+the registered device and banner at the stale fallback value.  The OpenPiton
+`timer_init` callback must parse the DTB immediately before calling
+`aclint_mtimer_cold_init()`, with the static value used only when parsing fails.
+
+The stale banner frequency alone does not prove timer-event delivery is wrong:
+SBI TIME receives an absolute tick value from Linux and writes it directly to
+`mtimecmp`.  It does, however, make OpenSBI's frequency-based delay and timeout
+helpers wrong by 64/15 on P3.  Validate the fix in two layers: statically check
+that the generated DTB remains 234375 Hz, then require the board banner to say
+`aclint-mtimer @ 234375Hz`.  Historical OpenSBI images that report 1 MHz must
+not be used as evidence that P3's actual `mtime` clock is 1 MHz.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
