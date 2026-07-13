@@ -41,6 +41,7 @@ require_cmd() {
 require_file "$pkg_archive"
 require_cmd dtc
 require_cmd sfdisk
+require_cmd patch
 if [[ "$use_prebuilt" != "1" ]]; then
     require_cmd "${cross}gcc"
 fi
@@ -62,6 +63,19 @@ fi
 require_file "$pkg_dir/opensbi/Makefile"
 require_file "$pkg_dir/linux/Makefile"
 require_file "$pkg_dir/configs/linux.config.64core"
+
+opensbi_hart_file="$pkg_dir/opensbi/lib/sbi/sbi_hart.c"
+opensbi_csr701_patch="$repo_dir/scripts/p3_opensbi_csr701_hart_gate.patch"
+require_file "$opensbi_hart_file"
+require_file "$opensbi_csr701_patch"
+if ! grep -q 'P3_CSR701_HART_GATE' "$opensbi_hart_file"; then
+    if grep -q 'P3 2-core isolation' "$opensbi_hart_file"; then
+        echo "ERROR: temporary 2-core OpenSBI probe tree detected; use a clean P3_64CORE_WORK_DIR" >&2
+        exit 1
+    fi
+    echo "Applying OpenSBI P3 CSR 0x701 hart-count gate"
+    patch --batch --forward -l -d "$pkg_dir/opensbi" -p1 < "$opensbi_csr701_patch"
+fi
 
 linux_required_files=(
     "$pkg_dir/linux/arch/riscv/kernel/vmlinux.lds.S"
