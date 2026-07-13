@@ -65,10 +65,19 @@ require_file "$pkg_dir/linux/Makefile"
 require_file "$pkg_dir/configs/linux.config.64core"
 
 opensbi_hart_file="$pkg_dir/opensbi/lib/sbi/sbi_hart.c"
+opensbi_platform_file="$pkg_dir/opensbi/platform/generic/openhwgroup/openpiton.c"
 opensbi_p3_patch="$repo_dir/scripts/p3_opensbi_p3_platform_fixes.patch"
 require_file "$opensbi_hart_file"
+require_file "$opensbi_platform_file"
 require_file "$opensbi_p3_patch"
-if ! grep -q 'P3_OPENPITON_PLATFORM_FIXES' "$opensbi_hart_file"; then
+if grep -q 'P3_OPENPITON_PLATFORM_FIXES' "$opensbi_hart_file"; then
+    if ! grep -Fq \
+        'fdt_parse_timebase_frequency(fdt_get_address(), &aclint_freq)' \
+        "$opensbi_platform_file"; then
+        echo "ERROR: stale P3 OpenSBI work tree lacks the pre-registration timebase fix; use a clean P3_64CORE_WORK_DIR" >&2
+        exit 1
+    fi
+else
     if grep -Eq 'P3 2-core isolation|P3_CSR701_HART_GATE' "$opensbi_hart_file"; then
         echo "ERROR: obsolete CSR 0x701 experiment tree detected; use a clean P3_64CORE_WORK_DIR" >&2
         exit 1

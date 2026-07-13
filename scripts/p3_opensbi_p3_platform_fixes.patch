@@ -255,30 +255,48 @@
  	},
  };
  
-@@ -61,7 +122,6 @@
+@@ -61,8 +122,6 @@
  static int openpiton_early_init(bool cold_boot)
  {
  	const void *fdt;
 -	struct plic_data plic_data = plic;
- 	unsigned long aclint_freq;
+-	unsigned long aclint_freq;
  	uint64_t clint_addr;
  	int rc;
-@@ -74,9 +134,7 @@
+ 
+@@ -74,13 +133,7 @@
  	if (rc)
  		return rc;
  
 -	rc = fdt_parse_plic(fdt, &plic_data, "riscv,plic0");
 -	if (!rc)
 -		plic = plic_data;
+-
+-	rc = fdt_parse_timebase_frequency(fdt, &aclint_freq);
+-	if (!rc)
+-		mtimer.mtime_freq = aclint_freq;
 +	rc = fdt_parse_plic(fdt, &plic, "riscv,plic0");
  
- 	rc = fdt_parse_timebase_frequency(fdt, &aclint_freq);
- 	if (!rc)
-@@ -93,7 +151,6 @@
+ 	rc = fdt_parse_compat_addr(fdt, &clint_addr, "riscv,clint0");
+ 	if (!rc) {
+@@ -93,7 +146,6 @@
  
  	if (rc)
  		return rc;
 -
  	return aclint_mswi_cold_init(&mswi);
+ }
+ 
+@@ -126,6 +178,12 @@
+  */
+ static int openpiton_timer_init(void)
+ {
++	unsigned long aclint_freq;
++
++	if (!fdt_parse_timebase_frequency(fdt_get_address(), &aclint_freq) &&
++	    aclint_freq)
++		mtimer.mtime_freq = aclint_freq;
++
+ 	return aclint_mtimer_cold_init(&mtimer, NULL);
  }
  
