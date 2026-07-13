@@ -92,7 +92,7 @@
 +	 * P3_CSR701_HART_GATE: CSR 0x701 is Ariane's M-mode D-cache
 +	 * enable. Writing zero bypasses the private L1 and was introduced
 +	 * for the 64-hart coherent-memory workaround. Board evidence shows
-+	 * that the same write never returns on the 2-hart cold-boot path.
++	 * that the 2-hart cold-boot path does not complete after this write.
 +	 *
 +	 * sbi_scratch_init() has already populated sbi_hart_count() before
 +	 * sbi_hart_init() runs. Keep the workaround for larger meshes while
