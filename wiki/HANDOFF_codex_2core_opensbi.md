@@ -17,7 +17,7 @@ two-hart limitation. The superseded greater-than-two-hart gate must not be
 used: the clean P3 OpenSBI patch now keeps L1 D-cache enabled for every hart
 count. Exact transaction-level RTL failure remains open.
 
-### Timer-frequency fix and prepared image -- 2026-07-13
+### Timer-frequency fix and SD-verified image -- 2026-07-13
 
 All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the
 current two-hart run, reported the stale platform fallback
@@ -39,13 +39,19 @@ It preserves the prior Linux, two-hart DTB, and initramfs byte-for-byte and is
 already uploaded and hash-verified at
 `illya@100.93.77.36:/tmp/p3_opensbi_linux_2hart_timerfix.img`.
 
-The new image is not yet on the SD card and has no board result.  The latest
-read-only check sees the expected unmounted `/dev/sdc` in the remote reader:
-31,914,983,424 bytes, USB, removable, model `Multi-Reader -1`.  No write command
-was issued during image delivery.  Revalidate that identity, write and read
-back the full 256 MiB image, return the card to FPGA, and require the OpenSBI
-banner to show `aclint-mtimer @ 234375Hz`.  Linux SMP and shell validation
-remain separate gates after that banner check.
+The image is now on the SD card.  Immediately before writing, `/dev/sdc` was
+revalidated as the expected unmounted 31,914,983,424-byte USB removable disk,
+model `Multi-Reader -1`.  All 268,435,456 bytes were written, synchronized and
+flushed, then the same complete 256 MiB span was read back.  Its SHA-256 was
+`c420d81dcbec5f637d8ebcdeb5fab8f5aaba16badc2ee49d2797c096f334f55e`,
+exactly matching the candidate image; the reread partition table exposed
+`/dev/sdc1` at 267,369,984 bytes.
+
+This proves media integrity but is not yet a board result.  Return the card to
+the FPGA, start persistent UART capture, and program the matching Build 73 PDI
+using local full Vivado through the remote hw_server/XVC path.  Require the
+OpenSBI banner to show `aclint-mtimer @ 234375Hz`; Linux SMP and shell
+validation remain separate gates after that banner check.
 
 ---
 
