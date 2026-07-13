@@ -1,0 +1,254 @@
+# Handoff: 2-core OpenSBI cold-boot banner hang (OpenPiton+Ariane, P3/VP1902)
+
+**Date**: 2026-07-13
+**From**: Claude Code session → **To**: Codex
+**Scope**: Pick up the 2-core (2x1) OpenSBI bring-up. The board boots bootrom fully but OpenSBI prints no banner. Root-cause + fix + verify.
+
+This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
+
+---
+
+## 1. Project context (do not lose)
+
+**Ultimate goal**: Run Quicksilver on a 1000-core OpenPiton manycore, measure parallel speedup. Phases P0(1c)→P4(1024c).
+
+**Current phase**: 2-core (2x1) bring-up as a controlled experiment vs the working 64-core (8x8) path. Target board: **P3 / Versal VP1902** (remote).
+
+**Working reference**: 64-core (Build 68/69 era, dbg21 fw) reliably reached an interactive Linux shell with `nproc=64` on this same board. OpenSBI prints its banner there.
+
+**The 2-core regression**: bootrom runs to completion and jumps to OpenSBI at `0x80000000`, but **OpenSBI prints no banner** (UART goes permanently silent). This blocks all 2-core progress.
+
+---
+
+## 2. What is PROVEN working on 2-core (do NOT re-debug these)
+
+Verified on the 2-core board (Build 73 diag bootrom, 2026-07-13):
+
+| Path | Evidence | Status |
+|------|----------|--------|
+| UART TX/RX | bootrom banner + progress lines; 16550 LSR poll reads succeed | ✅ GOOD |
+| DDR read/write | `B69 DDR probe addr=0x84001000 → B69 DDR OK` | ✅ GOOD |
+| SD data read | bootrom reads GPT + copies OpenSBI(528)+Linux(38831)+dtb+initrd | ✅ GOOD (after re-seating card — see §5) |
+| bootrom handoff | `jump fw=0x80000000 dtb=0x88000000`, a0=mhartid, a1=fdt | ✅ GOOD |
+| io_xbar / NoC fabric | DDR + UART reads return; 9-port io_xbar incl. SD | ✅ GOOD |
+| PDI / debug hub | DONE bit HIGH, debug hub `0x3ffc0000000`, 4 ILAs live | ✅ GOOD |
+
+**The hang is squarely inside OpenSBI cold boot, after the jump.** Everything below the jump is clean.
+
+---
+
+## 3. The exact blocker + board evidence already in hand
+
+**Symptom**: after `B69 jump fw=0000000080000000`, UART goes silent forever (no `OpenSBI v1.x` banner).
+
+**ILA board evidence (captured 2026-07-13, no SD swap needed)** — the design was still programmed with Build 73 PDI; captured all 4 ILAs to CSV (`/tmp/b73_ila_*.csv`):
+
+Decoded `p3_tile_debug_bus` packing (`piton/design/chip/tile/rtl/tile.tmp.v:1022`, fields MSB→LSB: `last_l15_address[39:24,23:8,7:0]`, rqtype, size, ariane_debug_bus, L15 handshake, rst/clk):
+
+- `core_bus64 = 0x008004208003f407` → **last L15 (memory) address = `0x80042080`** = `console_dev + 0x80` (nm: `console_dev` @ `0x80042000`, bss).
+- L15 handshake bits (low byte `0x07`): `transducer_l15_val=0`, `l15_transducer_val=0` → **L1.5 interface IDLE**. CPU is NOT stalled on a memory/NoC response.
+- ILA1 counters frozen over 1024-sample window: `core_seen16`/`uart_seen16`/`ddr_seen16` constant. **No UART activity = no banner (board-confirmed).**
+- `p3_ariane_debug_bus[15:8]=0xf4` → `time_irq_i=1` (timer interrupt pending), ipi=0, irq=0, not in reset.
+
+**Interpretation**: CPU reaches the OpenSBI console-init path (last mem op = console_dev), then enters an **internal stall** (L15 idle, not memory-waiting), consistent with `sbi_hart_hang` (`wfi; j` loop) from an init failure or double-trap. No UART output.
+
+**Limitation**: the debug bus has **no PC**, so this localizes to the console-init *region* (last mem op), not an exact instruction. The exact step needs the probe fw (§6).
+
+---
+
+## 4. Static audit result (already done — do NOT redo)
+
+A subagent extracted all 64-core OpenSBI cold-boot gates (dbg3→dbg27) from `wiki/devlog/2026-{05,06,07}.md` and checked each against the 2-core source tree at `build/p3_64core/riscv64-linux-64core-src-20260610/opensbi/`. **Every fix is present.** This is NOT a missing-known-fix problem.
+
+| Gate | Fix | Present? |
+|------|-----|----------|
+| PIE relocation (dbg3) | Makefile `-fno-pie`/`-no-pie`, fw_base `0x80000000` | ✅ |
+| mhpmevent4 illegal instr | `sbi_hart_mhpm_mask()` returns 0 | ✅ |
+| 3-hart CLINT/PLIC (dbg6/7) | `openpiton.c OPENPITON_DEFAULT_HART_COUNT=64` | ✅ (2-core coldboot=hart0 bypasses anyway) |
+| plic context_map stack overflow (dbg7) | `openpiton_early_init` parses into static `&plic` (no stack copy) | ✅ |
+| PMP exhaustion (dbg8/12) | `sbi_hart_oldpmp_configure` | ✅ |
+| DTB initrd-end truncation (dbg26) | 2-core DTB `linux,initrd-end=0x90107d9c` | ✅ |
+| CSR 0x701 L1 D-cache disable (dbg23) | `sbi_hart.c:783 csrw 0x701,zero` | ✅ |
+| coherency barrier (dbg21) | `sbi_trap.c` non-IRQ UART LSR read | ✅ |
+| dbg28 probe remnants | aclint_mswi.c / openpiton.c clean | ✅ |
+
+Also verified: PLIC/CLINT init loops use `sbi_for_each_hartindex` (DTB-driven) → safe on 2-core. 2-core DTB structure identical to 64-core (only cpu@N count differs). 
+
+**The regression is the fw lineage (§5), not a missing fix.**
+
+---
+
+## 5. Root-cause hypothesis (high confidence, board-unverified)
+
+The 2-core image was carrying **`fw_jump_p3_64core.bin` = byte-identical to `dbg28b_noprobe` (sha `12b4ff22`)**. This fw was built 2026-07-06 during the dbg28 mswi-probe experiments and **was NEVER hardware-verified to print the OpenSBI banner** (the session ended and the SD card went unseated before any verification).
+
+- A clean `make clean && make` from current source reproduces `12b4ff22` exactly → source is stable, the binary is the issue's carrier.
+- `dbg21` fw (sha `ab543745`, built 2026-06-26) is from the **verified-banner era** (OpenSBI banner reliably seen in 64-core logs dbg9 6/22 → ev_retry2 7/3).
+
+**⚠️ dbg21 fw is at-risk**: the ILA board evidence points to the console-init path. Since dbg21 also runs console init, if the hang is a 2-core-specific console-path issue, dbg21 may also hang. **Do not blindly trust dbg21 to fix it — verify with the probe fw first (§6).**
+
+---
+
+## 6. THE NEXT STEP (everything is prepared; only a physical SD card swap is needed)
+
+The exact hang step + fix + verification all require booting the **probe fw** (OpenSBI with raw-UART markers `I[SHDMWRTEPB` between init_coldboot steps). It needs the SD card in the reader.
+
+### 6.1 Prepared artifacts (in `build/huaprop3/opensbi64/`)
+
+| File | sha256 (head) | What it is |
+|------|---------------|------------|
+| `p3_opensbi_linux_2hart_probefw.img` | `b9bfcedb` | **PRIORITY TEST** — OpenSBI + raw UART probes `I`(sbi_init)`[`(init_coldboot)`S H D M W R T E P B` then banner |
+| `p3_opensbi_linux_2hart_final.img` | `910f390e` | dbg21 fw image (at-risk fix candidate) |
+| `p3_opensbi_linux_2hart_nocsr701_probefw.img` | `b8717aba` | probe fw + CSR 0x701 reverted |
+| `p3_opensbi_linux_2hart_dbg21fw.img` | `517d9b87` | dbg21 fw image (alias, same fw as final) |
+| `fw_jump_p3_64core_probe.bin` | `fd024769` | probe fw binary |
+| `fw_jump_p3_64core_dbg21.bin` | `ab543745` | dbg21 fw binary |
+| `fw_jump_p3_64core.broken_dbg28b.bin` | `12b4ff22` | the broken fw (backup) |
+
+Remote host already has `/tmp/p3_opensbi_linux_2hart_probefw.img` (sha `b9bfcedb`) and `/tmp/p3_opensbi_linux_2hart_final_fix.img` (sha `910f390e`).
+
+### 6.2 Probe marker meaning
+
+```
+I = sbi_init() entry (OpenSBI C code started)
+[ = init_coldboot() entry
+S = sbi_scratch_init done
+H = sbi_heap_init done
+D = sbi_domain_init done
+M = sbi_hsm_init done
+W = wake_coldboot_harts done
+R = sbi_hart_init done (incl. CSR 0x701 L1 disable)
+T = sbi_timer_init done (CLINT mtimer access)
+E = sbi_platform_early_init done (= generic_early_init = console/fdt init)
+P = sbi_pmu_init done
+B = sbi_dbtr_init done → then sbi_boot_print_banner
+```
+**The last marker before silence = the failed init step.** ILA evidence predicts stop at/near `E` (console). If it stops before `T`, it's CLINT/timer; if before `R`, it's CSR 0x701.
+
+### 6.3 Exact procedure (the only un-automated step is the physical SD card swap)
+
+There is a background auto-write monitor running locally (`/tmp/auto_write_probe.sh`, polls remote `/dev/sdc` every 30s; when the card appears it dd-writes the probe fw `b9bfcedb` and verifies readback). So the flow is:
+
+1. **PHYSICAL (user/human)**: move SD card from the FPGA slot → the remote card reader.
+2. The monitor auto-writes probe fw + readback-verifies (watch `/tmp/auto_write_probe.log` for `PROBE_WRITE_COMPLETE`, readback sha must = `b9bfcedb`). If the monitor is dead, do it manually (§7.4).
+3. **PHYSICAL**: move SD card reader → FPGA slot (push-push, click fully in — a loose card produces exactly the "bootrom hangs at first SD block" signature; see §8 pitfall #1).
+4. Program the (unchanged) Build 73 diag PDI + UART capture:
+   ```
+   vivado -mode batch -source scripts/p3_program_pdi.tcl -tclargs \
+     huaprop3_build73_2x1_opensbi_diag/debug_build/p3_top_build73_2x1_opensbi_diag.pdi \
+     huaprop3_build73_2x1_opensbi_diag/debug_build/p3_top_build73_2x1_opensbi_diag.ltx
+   ```
+   (PDI sha `52e1400a`. XVC upload of 15.5 MB to VP1902 is slow — use `timeout 900`.)
+5. Read the UART trace from `illya@100.93.77.36:~/p3_uart_logs/` — the `I[SHDMWRTEPB` sequence localizes the hang.
+6. Based on the failed step, apply a targeted fix in the OpenSBI source (`build/p3_64core/.../opensbi/`), rebuild fw (`make PLATFORM=generic FW_JUMP=y FW_JUMP_ADDR=0x80200000 FW_JUMP_FDT_ADDR=0x88000000 CROSS_COMPILE=riscv64-linux-gnu-`), repackage image (`scripts/p3_make_opensbi_bundle_image.py`), rewrite SD, re-verify.
+
+---
+
+## 7. Environment, endpoints, commands (READ BEFORE RUNNING ANYTHING)
+
+### 7.1 Board / remote host
+- **Board UART + SD reader host**: `illya@100.93.77.36`, SSH password `123456` (NEVER write this into a repo file; use `/tmp/ssh_run.py` pexpect helper).
+- `hw_server`: `100.93.77.36:3121`. XVC debug bridge: `202.197.4.99:2540`.
+- UART devices on remote: `/dev/ttyUSB0` = P3 UART (115200 8N1), `/dev/ttyUSB1` = XVC JTAG.
+- **SD card = `/dev/sdc`** on remote (Kingston Multi-Reader -1, ~29.7 GB, RM=1). **NEVER write `/dev/sda` or `/dev/nvme*`** — `/dev/sda` is a 2 TB WDC disk.
+- SSH helper exists at `/tmp/ssh_run.py` (pexpect, handles password). Usage: `python3 /tmp/ssh_run.py "<remote-cmd>" <timeout>`.
+
+### 7.2 Local repo (WSL, `/home/illya/openpiton`)
+- Vivado runs on Windows (`D:\Xilinx\Vivado\2024.2`) via wrapper `/home/illya/bin/vivado`; invoked from WSL. P3 builds also work on the offline Ubuntu build host.
+- **Offline Ubuntu build host** (for P3 Vivado builds): `cs@202.197.4.150` via jump `23178@100.70.176.125`. Vivado `/media/d1/Xilinx/Vivado/2024.2/bin/vivado`. Remote workspace `/home/cs/openpiton`. Use `scripts/p3_remote_vivado_64core.sh`.
+- RISC-V toolchains: `riscv64-unknown-elf-gcc` 7.2.0 at `$HOME/scratch/riscv_install/bin/` (bootrom); `riscv64-linux-gnu-gcc` 11.4.0 at `/usr/bin/` (OpenSBI fw, Linux).
+- Source env: `source piton/piton_settings.bash`; for Ariane also `source piton/ariane_setup.sh`.
+
+### 73 OpenSBI / image paths
+- OpenSBI source (with all fixes): `build/p3_64core/riscv64-linux-64core-src-20260610/opensbi/`
+- Image packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Full image builder (rebuilds OpenSBI+Linux+DTB+initramfs): `scripts/p3_prepare_64core_opensbi_image.sh` (set `P3_64CORE_HARTS=2` for 2-core)
+- 2-core Linux Image: `build/huaprop3/opensbi64/Image_p3_2hart`
+- 2-core DTB: `build/huaprop3/opensbi64/p3_opensbi_2hart_initrd.dtb` (initrd-end=0x90107d9c)
+- initramfs: `build/huaprop3/opensbi64/p3_rootfs_64hart_xsbench_v2.cpio.gz` (1080732 B)
+- Bundle layout: GPT, P3OS/BI64 header @ sector 2048, then fw@0x80000000, Image@0x80200000, dtb@0x88000000, initrd@0x90000000.
+
+### 7.4 Manual SD write (if monitor is dead)
+```
+img=build/huaprop3/opensbi64/p3_opensbi_linux_2hart_probefw.img   # b9bfcedb
+sha256sum "$img"   # local
+scp "$img" illya@100.93.77.36:/tmp/   # via /tmp/ssh_run.py pexpect, password 123456
+# on remote:
+lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM /dev/sdc   # confirm real disk, RM=1
+echo '123456' | sudo -S sh -c '
+  umount /dev/sdc1 2>/dev/null || true
+  dd if=/tmp/p3_opensbi_linux_2hart_probefw.img of=/dev/sdc bs=4M conv=fsync status=progress
+  sync
+  dd if=/dev/sdc bs=4M count=64 status=none | sha256sum   # MUST match b9bfcedb...'
+```
+
+---
+
+## 8. Critical pitfalls / lessons (avoid these time-sinks)
+
+1. **Loose SD card mimics an RTL bug.** On 2026-07-09 the 2-core boot "hung at first SD block read" (`copying block 0 of 1 blocks`). Root cause was the SD card not seated in the FPGA slot, NOT a 2x1 RTL defect. Always re-seat the card firmly (push-push click) before debugging SD-path RTL. DDR/UART still work with a loose card; only SD data reads hang. **Already ruled out for the current hang** (bootrom reads SD fine after re-seating on 7/13).
+
+2. **Stale PyHP tmp files break 2x1 synthesis** (`dataIn_8 does not exist`, zero-byte `packet_filter.tmp.v`). For any new 2x1 PDI build, regenerate the PyHP tmp set (define.tmp.h, chip.tmp.v, chipset_impl.tmp.v, flat_id_to_xy, xy_to_flat_id) with `PITON_X_TILES=2 PITON_Y_TILES=1 PITON_NUM_TILES=2` AND the P3 9-device io_xbar, before Vivado. The WSL→Windows Vivado wrapper cannot exec `pyhp.py`; pre-generate tmp in WSL.
+
+3. **Vivado impl crash at write_device_image** (Build 73 first run, 2026-07-09): a one-time WSL↔Windows Vivado hiccup at PDI write (NOT OOM, NOT a design error — route + timing met). Recover from `p3_top_physopt.dcp` via a minimal `open_checkpoint → route_design → write_device_image → write_debug_probes` Tcl (~30 min vs 5.5 h full rebuild).
+
+4. **XVC PDI upload is slow**: programming the 15.5 MB PDI to VP1902 over XVC can take >500 s. Always use `timeout 900` for `p3_program_pdi.tcl`. 400/500 s timeouts killed mid-`program_hw_devices`.
+
+5. **UART capture must outlive the boot**: bootrom copy of the 19 MB Linux Image takes ~3-4 min. Use `timeout 600 cat /dev/ttyUSB0 > log` and start capture BEFORE programming.
+
+6. **Versal DONE bit is not `REGISTER.BOOTSTS.DONE`** (that's for arm_dap). The PDI/ILA programming script reports `DONE bit: HIGH` correctly via its own mechanism.
+
+7. **dbg21 "reached /bin/sh + nproc=64" was NOT verified** (2026-06-28 correction). The first RELIABLE 64-core shell was 2026-07-03 (ev_retry2.log). Treat dbg21 as "prints banner reliably" but not "full shell verified".
+
+8. **Timer-data-corruption and MSIP-delivery and L1-coherency diagnoses are RETIRED** (dbg27, coh_2core/coh_64core/coh_ipi64 all PASS in sim). Do not re-chase them.
+
+---
+
+## 9. Likely root-cause candidates to expect from the probe fw
+
+Based on the ILA (console_dev last access, internal stall, timer_irq pending), in priority order:
+
+1. **Console-init failure → sbi_hart_hang** (stop at `E`): `fdt_serial_init` → `uart8250_device_init`. Why 2-core-specific is unclear (same DTB + UART RTL as 64-core). Check if `uart8250_init` writes a register that wedges the chipset UART on 2-core, or if fdt parsing of the 2-hart DTB faults.
+2. **Timer init → sbi_hart_hang** (stop at `T`): CLINT mtimer access. `time_irq_i=1` pending in ILA is suggestive.
+3. **CSR 0x701 L1-disable stall** (stop at `R`, i.e., last marker `W`): the `csrw 0x701,zero` drains the D-cache; if the drain stalls on 2-core. Test directly with the `nocsr701_probefw` image (`b8717aba`).
+4. **Double-trap** (marker sequence stops abruptly mid-run): an exception whose handler also exceptions → `sbi_hart_hang`.
+
+If the probe fw prints NO marker at all (not even `I`), OpenSBI `_start`/lottery/relocate hangs before C entry — that would point to a coherency/atomic issue in the coldboot lottery on 2-core.
+
+---
+
+## 10. If dbg21 fw ALSO hangs (likely, given ILA console-path evidence)
+
+Then it's a genuine 2-core-specific OpenSBI cold-boot issue, not fw lineage. The probe fw (b9bfcedb) localizes it. Then:
+- Identify the failing function from the last marker.
+- Read that function in `build/p3_64core/.../opensbi/`, find the 2-core-specific trigger (likely a DTB-driven loop or an MMIO access whose response differs at 2x1).
+- Apply a minimal source fix, rebuild fw, repackage, rewrite SD, re-verify.
+
+---
+
+## 11. Reference: where everything is logged
+
+- **Devlogs** (append-only, newest first): `wiki/devlog/2026-07.md` (2-core work, ILA evidence, fix application), `2026-06.md` (64-core OpenSBI gates dbg3→dbg27), `2026-05.md` (P3 migration/bootrom).
+- **Wiki index**: `wiki/INDEX.md`. Concept articles in `wiki/concepts/`.
+- **R1 rule**: every code/RTL/build change MUST have a wiki devlog entry, committed + pushed with `wiki:` prefix, immediately. Devlog DAILY when any FPGA work occurs. See `CLAUDE.md`.
+- This 2-core investigation is committed across `9a5b044`, `867a74e`, `93ee208`, `9d58dd4`, `d5e81e2`, `9ee8fab`, `491531e`, etc.
+
+---
+
+## 11.5 Current OpenSBI source-tree state (IMPORTANT — it is NOT clean)
+
+The OpenSBI source tree at `build/p3_64core/riscv64-linux-64core-src-20260610/opensbi/` currently has **uncommitted experimental edits** (it's an extracted tarball under `build/`, not git-tracked). Specifically:
+
+- `lib/sbi/sbi_init.c`: has `p3_probe_putc()` helper + probe calls (`I` at sbi_init entry; `[S H D M W R T E P B` in init_coldboot).
+- `lib/sbi/sbi_hart.c`: CSR 0x701 write is **commented out** (`/* asm volatile("csrw 0x701, zero" ...); */`).
+
+So **a fresh `make` from the current tree produces the `nocsr701_probefw` variant** (probes + CSR 0x701 reverted), sha `b8717aba` image / `df3ef695...`-class fw. To get:
+- the **stock current-source fw** (12b4ff22, = the broken dbg28b_noprobe lineage): restore both edits (remove probes, uncomment CSR 0x701).
+- the **probe fw with CSR 0x701 KEPT** (`b9bfcedb`): restore the `sbi_hart.c` CSR 0x701 line (uncomment), keep the `sbi_init.c` probes.
+- the **dbg21 fw** (`ab543745`): use the **pre-built binary** `fw_jump_p3_64core_dbg21.bin` — it is NOT reproducible from this tree (dbg21 was built 6/26 from a source state that no longer exists in this extracted tree; do not try to rebuild it).
+
+The probe markers and their meaning are defined in `sbi_init.c` (`p3_probe_putc`). `p3_probe_putc` writes directly to AXI16550 THR `0xfff0c2c000` with an LSR `0xfff0c2c005` THRE poll — same path the bootrom proved working, so markers print before console init.
+
+## 12. One-line summary for Codex
+
+> 2-core OpenSBI prints no banner after bootrom jump. All 64-core fixes are present in source (static audit done). ILA shows CPU internally hung after accessing `console_dev`. The image carried an unverified fw (`dbg28b_noprobe`); dbg21 fw is the candidate fix but is at-risk. **The next action is to boot the probe-fw image (`b9bfcedb`, already built + on the remote + auto-write monitor running) to localize the exact failing init step — this only needs a human to physically swap the SD card FPGA↔reader.** Everything else is prepared.
