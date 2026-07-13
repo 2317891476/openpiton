@@ -17,7 +17,7 @@ two-hart limitation. The superseded greater-than-two-hart gate must not be
 used: the clean P3 OpenSBI patch now keeps L1 D-cache enabled for every hart
 count. Exact transaction-level RTL failure remains open.
 
-### Timer-frequency fix and SD-verified image -- 2026-07-13
+### Timer-frequency fix verified on the FPGA -- 2026-07-13
 
 All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the
 current two-hart run, reported the stale platform fallback
@@ -47,11 +47,22 @@ flushed, then the same complete 256 MiB span was read back.  Its SHA-256 was
 exactly matching the candidate image; the reread partition table exposed
 `/dev/sdc1` at 267,369,984 bytes.
 
-This proves media integrity but is not yet a board result.  Return the card to
-the FPGA, start persistent UART capture, and program the matching Build 73 PDI
-using local full Vivado through the remote hw_server/XVC path.  Require the
-OpenSBI banner to show `aclint-mtimer @ 234375Hz`; Linux SMP and shell
-validation remain separate gates after that banner check.
+Board validation is now complete for the timer fix.  A persistent capture at
+`~/p3_uart_logs/ttyUSB0_20260713_202255_build73_timerfix.log` was running
+before local Windows full Vivado 2024.2.2 programmed the unchanged Build 73
+PDI through the remote hw_server/XVC path.  Vivado exited zero with
+`DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four ILAs.  The bootrom passed
+DDR, SD, GPT/`P3OS`, and all component copies; OpenSBI v1.8 then printed
+`Platform Timer Device : aclint-mtimer @ 234375Hz`.  This is direct FPGA proof
+that commit `adcb11f` fixes the stale 1 MHz timer registration.
+
+OpenSBI also handed off to Linux 6.6.0, which detected SBI TIME/IPI/RFENCE and
+the early UART console.  The 39,980-byte log remained unchanged for 91 seconds
+after the two reserved-memory lines at `[0.000000]`; no SMP or shell result is
+claimed.  Do not rewrite this card or rebuild the timer fix for that symptom.
+The next work is the separate Linux-early internal-stall investigation,
+ideally with a single-CPU bootarg discriminator or a probe exposing
+PC/timer/IPI state.
 
 ---
 

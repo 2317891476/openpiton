@@ -1002,6 +1002,16 @@ that the generated DTB remains 234375 Hz, then require the board banner to say
 `aclint-mtimer @ 234375Hz`.  Historical OpenSBI images that report 1 MHz must
 not be used as evidence that P3's actual `mtime` clock is 1 MHz.
 
+Board validation on 2026-07-13 closed both layers of that check.  The corrected
+256 MiB image was fully read back from the SD card, and the unchanged Build 73
+PDI then programmed with `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four
+ILAs.  After the diagnostic bootrom copied all bundle components, the real
+OpenSBI v1.8 UART banner reported
+`Platform Timer Device : aclint-mtimer @ 234375Hz` and handed off to Linux
+6.6.0.  This proves the registration-order fix on hardware.  It does not close
+the separate Linux-early stop after reserved-memory discovery, so that symptom
+must not be used to reopen the now-verified timer-frequency bug.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
