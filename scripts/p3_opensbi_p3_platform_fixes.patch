@@ -62,48 +62,20 @@
  	/* Public details */
 --- a/lib/sbi/sbi_hart.c
 +++ b/lib/sbi/sbi_hart.c
-@@ -19,6 +19,7 @@
- #include <sbi/sbi_hart_pmp.h>
- #include <sbi/sbi_platform.h>
- #include <sbi/sbi_pmu.h>
-+#include <sbi/sbi_scratch.h>
- #include <sbi/sbi_string.h>
- #include <sbi/sbi_trap.h>
- 
-@@ -271,7 +272,12 @@
+@@ -271,7 +271,12 @@
  	struct sbi_hart_features *hfeatures =
  			sbi_scratch_offset_ptr(scratch, hart_features_offset);
  
 -	return hfeatures->mhpm_mask;
-+	/* Ariane implements mhpmcounter but NOT mhpmevent CSRs. OpenSBI's
-+	 * probe (__check_hpm_csr) sees the counters, then mstatus_init writes
-+	 * the (absent) event selectors -> illegal-instruction trap (cause=2,
-+	 * csrw mhpmevent4). Force 0 hpm counters so no mhpmevent write happens. */
++	/* P3_OPENPITON_PLATFORM_FIXES: Ariane has mhpmcounter but not
++	 * mhpmevent CSRs. OpenSBI detects counters and later writes the absent
++	 * selectors, causing illegal instruction (cause=2, csrw mhpmevent4).
++	 * Force zero HPM counters so no mhpmevent write happens. */
 +	(void)hfeatures;
 +	return 0;
  }
  
  unsigned int sbi_hart_mhpm_bits(struct sbi_scratch *scratch)
-@@ -758,6 +764,19 @@
- 	 */
- 	csr_write(CSR_MIP, 0);
- 
-+	/*
-+	 * P3_CSR701_HART_GATE: CSR 0x701 is Ariane's M-mode D-cache
-+	 * enable. Writing zero bypasses the private L1 and was introduced
-+	 * for the 64-hart coherent-memory workaround. Board evidence shows
-+	 * that the 2-hart cold-boot path does not complete after this write.
-+	 *
-+	 * sbi_scratch_init() has already populated sbi_hart_count() before
-+	 * sbi_hart_init() runs. Keep the workaround for larger meshes while
-+	 * omitting it for one- and two-hart P3 configurations.
-+	 */
-+	if (sbi_hart_count() > 2)
-+		asm volatile("csrw 0x701, zero" ::: "memory");
-+
- 	if (cold_boot) {
- 		if (misa_extension('H'))
- 			sbi_hart_expected_trap = &__sbi_expected_trap_hext;
 --- a/lib/sbi/sbi_hart_pmp.c
 +++ b/lib/sbi/sbi_hart_pmp.c
 @@ -270,6 +270,22 @@
@@ -180,10 +152,10 @@
 +	 * ONLY for exceptions (ecalls etc), NOT timer/software interrupts.
 +	 * dbg22 proved that running it on EVERY trap (incl. IRQs) freezes early
 +	 * boot — likely timer-IRQ livelock from barrier-before-ack. dbg21's
-+	 * non-IRQ gating boots cleanly, so we keep that. NOTE: dbg23 additionally
-+	 * disables the L1 D-cache via CSR 0x701 in sbi_hart_init(), which removes
-+	 * stale L1 lines at the source; this barrier is retained only as a
-+	 * known-good boot safety net and is cheap (non-IRQ traps are rare). */
++	 * non-IRQ gating boots cleanly, so we keep that. The dbg23 CSR 0x701
++	 * D-cache-disable experiment is deliberately not retained: both 64-hart
++	 * and 2-hart board runs lost OpenSBI forward progress after that mode
++	 * change. This barrier remains a cheap, known-good non-IRQ safety net. */
 +	if (!(mcause & MCAUSE_IRQ_MASK)) {
 +		volatile unsigned char discard =
 +			*(volatile unsigned char *)0xfff0c2c005UL;

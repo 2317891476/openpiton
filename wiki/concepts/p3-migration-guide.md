@@ -549,6 +549,31 @@ During P3 hardware bring-up, the PDI is successfully programmed and Vivado repor
 
 ---
 
+### 3.9 Ariane D-cache Disable Path Loses Forward Progress
+
+**Impact**: OpenSBI freezes before its banner when platform firmware writes
+zero to Ariane's custom CSR 0x701.
+
+CSR 0x701 controls the private L1 D-cache enable bit. Clearing it makes the
+write-through cache controller treat normal DDR loads and stores as
+non-cacheable and route them through the L1.5/NoC path. Architecturally, a
+supported cache-disable mode must preserve program behavior and only reduce
+performance. The P3 integration does not: Build 68 dbg23 froze on 64 harts,
+and the Build 73 two-hart marker image stopped inside sbi_hart_init();
+otherwise equivalent images without the write reached later OpenSBI/Linux
+execution.
+
+Treat this as a dead or unsupported Ariane/OpenPiton integration path, not as a
+normal core-count limitation and not as a coherence repair. The exact
+microarchitectural block remains unproven: likely boundaries include switching
+mode with outstanding MSHR/write-buffer state and the normal-memory
+non-cacheable request/return path through wt_l15_adapter. Do not name one
+without targeted transaction-level evidence. P3 OpenSBI firmware must leave L1
+D-cache enabled for every hart count; do not restore the CSR 0x701 zero write
+as a 64-hart workaround.
+
+---
+
 ## 4. RTL Change List
 
 | File | Change | Severity |
@@ -953,3 +978,77 @@ The supplied `riscv64-linux-64core-src-20260610.tar.gz` omits multiple Linux 6.6
 The package's experimental initramfs powers the board off immediately after printing the online CPU count, so it is not the default P3 acceptance image. The Build 68 script instead repacks the package's static RISC-V BusyBox rootfs with a P3 `/init` that mounts `proc`, `sysfs`, and `devtmpfs`, prints both `nproc` and the `/proc/cpuinfo` processor count, emits `P3_64CORE_SHELL_READY`, and enters `/bin/sh`. Set `P3_64CORE_INITRD` only when intentionally testing a different initramfs.
 
 The first complete board candidate was generated locally on 2026-06-12 as `build/huaprop3/opensbi64/p3_opensbi_linux_64hart.img`, size 268,435,456 bytes, SHA256 `2518b7c8b4585c5895816c49304c1d9cc70ce4b85c8179e8ffefe224356a43ae`. Its `P3OS`/`BI64` partition header has four components: OpenSBI at `0x80000000`, Linux 6.6 at `0x80200000`, the 64-hart DTB at `0x88000000`, and the shell-preserving initramfs at `0x90000000`. Independent readback from the image verified every embedded component against its source SHA256. This is a generated-image milestone, not a board-boot result; the next gate is a full SD-card write/readback followed by UART proof of OpenSBI, Linux, 64 online processors, `P3_64CORE_SHELL_READY`, and an interactive shell.
+
+## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
+
+The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
+
+| P3 target | Tile parameters | Tile count | Default aggregate L2 capacity |
+|------------|-----------------|------------|------------------------------|
+| 2x1 target | `PITON_X_TILES=2`, `PITON_Y_TILES=1` | 2 | 128 KiB |
+| 8x8 target | `PITON_X_TILES=8`, `PITON_Y_TILES=8` | 64 | 4 MiB |
+
+The capacity figures use the current P3 default `CONFIG_L2_SIZE=65536`: every tile owns one 64 KiB L2 slice. The generated flat tile ID is `x + y * PITON_X_TILES`, so the 2x1 target contains tile 0 at `(0,0)` and tile 1 at `(1,0)`.
+
+### 15.1 Overall Structure
+
+Each tile contains an Ariane core/L1.5 complex, an L2 slice, and **three independent five-port routers**. Every router has `N`, `E`, `S`, `W`, and `P` (local processor) ports. The three routers form NoC1, NoC2, and NoC3; they are not three virtual channels of one router.
+
+```mermaid
+flowchart LR
+    CS["Chipset: DDR, MMIO, I/O"]
+    T00["Tile (0,0)<br/>L1.5 + L2 slice<br/>NoC1 / NoC2 / NoC3 routers"]
+    T10["Tile (1,0)<br/>L1.5 + L2 slice<br/>NoC1 / NoC2 / NoC3 routers"]
+
+    CS <-->|"W interface: NoC1, NoC2, NoC3"| T00
+    T00 <-->|"E/W links: NoC1, NoC2, NoC3"| T10
+```
+
+This is the complete 2x1 mesh. The 8x8 target repeats exactly the same neighbor rule in both dimensions:
+
+```text
+Chipset <--> W interface of (0,0) -- (1,0) -- ... -- (7,0)
+                                  |                    |
+                                (0,1) -- ... --       (7,1)
+                                  |                    |
+                                  :                    :
+                                  |                    |
+                                (0,7) -- ... --       (7,7)
+```
+
+Every drawn horizontal or vertical edge represents three separate NoC links. Mesh boundary ports are tied to the dummy endpoint, except for the west interface of tile `(0,0)`, which is the single chipset gateway. Thus DDR and memory-mapped I/O traffic logically enters or leaves the mesh through `(0,0)`; it does not have a separate gateway per tile.
+
+### 15.2 Tile-Local NoC Endpoints
+
+The local `P` port connects the following fixed endpoints in every tile:
+
+| Network | Local injection endpoint | Local receive endpoint | Main traffic class |
+|---------|--------------------------|------------------------|--------------------|
+| NoC1 | L1.5 | L2 slice | L1.5 requests to an L2 home |
+| NoC2 | L2 slice | L1.5 | L2 forwards and returns, including chipset-facing requests when required by the protocol |
+| NoC3 | L1.5 | L2 slice | Evictions, writebacks, and acknowledgements |
+
+The exact packet type determines whether the destination is another L2 slice or the chipset endpoint, but the injection and receive directions above do not change with the mesh size. Chipset-originated returns use the corresponding reverse protocol path through the same three logical networks.
+
+### 15.3 Neighbor Wiring and Routing
+
+For each of NoC1, NoC2, and NoC3, adjacent tiles are wired directly as follows:
+
+```text
+tile(x,y).out_E -> tile(x+1,y).in_W
+tile(x,y).out_W -> tile(x-1,y).in_E
+tile(x,y).out_N -> tile(x,y-1).in_S
+tile(x,y).out_S -> tile(x,y+1).in_N
+```
+
+The forward channel carries a 64-bit flit and `valid`; the receiving input returns `yummy` in the opposite direction to release router credit. This connection is duplicated independently for all three networks.
+
+Routing is deterministic XY. A packet first moves east or west until its destination X coordinate is reached, then north or south until its destination Y coordinate is reached, and finally exits through the local `P` port. For a packet addressed outside the chip, the route calculator treats `(0,0)` as the off-chip mesh coordinate; tile `(0,0)` then uses its west interface to reach the chipset.
+
+### 15.4 P3 FPGA Boundary and Interrupt Sidebands
+
+P3 builds define `PITON_NO_CHIP_BRIDGE`. Consequently, the term "off-chip" in the mesh RTL is a logical boundary: the chip and chipset are both inside the FPGA fabric and NoC1/NoC2/NoC3 cross that boundary as direct synchronous `data`/`valid`/`yummy` wires. There is no serialized physical chip bridge or virtual-channel codec on this P3 path.
+
+CLINT and PLIC registers remain memory-mapped devices reached through the chipset NoC gateway. Their delivered signals are different: `timer_irq`, `ipi`, PLIC `irq`, and debug request are width-per-tile sideband vectors from the chipset to the individual tiles, not NoC packets. This distinction matters when isolating a 64-hart SMP/IPI problem: an MMIO transaction and the resulting interrupt delivery do not share the same physical path.
+
+The implementation anchors are `piton/design/chip/tile/rtl/tile.v.pyv` (three routers and L1.5/L2 endpoints), `piton/design/chip/rtl/chip.v.pyv` (parameterized tile and neighbor generation), `piton/design/chip/tile/dynamic_node/dynamic/rtl/dynamic_input_route_request_calc.v` (XY route selection), and `piton/design/include/network_define.v` (flit width and off-chip coordinate).

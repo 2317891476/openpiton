@@ -6,6 +6,17 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Resolution update -- 2026-07-13
+
+The controlled Build 73 probe stopped after marker W; the otherwise equivalent
+no-CSR image printed II[SHDMWRTEPB, OpenSBI v1.8, and Linux early console.
+This proves the CSR 0x701 D-cache-disable mode change blocks the two-hart
+cold-boot path. Historical Build 68 dbg23 evidence shows the same mode also
+froze the 64-hart board immediately after the OpenSBI jump, so this is not a
+two-hart limitation. The superseded greater-than-two-hart gate must not be
+used: the clean P3 OpenSBI patch now keeps L1 D-cache enabled for every hart
+count. Exact transaction-level RTL failure remains open.
+
 ---
 
 ## 1. Project context (do not lose)
