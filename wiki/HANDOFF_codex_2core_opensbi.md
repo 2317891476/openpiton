@@ -108,6 +108,40 @@ passes:
 Do not rebuild OpenSBI, reopen the timer-frequency issue, or rewrite the current
 card as part of the formal PDI repair.
 
+### Prepared `mem=1G` SD-image control -- 2026-07-13
+
+The image-only A/B control is built and remotely staged.  It reuses the exact
+board-tested timer-fix OpenSBI, Linux Image, and initramfs.  Its DTB keeps the
+real 2 GiB `memory` node and appends only `mem=1G` to `/chosen/bootargs`.
+RISC-V Linux calls `parse_early_param()` before `paging_init()`, so
+`setup_bootmem()` and `setup_vm_final()` are restricted to physical
+`0x80000000` through `0xbfffffff`; OpenSBI's view of the hardware is unchanged.
+
+Artifacts:
+
+- Local and remote image:
+  `p3_opensbi_linux_2hart_timerfix_mem1g.img`, 268435456 bytes, SHA-256
+  `7a61b8e7426a79f628b84331faec0642ae722e745ea11905f78419b56a5e60d9`.
+- Local and remote DTB: `p3_opensbi_2hart_initrd_mem1g.dtb`, 2228 bytes,
+  SHA-256
+  `17bfda300c2298ef3bd78391f4c6b627503df4da8e57c57330e8623da2e97c73`.
+- Remote paths are `/tmp/<basename>` on `illya@100.93.77.36`; the manifest is
+  also staged there.  Full remote hashes match local values.
+
+GPT/P3OS validation parsed all four header entries and read their exact byte
+ranges back from the finished image.  Load addresses remain OpenSBI
+`0x80000000`, Linux `0x80200000`, DTB `0x88000000`, and initrd `0x90000000`.
+The non-DTB component hashes are unchanged: `69d3549f...` (OpenSBI),
+`47c9daa8...` (Linux), and `60aaf85d...` (initramfs).  The DT retains two CPUs,
+234375 Hz, 2 GiB physical memory, and initrd end `0x90107d9c`.
+
+The card still contains the prior timer-fix image and remains in the FPGA.
+Before writing this control, move it to the reader and revalidate the removable
+disk identity.  After returning it to the FPGA, keep the Build 73 PDI unchanged
+and require UART evidence of both `mem=1G`/`Memory limited to 1024MB` and
+progress beyond the reserved-memory boundary.  A successful boot proves the
+upper-GiB-use discriminator; it does not replace the later corrected-PDI test.
+
 ---
 
 ## 1. Project context (do not lose)
