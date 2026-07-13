@@ -17,6 +17,34 @@ two-hart limitation. The superseded greater-than-two-hart gate must not be
 used: the clean P3 OpenSBI patch now keeps L1 D-cache enabled for every hart
 count. Exact transaction-level RTL failure remains open.
 
+### Timer-frequency fix and prepared image -- 2026-07-13
+
+All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the
+current two-hart run, reported the stale platform fallback
+`aclint-mtimer @ 1000000Hz`; P3 hardware and every relevant DTB use 234375 Hz.
+The cause was initialization order: timer registration copied the fallback
+before platform `early_init` parsed the DTB.  This was a long-lived OpenSBI
+platform bug, not a regression caused by removing CSR 0x701, and the historical
+64-hart shell result shows it is not by itself sufficient to explain the later
+two-hart Linux-early stop.
+
+Commit `adcb11f` moves the DTB frequency parse into the OpenPiton timer callback
+before mtimer cold initialization and makes the preparation flow reject stale
+work trees.  Two clean builds produced identical firmware SHA-256
+`69d3549ff1ada4faa09666247126b22656d32c9d8cc66ad79a4f5be018e00b7d`.
+The prepared 256 MiB image is
+`build/huaprop3/opensbi64/p3_opensbi_linux_2hart_timerfix.img`, SHA-256
+`c420d81dcbec5f637d8ebcdeb5fab8f5aaba16badc2ee49d2797c096f334f55e`.
+It preserves the prior Linux, two-hart DTB, and initramfs byte-for-byte and is
+already uploaded and hash-verified at
+`illya@100.93.77.36:/tmp/p3_opensbi_linux_2hart_timerfix.img`.
+
+The new image is not yet on the SD card and has no board result.  The next
+physical step is FPGA to reader; then verify `/dev/sdc`, write/read back the
+full 256 MiB image, return the card to FPGA, and require the OpenSBI banner to
+show `aclint-mtimer @ 234375Hz`.  Linux SMP and shell validation remain separate
+gates after that banner check.
+
 ---
 
 ## 1. Project context (do not lose)
