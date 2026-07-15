@@ -186,7 +186,9 @@ Hardware wrapper:
 Software/image path:
 - Main script: `scripts/p3_prepare_64core_opensbi_image.sh`
 - DTB generator: `scripts/p3_generate_opensbi_dts.py`
+- DTB validator: `scripts/p3_validate_opensbi_dtb.py`
 - SD bundle packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Platform-contract regression: `scripts/test_p3_opensbi_platform.py`
 - Output directory: `build/huaprop3/opensbi64/`
 
 Default DDR layout:
@@ -194,6 +196,98 @@ Default DDR layout:
 - Linux `Image`: `0x80200000`
 - DTB: `0x88000000`
 - initramfs: `0x90000000`
+
+#### P3 OpenSBI DTB and bundle generation workflow
+
+Use `scripts/p3_prepare_64core_opensbi_image.sh` as the normal entry point for
+both 2-hart and 64-hart OpenSBI/P3OS images. The script builds or selects
+OpenSBI and Linux, selects the initramfs, generates DTS from the P3 device map,
+compiles it with `dtc`, validates the compiled DTB, checks every bundle load
+range, creates the GPT/P3OS image, and emits a SHA-256 manifest. This path is
+fail-closed; do not hand-edit its generated DTS/DTB or substitute an old
+`*_initrd.dtb`.
+
+The default hardware source of truth is
+`piton/design/xilinx/huaprop3/devices_ariane.xml`. Memory, UART, SD, CLINT, and
+PLIC ranges come from that file. The timebase is derived from
+`P3_CPU_FREQUENCY / P3_TIMEBASE_DIVISOR` (currently
+`30000000 / 128 = 234375` Hz), and `linux,initrd-end` comes from the actual
+initramfs size. Supplying `P3_TIMEBASE_FREQUENCY` asserts equality with the
+derived value; it is not an override. The generator/validator rejects stale
+addresses, wrong hart or interrupt-context counts, wrong clock/timebase data,
+an inexact initrd range, overlapping components, and loads outside declared
+DDR. The complete flow requires `dtc`, `fdtget`, and `sfdisk`.
+
+Invocation modes:
+
+1. Actual 64-hart board candidate on the offline Ubuntu host. Do not set
+   `P3_64CORE_USE_PREBUILT`, because the board artifact must rebuild OpenSBI and
+   Linux for the P3 load addresses.
+
+   ```bash
+   P3_64CORE_HARTS=64 scripts/p3_prepare_64core_opensbi_image.sh
+   ```
+
+2. A 2-hart image or image-only A/B test. Override the initramfs and bootargs
+   when those are the variables under test.
+
+   ```bash
+   P3_64CORE_HARTS=2 \
+   P3_64CORE_INITRD=/absolute/path/rootfs.cpio.gz \
+   P3_64CORE_BOOTARGS='earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 root=/dev/ram0 rw' \
+   scripts/p3_prepare_64core_opensbi_image.sh
+   ```
+
+3. Local image-structure smoke test. Prebuilt artifacts are valid only for this
+   case; prefer disposable directories so an obsolete OpenSBI experiment in
+   the default work tree cannot contaminate the result.
+
+   ```bash
+   P3_64CORE_USE_PREBUILT=1 \
+   P3_64CORE_HARTS=2 \
+   P3_64CORE_WORK_DIR=/tmp/p3-opensbi-smoke-work \
+   P3_64CORE_OUT_DIR=/tmp/p3-opensbi-smoke-out \
+   P3_64CORE_LINUX_BASE_ARCHIVE="$PWD/build/p3_64core/linux-6.6.tar.xz" \
+   scripts/p3_prepare_64core_opensbi_image.sh
+   ```
+
+   The package omits several upstream Linux inputs, so a disposable work tree
+   must point `P3_64CORE_LINUX_BASE_ARCHIVE` at the verified local
+   `linux-6.6.tar.xz`.
+
+4. DTB-only iteration after a device-map, clock, hart-count, bootargs, or
+   initramfs change:
+
+   ```bash
+   python3 scripts/p3_generate_opensbi_dts.py \
+     --harts 2 \
+     --initrd /absolute/path/rootfs.cpio.gz \
+     --initrd-addr 0x90000000 \
+     --out /tmp/p3_2hart.dts
+   dtc -I dts -O dtb -o /tmp/p3_2hart.dtb /tmp/p3_2hart.dts
+   python3 scripts/p3_validate_opensbi_dtb.py \
+     --dtb /tmp/p3_2hart.dtb \
+     --harts 2 \
+     --initrd /absolute/path/rootfs.cpio.gz \
+     --initrd-addr 0x90000000
+   ```
+
+Run the focused contract regression after changing the device map,
+CPU/timebase settings, load addresses, DTB/initramfs logic, or bundle packer:
+
+```bash
+python3 scripts/test_p3_opensbi_platform.py -v
+```
+
+PDI generation enforces the matching hardware aperture. The common
+Build-52-derived flow in `scripts/p3_build52_sd_cd_mask.tcl` forces
+`piton/design/chip/tile/rtl/tile.v.pyv` regeneration and validates both the
+live `tile.tmp.v` and the self-contained `source_snapshot` with
+`scripts/p3_validate_tile_aperture.py`. If it detects the stale 1 GiB CVA6
+`ExecuteRegionLength`/`CachedRegionLength` against the 2 GiB P3 memory map,
+create a fresh Vivado project/work directory; `-skip_create` must not reuse the
+stale snapshot. This was not a DTB size error: the DTB declared 2 GiB, but the
+old generated CVA6 RTL exposed only 1 GiB.
 
 The Build 68 rebuild step must generate both ROM modules used by `riscv_peripherals.sv`: `bootrom/baremetal/bootrom.sv` for the baremetal ROM instance and `bootrom/linux/bootrom_linux.sv` for the OpenSBI bundle ROM. Even when `ariane_boot_sel_i` selects the Linux/OpenSBI path, Vivado still elaborates the baremetal `bootrom` instance. Remote clean archives must not depend on stale untracked generated ROM files left in a local workspace. Generate the companion baremetal ROM from an inline minimal DTS, not by invoking `riscvlib.py` or following `bootrom/baremetal/rv64_platform.dts`, because the remote source archive intentionally lacks `.git` metadata and the symlink target `bootrom/rv64_platform.dts` is an ignored generated file.
 
@@ -725,7 +819,7 @@ Reference addresses for AX7203 (must match across all layers):
 
 | Item | Files | Notes |
 |------|-------|-------|
-| DTS | `build/<board>/<board>.dts` | Must be manually written; `riscvlib.py` auto-generator requires many env vars not set in basic flow. |
+| DTS | `build/<board>/<board>.dts` | Legacy BBL/basic protosyn ports may maintain this DTS manually. Current P3 OpenSBI/P3OS images must use `scripts/p3_generate_opensbi_dts.py` plus `scripts/p3_validate_opensbi_dtb.py`; do not hand-edit generated P3 DTS/DTB files. |
 | **All peripheral addresses** | DTS `reg` fields | Must match `devices_ariane.xml` exactly. A single nibble error (e.g., PLIC `0xffd1100000` vs correct `0xfff1100000`) causes CPU to hang when accessing that peripheral — bus transaction has no responder. |
 | Clock frequency | `clock-frequency` in CPU and UART nodes | Must match actual hardware. Affects timer, baud rate calculation. |
 | Timebase | `timebase-frequency` in `/cpus` | Derived from chipset clock: 30 MHz / 128 = 234375 Hz on AX7203. |
@@ -786,7 +880,7 @@ Reference addresses for AX7203 (must match across all layers):
 
 ## Known Issues & Pitfalls
 
-- `riscvlib.py` (DTS generator) requires many env vars (`PITON_NETWORK_CONFIG`, `CONFIG_L1I_SIZE`, etc.) that aren't set in basic protosyn flow — generate DTS manually instead.
+- `riscvlib.py` requires many env vars (`PITON_NETWORK_CONFIG`, `CONFIG_L1I_SIZE`, etc.) that are not set in the legacy BBL/basic protosyn flow; those legacy ports may maintain DTS manually. The current P3 OpenSBI/P3OS path instead uses `p3_generate_opensbi_dts.py` and its validator.
 - BBL build requires `-fno-stack-protector -U_FORTIFY_SOURCE` to avoid undefined symbols.
 - `PITON_SKIP_ARIANE_FW_BUILD=1` skips bootrom build in protosyn; must manually build `bootrom_linux.sv` and `bootrom.sv` (baremetal) before synthesis.
 - DDR3 MIG `init_calib_complete` gates the entire chipset reset — if DDR3 calibration fails, no peripherals (including UART) will function.

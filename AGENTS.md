@@ -236,7 +236,9 @@ Software/image path:
 - Package source: `riscv64-linux-64core-src-20260610.tar.gz`
 - Main script: `scripts/p3_prepare_64core_opensbi_image.sh`
 - DTB generator: `scripts/p3_generate_opensbi_dts.py`
+- DTB validator: `scripts/p3_validate_opensbi_dtb.py`
 - SD bundle packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Platform-contract regression: `scripts/test_p3_opensbi_platform.py`
 - Output directory: `build/huaprop3/opensbi64/`
 
 The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-byte `P3OS`/`BI64` bundle header. The bootrom copies components by LBA to fixed DDR addresses, then all harts enter OpenSBI. Default addresses are:
@@ -244,6 +246,99 @@ The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-b
 - Linux `Image`: `0x80200000`
 - DTB: `0x88000000`
 - initramfs: `0x90000000`
+
+### P3 OpenSBI DTB and bundle generation workflow
+
+Use `scripts/p3_prepare_64core_opensbi_image.sh` as the normal entry point for
+both 2-hart and 64-hart OpenSBI/P3OS images. Its call chain is intentionally
+fail-closed: it builds or selects OpenSBI and Linux, selects the initramfs,
+generates DTS from the P3 hardware device map, runs `dtc`, validates the
+compiled DTB, validates all bundle load ranges, creates the GPT/P3OS image, and
+writes a SHA-256 manifest. Do not hand-edit the generated DTS/DTB or reuse an
+old `*_initrd.dtb` in this path.
+
+The default hardware source of truth is
+`piton/design/xilinx/huaprop3/devices_ariane.xml`. Memory, UART, SD, CLINT, and
+PLIC ranges are derived from that file. The timer frequency is derived from
+`P3_CPU_FREQUENCY / P3_TIMEBASE_DIVISOR` (currently
+`30000000 / 128 = 234375` Hz), and `linux,initrd-end` is computed from the
+actual initramfs size. `P3_TIMEBASE_FREQUENCY`, when supplied, is only an
+equality assertion; it does not override the derived value. The flow rejects a
+DTB/hardware-map mismatch, wrong hart/context counts, a stale initrd range,
+empty or overlapping components, and any component outside declared DDR.
+`dtc`, `fdtget`, and `sfdisk` must be installed.
+
+Use these invocation modes:
+
+1. Actual 64-hart board candidate: run on the offline Ubuntu build host without
+   `P3_64CORE_USE_PREBUILT`, so OpenSBI and Linux are rebuilt for the P3 load
+   addresses.
+
+   ```bash
+   P3_64CORE_HARTS=64 scripts/p3_prepare_64core_opensbi_image.sh
+   ```
+
+2. A 2-hart image or image-only A/B test: set the hart count and, when needed,
+   provide the exact initramfs and boot arguments under test.
+
+   ```bash
+   P3_64CORE_HARTS=2 \
+   P3_64CORE_INITRD=/absolute/path/rootfs.cpio.gz \
+   P3_64CORE_BOOTARGS='earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 root=/dev/ram0 rw' \
+   scripts/p3_prepare_64core_opensbi_image.sh
+   ```
+
+3. Local image-structure smoke test: prebuilt artifacts are allowed only here.
+   Use disposable work/output directories when the default work tree may
+   contain an old OpenSBI experiment.
+
+   ```bash
+   P3_64CORE_USE_PREBUILT=1 \
+   P3_64CORE_HARTS=2 \
+   P3_64CORE_WORK_DIR=/tmp/p3-opensbi-smoke-work \
+   P3_64CORE_OUT_DIR=/tmp/p3-opensbi-smoke-out \
+   P3_64CORE_LINUX_BASE_ARCHIVE="$PWD/build/p3_64core/linux-6.6.tar.xz" \
+   scripts/p3_prepare_64core_opensbi_image.sh
+   ```
+
+   The Linux baseline archive is required because the supplied package omits
+   several upstream Linux files; point this variable at the verified local
+   `linux-6.6.tar.xz` whenever `P3_64CORE_WORK_DIR` is disposable.
+
+4. DTB-only development: generate, compile, and validate the same artifact.
+   This is useful when changing the hardware map, clocks, hart count, bootargs,
+   or initramfs without rebuilding Linux.
+
+   ```bash
+   python3 scripts/p3_generate_opensbi_dts.py \
+     --harts 2 \
+     --initrd /absolute/path/rootfs.cpio.gz \
+     --initrd-addr 0x90000000 \
+     --out /tmp/p3_2hart.dts
+   dtc -I dts -O dtb -o /tmp/p3_2hart.dtb /tmp/p3_2hart.dts
+   python3 scripts/p3_validate_opensbi_dtb.py \
+     --dtb /tmp/p3_2hart.dtb \
+     --harts 2 \
+     --initrd /absolute/path/rootfs.cpio.gz \
+     --initrd-addr 0x90000000
+   ```
+
+After changing the device map, CPU/timebase values, load addresses, DTB
+generation, initramfs handling, or P3 bundle packing, run:
+
+```bash
+python3 scripts/test_p3_opensbi_platform.py -v
+```
+
+PDI generation has a related hardware-side contract. The common
+Build-52-derived Vivado flow in `scripts/p3_build52_sd_cd_mask.tcl` must force
+regeneration of `piton/design/chip/tile/rtl/tile.v.pyv`, then run
+`scripts/p3_validate_tile_aperture.py` against both the live `tile.tmp.v` and
+the self-contained `source_snapshot`. If the validator reports the old 1 GiB
+`ExecuteRegionLength`/`CachedRegionLength` while the P3 map declares 2 GiB,
+create a fresh Vivado project/work directory. Do not use `-skip_create` to
+reuse that stale snapshot. This aperture bug is distinct from DTB generation:
+the DTB described 2 GiB, while stale generated CVA6 RTL exposed only 1 GiB.
 
 Current 64-core boot status as of 2026-07-02:
 - The earlier "L1 coherence is broken" diagnosis is retired. Both 2-core and
