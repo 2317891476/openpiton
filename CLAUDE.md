@@ -234,6 +234,21 @@ normal P3OS image for this test. Instead run:
 scripts/p3_prepare_build66_1hart_opensbi_image.sh
 ```
 
+On a host that has only the bare-metal RISC-V compiler, reuse of a known Linux
+6.6 `Image` is allowed only with its exact SHA-256 while OpenSBI is still
+rebuilt:
+
+```bash
+PATH="$HOME/scratch/riscv_install/bin:$PATH" \
+CROSS_COMPILE=riscv64-unknown-elf- \
+P3_BUILD66_LINUX_IMAGE="$PWD/build/huaprop3/opensbi64/Image_p3_2hart" \
+P3_BUILD66_LINUX_IMAGE_SHA256=47c9daa86019503459071e38ac4a54624a40062401eae4ff64b948bf16a6441b \
+scripts/p3_prepare_build66_1hart_opensbi_image.sh
+```
+
+Do not replace this with `P3_64CORE_USE_PREBUILT=1`; that would also reuse an
+OpenSBI binary built for the ordinary P3OS FDT address.
+
 The wrapper rebuilds the corrected OpenSBI/Linux stack for one hart and packs
 OpenSBI at `0x80000000`, Linux at `0x80200000`, DTB at `0x81600000`, and
 initramfs at `0x81700000`. The flat packer enforces the hardware DDR map, the

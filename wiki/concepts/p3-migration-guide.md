@@ -866,6 +866,19 @@ readback.  This is intentionally an SD-image-only experiment: do not rebuild
 the PDI or substitute the ordinary P3OS image when testing the validated
 single-core hardware baseline.
 
+The local workstation currently has the bare-metal
+`riscv64-unknown-elf-gcc` but not `riscv64-unknown-linux-gnu-gcc`.  In that
+environment the wrapper can rebuild OpenSBI with
+`CROSS_COMPILE=riscv64-unknown-elf-` and reuse the already board-tested Linux
+6.6 `Image_p3_2hart`.  This is safe for the control because the hardware and
+one-hart DTB determine the active CPU set; the reused kernel is not a firmware
+or DTB artifact.  `P3_BUILD66_LINUX_IMAGE` is accepted only together with
+`P3_BUILD66_LINUX_IMAGE_SHA256`, currently
+`47c9daa86019503459071e38ac4a54624a40062401eae4ff64b948bf16a6441b`.
+This explicit mode still rebuilds the corrected OpenSBI for
+`FW_JUMP_FDT_ADDR=0x81600000`; it must not be confused with the smoke-only
+`P3_64CORE_USE_PREBUILT=1` mode.
+
 ### 7.4 Bootrom Rebuild
 
 ```bash

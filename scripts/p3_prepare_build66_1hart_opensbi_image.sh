@@ -24,6 +24,12 @@ export P3_OPENSBI_FW_ADDR="$fw_addr"
 export P3_LINUX_IMAGE_ADDR="$image_addr"
 export P3_OPENSBI_DTB_ADDR="$dtb_addr"
 export P3_INITRD_ADDR="$initrd_addr"
+if [[ -n "${P3_BUILD66_LINUX_IMAGE:-}" ]]; then
+    export P3_64CORE_LINUX_IMAGE="$P3_BUILD66_LINUX_IMAGE"
+fi
+if [[ -n "${P3_BUILD66_LINUX_IMAGE_SHA256:-}" ]]; then
+    export P3_64CORE_LINUX_IMAGE_SHA256="$P3_BUILD66_LINUX_IMAGE_SHA256"
+fi
 
 "$repo_dir/scripts/p3_prepare_64core_opensbi_image.sh"
 

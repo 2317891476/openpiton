@@ -284,6 +284,22 @@ normal P3OS image for this control. Generate the compatible flat image with:
 scripts/p3_prepare_build66_1hart_opensbi_image.sh
 ```
 
+If the host has only the bare-metal RISC-V compiler, it may reuse a previously
+board-tested Linux 6.6 `Image` while still rebuilding OpenSBI. The override is
+accepted only with an exact SHA-256 assertion:
+
+```bash
+PATH="$HOME/scratch/riscv_install/bin:$PATH" \
+CROSS_COMPILE=riscv64-unknown-elf- \
+P3_BUILD66_LINUX_IMAGE="$PWD/build/huaprop3/opensbi64/Image_p3_2hart" \
+P3_BUILD66_LINUX_IMAGE_SHA256=47c9daa86019503459071e38ac4a54624a40062401eae4ff64b948bf16a6441b \
+scripts/p3_prepare_build66_1hart_opensbi_image.sh
+```
+
+This is not `P3_64CORE_USE_PREBUILT=1`: the corrected OpenSBI is rebuilt with
+the Build 66 FDT address, while only the hardware-independent Linux Image is
+copied after its hash matches.
+
 The wrapper rebuilds the same corrected OpenSBI/Linux stack, generates a
 one-hart DTB, and places OpenSBI at `0x80000000`, Linux at `0x80200000`, DTB at
 `0x81600000`, and initramfs at `0x81700000` inside the fixed copy window. It

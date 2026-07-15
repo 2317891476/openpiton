@@ -15,6 +15,8 @@ jobs="${JOBS:-$(nproc)}"
 cross="${CROSS_COMPILE:-riscv64-unknown-linux-gnu-}"
 opensbi_platform="${OPENSBI_PLATFORM:-generic}"
 use_prebuilt="${P3_64CORE_USE_PREBUILT:-0}"
+linux_image_override="${P3_64CORE_LINUX_IMAGE:-}"
+linux_image_override_sha256="${P3_64CORE_LINUX_IMAGE_SHA256:-}"
 
 fw_addr="${P3_OPENSBI_FW_ADDR:-0x80000000}"
 image_addr="${P3_LINUX_IMAGE_ADDR:-0x80200000}"
@@ -150,7 +152,23 @@ fw_bin="$out_dir/fw_jump_p3_64core.bin"
 require_file "$fw_elf"
 "$objcopy" -S -O binary "$fw_elf" "$fw_bin"
 
-if [[ "$use_prebuilt" != "1" ]]; then
+if [[ "$use_prebuilt" == "1" ]]; then
+    echo "[2/5] Rebuild skipped by P3_64CORE_USE_PREBUILT=1"
+elif [[ -n "$linux_image_override" ]]; then
+    require_file "$linux_image_override"
+    if [[ -z "$linux_image_override_sha256" ]]; then
+        echo "ERROR: P3_64CORE_LINUX_IMAGE_SHA256 is required with P3_64CORE_LINUX_IMAGE" >&2
+        exit 1
+    fi
+    actual_linux_image_sha256="$(sha256sum "$linux_image_override" | awk '{print $1}')"
+    if [[ "$actual_linux_image_sha256" != "$linux_image_override_sha256" ]]; then
+        echo "ERROR: external Linux Image hash mismatch: $actual_linux_image_sha256" >&2
+        exit 1
+    fi
+    echo "[2/5] Reusing hash-verified Linux Image: $linux_image_override"
+    linux_image="$out_dir/Image_p3_${harts}hart"
+    cp "$linux_image_override" "$linux_image"
+else
     echo "[2/5] Building Linux Image NR_CPUS=$harts"
     cp "$pkg_dir/configs/linux.config.64core" "$pkg_dir/linux/.config"
     "$pkg_dir/linux/scripts/config" --file "$pkg_dir/linux/.config" \
@@ -170,8 +188,6 @@ if [[ "$use_prebuilt" != "1" ]]; then
 
     linux_image="$out_dir/Image_p3_${harts}hart"
     cp "$pkg_dir/linux/arch/riscv/boot/Image" "$linux_image"
-else
-    echo "[2/5] Rebuild skipped by P3_64CORE_USE_PREBUILT=1"
 fi
 
 echo "[3/5] Selecting initramfs"
