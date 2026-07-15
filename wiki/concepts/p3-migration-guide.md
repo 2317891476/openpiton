@@ -823,7 +823,8 @@ The OpenSBI image flow treats
 DDR, SD, UART, CLINT, and PLIC.  `p3_prepare_64core_opensbi_image.sh` selects
 the initramfs first, generates the DTS/DTB, computes the exclusive
 `linux,initrd-end` from the actual byte size, validates the compiled DTB, and
-only then packs the GPT/P3OS image.  The same flow is used for 2 and 64 harts
+only then packs the GPT/P3OS image.  The same component-generation flow is used
+for 1, 2, and 64 harts
 through `P3_64CORE_HARTS`.
 
 The important configurable inputs are:
@@ -841,6 +842,29 @@ the selected file, component ranges overlap, or any component falls outside
 DDR.  The Vivado build independently forces `tile.v.pyv` regeneration and
 checks CVA6's execute/cacheable DDR aperture against the same device map, so a
 2 GiB DTB can no longer be paired silently with a stale 1 GiB `tile.tmp.v`.
+
+For the one-hart OpenSBI/Linux control, keep the already board-validated Build
+66 PDI unchanged (SHA-256
+`ee30fe4d052c763c9fc2fa72bf71cc8363173ad210ea8fb106533ac3081dd62d`).
+Its synthesized normal bootrom does not understand the later `P3OS/BI64`
+header: it copies exactly 65,536 sectors (32 MiB) from the first GPT partition
+to `0x80000000` and jumps to that address.  The compatible invocation is:
+
+```bash
+scripts/p3_prepare_build66_1hart_opensbi_image.sh
+```
+
+This wrapper still rebuilds the corrected OpenSBI and Linux 6.6 environment,
+but `p3_make_build66_opensbi_flat_image.py` lays the components directly into
+that fixed window: firmware at `0x80000000`, Linux at `0x80200000`, the
+one-hart DTB at `0x81600000`, and initramfs at `0x81700000`.  The Linux image's
+current runtime end is below `0x81568000`, and the current 1,080,732-byte
+initramfs ends at `0x81807d9c`, so the regions do not overlap and remain below
+`0x82000000`.  The packer independently checks the hardware DDR range, DTB
+memory/initrd contract, fixed copy window, component overlap, and packed-byte
+readback.  This is intentionally an SD-image-only experiment: do not rebuild
+the PDI or substitute the ordinary P3OS image when testing the validated
+single-core hardware baseline.
 
 ### 7.4 Bootrom Rebuild
 

@@ -235,9 +235,11 @@ Hardware wrapper:
 Software/image path:
 - Package source: `riscv64-linux-64core-src-20260610.tar.gz`
 - Main script: `scripts/p3_prepare_64core_opensbi_image.sh`
+- Validated Build 66 one-hart wrapper: `scripts/p3_prepare_build66_1hart_opensbi_image.sh`
 - DTB generator: `scripts/p3_generate_opensbi_dts.py`
 - DTB validator: `scripts/p3_validate_opensbi_dtb.py`
 - SD bundle packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Build 66 flat-image packer: `scripts/p3_make_build66_opensbi_flat_image.py`
 - Platform-contract regression: `scripts/test_p3_opensbi_platform.py`
 - Output directory: `build/huaprop3/opensbi64/`
 
@@ -250,7 +252,7 @@ The P3 OpenSBI SD image is a GPT image whose first partition starts with a 512-b
 ### P3 OpenSBI DTB and bundle generation workflow
 
 Use `scripts/p3_prepare_64core_opensbi_image.sh` as the normal entry point for
-both 2-hart and 64-hart OpenSBI/P3OS images. Its call chain is intentionally
+1-hart, 2-hart, and 64-hart OpenSBI/P3OS components. Its call chain is intentionally
 fail-closed: it builds or selects OpenSBI and Linux, selects the initramfs,
 generates DTS from the P3 hardware device map, runs `dtc`, validates the
 compiled DTB, validates all bundle load ranges, creates the GPT/P3OS image, and
@@ -267,6 +269,31 @@ equality assertion; it does not override the derived value. The flow rejects a
 DTB/hardware-map mismatch, wrong hart/context counts, a stale initrd range,
 empty or overlapping components, and any component outside declared DDR.
 `dtc`, `fdtget`, and `sfdisk` must be installed.
+
+For the single-hart control, reuse the already board-validated Build 66 PDI
+unchanged:
+
+`huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi`
+(SHA-256
+`ee30fe4d052c763c9fc2fa72bf71cc8363173ad210ea8fb106533ac3081dd62d`).
+Its synthesized bootrom predates `P3OS/BI64`: it copies exactly 32 MiB from the
+first GPT partition to `0x80000000` and jumps there. Therefore do not write a
+normal P3OS image for this control. Generate the compatible flat image with:
+
+```bash
+scripts/p3_prepare_build66_1hart_opensbi_image.sh
+```
+
+The wrapper rebuilds the same corrected OpenSBI/Linux stack, generates a
+one-hart DTB, and places OpenSBI at `0x80000000`, Linux at `0x80200000`, DTB at
+`0x81600000`, and initramfs at `0x81700000` inside the fixed copy window. It
+then uses `p3_make_build66_opensbi_flat_image.py` to validate the DTB/initrd
+contract, DDR and copy-window bounds, component overlap, and packed-component
+readback. The final SD artifact is
+`build/huaprop3/opensbi1_build66/p3_opensbi_linux_1hart_build66_flat.img`.
+This path changes only the SD payload; it does not rebuild or alter the
+validated PDI. A board pass requires OpenSBI v1.8, mtimer at 234375 Hz, Linux
+6.6, only CPU0, and an interactive shell in one UART capture.
 
 Use these invocation modes:
 

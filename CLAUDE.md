@@ -185,9 +185,11 @@ Hardware wrapper:
 
 Software/image path:
 - Main script: `scripts/p3_prepare_64core_opensbi_image.sh`
+- Validated Build 66 one-hart wrapper: `scripts/p3_prepare_build66_1hart_opensbi_image.sh`
 - DTB generator: `scripts/p3_generate_opensbi_dts.py`
 - DTB validator: `scripts/p3_validate_opensbi_dtb.py`
 - SD bundle packer: `scripts/p3_make_opensbi_bundle_image.py`
+- Build 66 flat-image packer: `scripts/p3_make_build66_opensbi_flat_image.py`
 - Platform-contract regression: `scripts/test_p3_opensbi_platform.py`
 - Output directory: `build/huaprop3/opensbi64/`
 
@@ -200,7 +202,7 @@ Default DDR layout:
 #### P3 OpenSBI DTB and bundle generation workflow
 
 Use `scripts/p3_prepare_64core_opensbi_image.sh` as the normal entry point for
-both 2-hart and 64-hart OpenSBI/P3OS images. The script builds or selects
+1-hart, 2-hart, and 64-hart OpenSBI/P3OS components. The script builds or selects
 OpenSBI and Linux, selects the initramfs, generates DTS from the P3 device map,
 compiles it with `dtc`, validates the compiled DTB, checks every bundle load
 range, creates the GPT/P3OS image, and emits a SHA-256 manifest. This path is
@@ -217,6 +219,30 @@ derived value; it is not an override. The generator/validator rejects stale
 addresses, wrong hart or interrupt-context counts, wrong clock/timebase data,
 an inexact initrd range, overlapping components, and loads outside declared
 DDR. The complete flow requires `dtc`, `fdtget`, and `sfdisk`.
+
+The one-hart hardware control must reuse the unchanged, board-validated Build
+66 PDI:
+
+`huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi`
+(SHA-256
+`ee30fe4d052c763c9fc2fa72bf71cc8363173ad210ea8fb106533ac3081dd62d`).
+That PDI's synthesized bootrom copies a fixed 32 MiB from the first GPT
+partition to `0x80000000`; it does not parse `P3OS/BI64`. Do not write the
+normal P3OS image for this test. Instead run:
+
+```bash
+scripts/p3_prepare_build66_1hart_opensbi_image.sh
+```
+
+The wrapper rebuilds the corrected OpenSBI/Linux stack for one hart and packs
+OpenSBI at `0x80000000`, Linux at `0x80200000`, DTB at `0x81600000`, and
+initramfs at `0x81700000`. The flat packer enforces the hardware DDR map, the
+fixed `[0x80000000,0x82000000)` copy window, non-overlap, the exact DTB initrd
+range, and byte-for-byte packed-component readback. Its final artifact is
+`build/huaprop3/opensbi1_build66/p3_opensbi_linux_1hart_build66_flat.img`.
+This creates only a new SD payload and leaves the validated PDI unchanged.
+Board success requires a single UART log showing OpenSBI v1.8, mtimer at
+234375 Hz, Linux 6.6, only CPU0, and an interactive shell.
 
 Invocation modes:
 

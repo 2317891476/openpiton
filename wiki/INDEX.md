@@ -15,7 +15,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Current FPGA board | AX7203 (Artix-7 XC7A200T) |
 | Migration target | HuaPro P3 (Versal VP1902) |
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
-| Single-core status | P3 Build 66 boots Linux shell; SD ext2 + XSBench launch verified |
+| Single-core status | P3 Build 66 legacy BBL/Linux shell, SD ext2, and XSBench launch are verified. An unchanged-PDI OpenSBI v1.8/Linux 6.6 flat-image control is prepared; SD/board validation is pending. |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
 | Current scaling candidate | **2-core (2x1) bring-up in progress.** The final no-CSR image was written and full-span readback-verified, then Build 73 programmed with `DONE bit: HIGH`, a live debug hub, and four ILAs. UART reached OpenSBI v1.8 and Linux 6.6 early console, proving that leaving Ariane L1 D-cache enabled clears the CSR 0x701 OpenSBI gate at every hart count. UART and immediate ILA state then stopped in Linux early boot with no outstanding L1.5/NoC/DDR request; Linux SMP completion and a 2-core shell remain unproven. **See [HANDOFF_codex_2core_opensbi.md](HANDOFF_codex_2core_opensbi.md) for the full handoff.** |
 | Prior scaling notes | Older `coh_ipi64.c` logs are stale leads (2026-07-01 three-pass sweep). The "stop_machine IPI deadlock / 58 harts miss MSIP" reading was falsified 2026-07-07 (SMP bringup already proves MSIP works for all 64). |
@@ -66,7 +66,7 @@ Entries in `devlog/` are organized by month, newest first, append-only.
 
 | Phase | Target | Milestone |
 |-------|--------|-----------|
-| P0 | Single core | Linux shell, SD ext2 mount, and XSBench smoke launch verified on P3 |
+| P0 | Single core | Legacy BBL Linux shell/SD/XSBench verified; unchanged Build 66 PDI + current OpenSBI/Linux 6.6 control is the next board gate |
 | P1 | 2x2 (4 cores) | Multi-core coherence validated |
 | P2 | 4x4 (16 cores) | Speedup measurement baseline |
 | P3 | 8x8 (64 cores) | P3 Pro / VP1902 board boots Linux with 64 CPUs online |
