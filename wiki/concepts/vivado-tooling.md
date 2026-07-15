@@ -363,6 +363,14 @@ exact retained L1.5, CVA6 scoreboard, and LSU net exists exactly once.  The
 hook then inserts an 8192-sample `u_ila_build75`, centered around a trigger that
 requires an ordinary store to remain unacknowledged for 256 cycles.
 
+Clean Build 75 creation also requires both generated ROM modules.  CVA6
+`riscv_peripherals.sv` instantiates `bootrom` and `bootrom_linux`
+unconditionally, then selects their read data, so the Build 66 rebuild wrapper
+must generate the companion baremetal `bootrom.sv` as well as the normal Linux
+ROM.  The companion uses an inline minimal DTS and the same ROM generator as
+the validated Build 68/72/73 flows.  The self-contained validator rejects a
+snapshot missing either module before synthesis.
+
 ```bash
 vivado -mode batch -source scripts/p3_build75_1hart_l15_pc_diag.tcl \
   -tclargs -jobs 16

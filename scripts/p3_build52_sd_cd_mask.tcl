@@ -331,6 +331,8 @@ proc p3_validate_self_contained_xpr {project_dir project_name repo_dir} {
         "piton/design/xilinx/huaprop3/openpiton_wrapper.v" \
         "piton/design/xilinx/huaprop3/constraints.xdc" \
         "piton/design/xilinx/huaprop3/unread_vivado_impl.sv" \
+        "piton/design/chipset/rv64_platform/bootrom/baremetal/bootrom.sv" \
+        "piton/design/chipset/rv64_platform/bootrom/linux/bootrom_linux.sv" \
     ] {
         set required_path "${snapshot_dir}/${required_rel}"
         if {![file exists $required_path]} {

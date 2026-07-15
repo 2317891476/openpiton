@@ -425,8 +425,12 @@ post-synthesis hook must resolve every exact L1.5/CVA6 probe before inserting
 `u_ila_build75`.  Capture with
 `scripts/p3_ila_capture_build75_1hart_l15_pc_diag.tcl` and decode with
 `scripts/p3_decode_build75_ila_csv.py`, optionally passing the Linux `vmlinux`
-for PC symbols.  Do not claim an exact stuck instruction unless the decoder
-confirms the `0x75` tag, counter, store request, STORE commit head, and a
+for PC symbols.  The Build 66 bootrom wrapper used by this clean build must
+generate both `baremetal/bootrom.sv` and `linux/bootrom_linux.sv`, because
+`riscv_peripherals.sv` instantiates both unconditionally; the self-contained
+snapshot validator rejects either missing module.  Do not claim an exact
+stuck instruction unless the decoder confirms the `0x75` tag, counter, store
+request, STORE commit head, and a
 concrete blocker.  No Build 75 PDI or board evidence exists yet.  Reuse the
 current one-hart OpenSBI/Linux 6.6 SD image without rewriting it; do not build
 the excluded Linux 5.1 control or repeat the unchanged failing baseline.

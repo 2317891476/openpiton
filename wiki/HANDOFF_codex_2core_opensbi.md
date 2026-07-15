@@ -93,6 +93,14 @@ pre-generates every missing RTL/include PyHP result through WSL `python3`
 before calling that helper.  This failure produced no PDI/LTX and no board
 evidence; rerun the same Build 75 command from the new clean commit.
 
+The second zero-generated-file attempt proved that PyHP fix, then exposed a
+second clean-source gap before synthesis: Build 66 regenerated only
+`bootrom_linux.sv`, although `riscv_peripherals.sv` unconditionally
+instantiates both Linux and baremetal ROM modules.  The Build 66 rebuild now
+also creates `baremetal/bootrom.sv` from an inline minimal DTS and validates
+its module name.  The self-contained preflight requires both ROMs in the
+snapshot.  That interrupted attempt also produced no PDI/LTX or board result.
+
 ### Timer-frequency fix verified on the FPGA -- 2026-07-13
 
 All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the
