@@ -50,6 +50,41 @@ differ (the one-hart run stops before the Linux banner, while the two-hart
 `mem=1G` run reached later init), so the common claim is limited to the stable
 store-valid-without-L1.5-ack state.
 
+### Build 75 causal diagnostic prepared -- 2026-07-15
+
+Build 75 is the next hardware action and replaces further inference from the
+four aggregate Build 66 ILAs.  A synthesized Build 66 DCP inspection found
+that the CVA6 commit-head PC/FU/op, LSU commit state, and aggregate L1.5 stalls
+survive synthesis, while the individual tag/index/MSHR/NoC1 blockers do not.
+The diagnostic consequently requires a fresh one-hart synthesis with
+conditional `P3_BUILD75_PC_L15_DEBUG` retention in `l15_pipeline.v.pyv`.
+
+`scripts/p3_build75_1hart_l15_pc_diag.tcl` drives the self-contained Build
+52-derived flow.  Its post-synthesis hook requires exact, unique probe paths
+and inserts `u_ila_build75` at depth 8192.  The trigger fires after an ordinary
+store has remained valid without the real L1.5 acknowledgement for 256 cycles;
+the capture also contains the request fields, detailed stage/tag/index/MSHR and
+NoC1 credit blockers, commit-head PC/FU/op/valid/ack, and LSU commit readiness.
+Build and decode with:
+
+```bash
+vivado -mode batch -source scripts/p3_build75_1hart_l15_pc_diag.tcl \
+  -tclargs -jobs 16
+vivado -mode batch \
+  -source scripts/p3_ila_capture_build75_1hart_l15_pc_diag.tcl
+python3 scripts/p3_decode_build75_ila_csv.py \
+  huaprop3_build75_1hart_l15_pc_diag/debug_build \
+  --vmlinux build/p3_64core/riscv64-linux-64core-src-20260610/linux/vmlinux
+```
+
+The decoder is fail-closed: it will not report a stuck instruction unless the
+`0x75` format tag, 256-cycle store/no-ack condition, valid CVA6 STORE commit
+head, and a concrete L1.5 blocker all agree.  No Build 75 PDI/LTX, board
+programming result, capture, or exact instruction exists yet.  Keep the
+readback-verified one-hart OpenSBI/Linux 6.6 image on the SD card unchanged.
+Do not create the excluded OpenSBI/Linux 5.1 control image and do not repeat
+the unchanged failing Build 66/OpenSBI/Linux 6.6 baseline.
+
 ### Timer-frequency fix verified on the FPGA -- 2026-07-13
 
 All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the

@@ -495,6 +495,21 @@ The baseline keeps the original AXI16550 UART path, SPI-mode SD path, DDR addres
 
 Build 67 is the first 2x1 scaling candidate and must follow the same self-contained source-snapshot rule. Its wrapper is `scripts/p3_build67_2x1_normal_spi_sd_boot.tcl`; the default work directory is `p3b67_2x1/`, and published artifacts are `huaprop3_build67_2x1_baseline/debug_build/p3_top_build67_2x1_normal_spi_sd_boot.pdi` plus `.ltx`. Before project creation, regenerate the tile-dependent PyHP outputs as a consistent set and validate both live and snapshot `define.tmp.h` against `PITON_X_TILES=2`, `PITON_Y_TILES=1`, and `PITON_NUM_TILES=2`. The 2026-06-05 implementation candidate routed successfully with 258,405 fully routed nets, 0 routing errors, `WNS=16.312 ns`, and PDI SHA256 `f979264a5e43e5f1e90061590da79ed0d54c080e7aac384762219f993c978ed0`. The 2026-06-08/09 hardware retests programmed successfully, refreshed debug hub `0x3ffc0000000`, enumerated four ILAs, booted through SPI-SD init, copied all 65,536 payload blocks to DDR, matched DDR/SD payload words, and entered BBL with a 2-hart DTB. Complete logs prove Linux 5.1.0-rc7 can print after BBL `mret` and reach `Run /bin/sh as init process`; the active Build 67 gate is now reproducible normal-image shell interaction and `/dev/piton_sd2`/XSBench validation. If the SD card currently contains a `B67M` marker image, rewrite `build/huaprop3/sd_images/huaprop3_linux_xsbench_2x1.img` before drawing conclusions from post-`mret` UART behavior.
 
+Build 75 is the single-hart causal diagnostic for the OpenSBI/Linux 6.6
+store-valid-without-L1.5-ack stop.  Build it only from fresh synthesis with
+`scripts/p3_build75_1hart_l15_pc_diag.tcl`; the old Build 66 DCP does not retain
+the individual tag/index/MSHR/NoC1 blockers.  The conditional RTL trigger
+requires an ordinary store to remain unacknowledged for 256 cycles, and the
+post-synthesis hook must resolve every exact L1.5/CVA6 probe before inserting
+`u_ila_build75`.  Capture with
+`scripts/p3_ila_capture_build75_1hart_l15_pc_diag.tcl` and decode with
+`scripts/p3_decode_build75_ila_csv.py`, optionally passing the Linux `vmlinux`
+for PC symbols.  Do not claim an exact stuck instruction unless the decoder
+confirms the `0x75` tag, counter, store request, STORE commit head, and a
+concrete blocker.  No Build 75 PDI or board evidence exists yet.  Reuse the
+current one-hart OpenSBI/Linux 6.6 SD image without rewriting it; do not build
+the excluded Linux 5.1 control or repeat the unchanged failing baseline.
+
 Old P3 debug projects are archived outside the repository root. Repo-local historical build folders are under `/home/illya/p3_cleanup_archive/2026-06-04-build66-baseline/repo_dirs/`; old Vivado workspaces are under `/mnt/d/p3_cleanup_archive/2026-06-04-build66-baseline/workspaces/`. Keep `huaprop3onecore/` as the board-level reference project. Do not commit `p3b66/`, `p3b66_validated_snapshot/`, PDI/LTX/CSV files, or SD-card images.
 
 ## R1: Mandatory Wiki Sync Rule

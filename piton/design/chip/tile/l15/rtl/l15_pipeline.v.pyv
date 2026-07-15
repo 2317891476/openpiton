@@ -292,6 +292,14 @@ reg noc2_ack_s1;
 reg noc2_ack_s2;
 reg noc2_ack_s3;
 
+`ifdef P3_BUILD75_PC_L15_DEBUG
+(* keep = "true", mark_debug = "true" *) wire [63:0] p3_build75_l15_req_bus;
+(* keep = "true", mark_debug = "true" *) wire [63:0] p3_build75_l15_stall_bus;
+(* keep = "true", mark_debug = "true" *) reg [8:0] p3_build75_noack_count;
+(* keep = "true", mark_debug = "true" *) wire p3_build75_noack_trigger;
+wire p3_build75_store_wait;
+`endif
+
 // fetch state signals
 // used in different stages in S1
 reg [`L15_FETCH_STATE_WIDTH-1:0] fetch_state_s1;
@@ -4466,5 +4474,70 @@ begin
             `endif
     endcase
 end
+
+`ifdef P3_BUILD75_PC_L15_DEBUG
+assign p3_build75_store_wait = pcxdecoder_l15_val &&
+                                (pcxdecoder_l15_rqtype == `PCX_REQTYPE_STORE) &&
+                                !l15_pcxdecoder_ack;
+assign p3_build75_noack_trigger = p3_build75_noack_count[8];
+
+always @(posedge clk)
+begin
+    if (!rst_n || !p3_build75_store_wait)
+        p3_build75_noack_count <= 9'd0;
+    else if (!p3_build75_noack_count[8])
+        p3_build75_noack_count <= p3_build75_noack_count + 9'd1;
+end
+
+assign p3_build75_l15_req_bus = {pcxdecoder_l15_address[39:0],
+                                 pcxdecoder_l15_rqtype[4:0],
+                                 pcxdecoder_l15_size[2:0],
+                                 pcxdecoder_l15_val,
+                                 l15_pcxdecoder_ack,
+                                 l15_pcxdecoder_header_ack,
+                                 val_s1,
+                                 val_s2,
+                                 val_s3,
+                                 stall_s1,
+                                 stall_s2,
+                                 stall_s3,
+                                 pcx_ack_s1,
+                                 pcx_ack_s2,
+                                 pcx_ack_s3,
+                                 acklogic_pcx_s1,
+                                 fetch_state_s1[2:0]};
+
+assign p3_build75_l15_stall_bus = {8'h75,
+                                   mshr_pipe_vals_s1[7:0],
+                                   creditman_noc1_avail[3:0],
+                                   creditman_noc1_data_avail[3:0],
+                                   creditman_noc1_reserve[3:0],
+                                   predecode_reqtype_s1[5:0],
+                                   predecode_size_s1[2:0],
+                                   predecode_source_s1[1:0],
+                                   decoder_creditman_noc1_needed[1:0],
+                                   decoder_creditman_req_8B_s1,
+                                   decoder_creditman_req_16B_s1,
+                                   noc1encoder_l15_req_sent,
+                                   noc1encoder_l15_req_data_sent[1:0],
+                                   cpxencoder_l15_req_ack,
+                                   noc3encoder_l15_req_ack,
+                                   l15_noc1buffer_req_val,
+                                   pipe_mshr_writereq_val_s1,
+                                   pipe_mshr_val_s3,
+                                   decoder_no_free_mshr_s1,
+                                   decoder_stall_on_mshr_allocation_s1,
+                                   predecode_tagcheck_matched_s1,
+                                   decoder_stall_on_matched_mshr_s1,
+                                   stall_index_bypass_match_s1,
+                                   decoder_stall_on_matched_bypassed_index_s1,
+                                   stall_tag_match_stall_s1,
+                                   stall_index_conflict_stall_s1,
+                                   stall_mshr_allocation_busy_s1,
+                                   stall_pcx_noc1_buffer_s1,
+                                   stall_noc1_command_buffer_unavail_s1,
+                                   stall_noc1_data_buffer_unavail_s1,
+                                   p3_build75_noack_trigger};
+`endif
 
 endmodule

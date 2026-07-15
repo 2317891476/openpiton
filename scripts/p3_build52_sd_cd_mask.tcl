@@ -55,6 +55,10 @@ if {[info exists env(P3_BUILD52_WORK_DIR)] && $env(P3_BUILD52_WORK_DIR) ne ""} {
 set output_dir "${output_project_dir}/debug_build"
 set create_tcl [file normalize "${script_dir}/p3_create_bd_build52_sd_cd_mask.tcl"]
 set prepare_tcl [file normalize "${script_dir}/p3_prepare_build52_sd_cd_mask_ila.tcl"]
+set post_synth_tcl ""
+if {[info exists env(P3_BUILD52_POST_SYNTH_TCL)] && $env(P3_BUILD52_POST_SYNTH_TCL) ne ""} {
+    set post_synth_tcl [file normalize $env(P3_BUILD52_POST_SYNTH_TCL)]
+}
 if {[info exists env(P3_BUILD52_BOOTROM_REBUILD_SH)] && $env(P3_BUILD52_BOOTROM_REBUILD_SH) ne ""} {
     set bootrom_rebuild_sh [file normalize $env(P3_BUILD52_BOOTROM_REBUILD_SH)]
 } else {
@@ -478,6 +482,29 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
         "${repo_dir}/piton/design/chip/tile/common/rtl/xy_to_flat_id.tmp.v" \
     ]
 
+    if {[info exists ::env(P3_BUILD52_EXTRA_PYHP_TEMPLATES)] &&
+        $::env(P3_BUILD52_EXTRA_PYHP_TEMPLATES) ne ""} {
+        foreach rel_src [split $::env(P3_BUILD52_EXTRA_PYHP_TEMPLATES)] {
+            if {$rel_src eq ""} {
+                continue
+            }
+            if {![regexp {\.v\.pyv$} $rel_src]} {
+                puts "ERROR: extra PyHP template must end in .v.pyv: ${rel_src}"
+                exit 1
+            }
+            set rel_dst [regsub {\.v\.pyv$} $rel_src {.tmp.v}]
+            set src [file normalize "${repo_dir}/${rel_src}"]
+            set dst [file normalize "${repo_dir}/${rel_dst}"]
+            if {![file exists $src]} {
+                puts "ERROR: extra PyHP template not found: ${src}"
+                exit 1
+            }
+            if {[lsearch -exact $pyhp_pairs $src] < 0} {
+                lappend pyhp_pairs $src $dst
+            }
+        }
+    }
+
     for {set i 0} {$i < [llength $pyhp_pairs]} {incr i 2} {
         set src [lindex $pyhp_pairs $i]
         set dst [lindex $pyhp_pairs [expr {$i + 1}]]
@@ -516,7 +543,7 @@ proc p3_copy_run_output {run_dir output_dir pdi_basename} {
     set fh [open $ltx_src r]
     set ltx_data [read $fh]
     close $fh
-    foreach token [list \
+    set required_ltx_tokens [list \
         "0x000003FFC0000000" \
         "PMC_AXI_NOC0" \
         "axis_ila_0" \
@@ -529,7 +556,16 @@ proc p3_copy_run_output {run_dir output_dir pdi_basename} {
         "p3_dbg_core_bus64_i" \
         "p3_dbg_uart_bus64_i" \
         "p3_dbg_ddr_bus64_i" \
-    ] {
+    ]
+    if {[info exists ::env(P3_BUILD52_REQUIRED_LTX_TOKENS)] &&
+        $::env(P3_BUILD52_REQUIRED_LTX_TOKENS) ne ""} {
+        foreach token [split $::env(P3_BUILD52_REQUIRED_LTX_TOKENS)] {
+            if {$token ne ""} {
+                lappend required_ltx_tokens $token
+            }
+        }
+    }
+    foreach token $required_ltx_tokens {
         if {[string first $token $ltx_data] < 0} {
             puts "ERROR: Build 52 LTX missing token: ${token}"
             exit 1
@@ -552,12 +588,17 @@ puts " Output dir: ${output_dir}"
 puts " Jobs: ${jobs}"
 puts " Reuse synth: ${reuse_synth}"
 puts " Prepare BD/ILA: ${run_prepare}"
+puts " Post-synth hook: ${post_synth_tcl}"
 puts " Self-contained sources: ${p3_self_contained_sources}"
 puts " Tile config: ${::env(PITON_X_TILES)}x${::env(PITON_Y_TILES)} (${::env(PITON_NUM_TILES)} tiles)"
 puts "=========================================="
 
 if {![file exists $bootrom_rebuild_sh]} {
     puts "ERROR: missing Build 52 bootrom rebuild script: $bootrom_rebuild_sh"
+    exit 1
+}
+if {$post_synth_tcl ne "" && ![file exists $post_synth_tcl]} {
+    puts "ERROR: missing post-synthesis hook: ${post_synth_tcl}"
     exit 1
 }
 puts "Regenerating Build 52 bootrom before Vivado project creation..."
@@ -629,6 +670,7 @@ foreach define $defs {
         $define ne "P3_SPI_SD_PAD_DEBUG" &&
         $define ne "P3_SPI_SD_REF_CMD_DEBUG" &&
         $define ne "P3_SPI_SD_BLOCK_DEBUG" &&
+        $define ne "P3_BUILD75_PC_L15_DEBUG" &&
         $define ne "PITONSYS_MEM_ZEROER"} {
         lappend cleaned_defs $define
     }
@@ -700,6 +742,11 @@ if {$reuse_synth} {
     launch_runs $synth_run -jobs $jobs
     wait_on_run $synth_run
     p3_runmgr_check_status $synth_run "Synthesis"
+}
+
+if {$post_synth_tcl ne ""} {
+    puts "Running post-synthesis hook: ${post_synth_tcl}"
+    source $post_synth_tcl
 }
 
 p3_seed_build52_impl_caches $project_dir $project_name $repo_dir

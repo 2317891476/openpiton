@@ -344,6 +344,34 @@ Repo-local hardware validation: the regenerated PDI programmed `xcvp1902_1` succ
 
 Recursive snapshot hardware validation: on 2026-06-05, the freshly rebuilt self-contained PDI/LTX pair programmed through the enhanced `p3_program_pdi.tcl` flow. Vivado reported `Successfully programmed PDI`, `DONE bit: HIGH`, debug hub setup at `0x3ffc0000000`, and four ILAs (`hw_ila_1` through `hw_ila_4`). Remote UART log `~/p3_uart_logs/ttyUSB0_20260605_101439.log` reached `bbl loader`, Linux 5.1.0-rc7, AXI16550 console registration at `0xfff0c2c000`, `piton_sd1/piton_sd2`, and `/ #`. Slow UART input returned `P3_B66_SELF_OK` and `uname -a` reported `Linux ariane-fpga 5.1.0-rc7 ... riscv64 GNU/Linux`. This closes the Build 66 gate for starting Build 67 from the repository-local self-contained source-snapshot flow.
 
+Build 75 is the one-hart causal diagnostic for the OpenSBI/Linux 6.6 stop in
+which an ordinary store remains valid at L1.5 without request acknowledgement.
+The old Build 66 synthesis checkpoint retains commit-head and aggregate stall
+nets, but Vivado optimized away the individual tag/index/MSHR/NoC1 blockers;
+Build 75 must therefore run fresh synthesis.  Its wrapper enables conditional
+`P3_BUILD75_PC_L15_DEBUG` instrumentation, forces regeneration of
+`l15_pipeline.v.pyv`, and uses a post-synthesis hook that fails unless every
+exact retained L1.5, CVA6 scoreboard, and LSU net exists exactly once.  The
+hook then inserts an 8192-sample `u_ila_build75`, centered around a trigger that
+requires an ordinary store to remain unacknowledged for 256 cycles.
+
+```bash
+vivado -mode batch -source scripts/p3_build75_1hart_l15_pc_diag.tcl \
+  -tclargs -jobs 16
+vivado -mode batch \
+  -source scripts/p3_ila_capture_build75_1hart_l15_pc_diag.tcl
+python3 scripts/p3_decode_build75_ila_csv.py \
+  huaprop3_build75_1hart_l15_pc_diag/debug_build \
+  --vmlinux build/p3_64core/riscv64-linux-64core-src-20260610/linux/vmlinux
+```
+
+The decoder accepts a capture only when the `0x75` format tag, 256-cycle
+no-ack count, valid ordinary store, valid CVA6 STORE commit head, and at least
+one detailed L1.5 blocker agree.  Only then may its PC/symbol result be called
+the stuck instruction.  Build 75 currently has no completed PDI/LTX or board
+capture.  Reuse the one-hart OpenSBI/Linux 6.6 SD image unchanged; do not build
+the excluded Linux 5.1 control image or repeat the unchanged failing baseline.
+
 If a repo-local rerun hits Vivado path-length or DDR PHY `IPCACHE` failures, first keep the work directory at the repository root or shorten it further with `P3_BUILD66_WORK_DIR`; do not return to a new numbered `D:/p3bXX` baseline. The script seeds DDR PHY/IP cache from `p3b66_validated_snapshot/` and the old `/mnt/d/p3b66` path when those caches are still available.
 
 Build 67 scales the Build 66 baseline to a 2x1 Ariane mesh without changing the validated UART, SPI-mode SD, DDR translation, or four-ILA debug topology. The shared Build 52 runner now defaults to 1x1 but honors `PITON_X_TILES`, `PITON_Y_TILES`, and `PITON_NUM_TILES`; Build 67's wrapper pins those values to `2`, `1`, and `2`. Its default work directory is the repository-local `p3b67_2x1/`, uses the same self-contained `source_snapshot/` policy as Build 66, and publishes PDI/LTX artifacts under `huaprop3_build67_2x1_baseline/debug_build/`.
