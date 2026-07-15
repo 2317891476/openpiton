@@ -142,6 +142,38 @@ and require UART evidence of both `mem=1G`/`Memory limited to 1024MB` and
 progress beyond the reserved-memory boundary.  A successful boot proves the
 upper-GiB-use discriminator; it does not replace the later corrected-PDI test.
 
+### Board result for the `mem=1G` control -- 2026-07-15
+
+The control is now board-verified.  The SD write and full 256 MiB readback
+matched image SHA-256
+`7a61b8e7426a79f628b84331faec0642ae722e745ea11905f78419b56a5e60d9`.
+The unchanged Build 73 PDI programmed with `DONE bit: HIGH`, debug hub
+`0x3ffc0000000`, and four ILAs.  The valid UART log is
+`~/p3_uart_logs/ttyUSB0_20260715_155614_build73_mem1g_boardreset.log`
+(94097 bytes).  It shows DDR/SD/GPT/all-component-copy success, OpenSBI v1.8,
+`aclint-mtimer @ 234375Hz`, `Memory limited to 1024MB`, and the kernel command
+line containing `mem=1G`.
+
+Linux crossed the previous reserved-memory/`setup_vm_final()` silent boundary,
+reported `992124K/1048576K available`, executed many initcalls, and reached
+`Freeing initrd memory: 1052K`.  This closes the image-only discriminator:
+upper-GiB use or the extra mapping triggers the old stop.  It does **not** yet
+prove that the stale CVA6 aperture is the complete transaction-level cause;
+the required formal closure remains a corrected PDI with
+`ExecuteRegionLength=CachedRegionLength=0x80000000` booting the unbounded
+timer-fix image.
+
+The control exposed a later, separate stop before shell.  The last UART region
+contains `calling pty_init` followed by the asynchronous initrd-free message;
+do not name `pty_init` as the root cause from printk ordering alone.  A live
+ILA capture recorded `p3_dbg_core_bus64=0x008185dc800cf687`: L1.5 address
+`0x8185dc80` (within the low 1 GiB), request type `1` (store), size `4`, and
+handshake byte `0x87`, meaning `transducer_l15_val=1` while
+`transducer_l15_req_ack=0`.  Timer and IPI were pending (`ariane_hi=0xf6`),
+but no L1.5 or DDR response error was asserted.  Treat this as a later
+store-accept/forward-progress issue needing hart/PC or a `maxcpus=1` control,
+not as a failure of the timer repair or the `mem=1G` discriminator.
+
 ---
 
 ## 1. Project context (do not lose)
