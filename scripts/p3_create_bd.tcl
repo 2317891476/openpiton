@@ -80,6 +80,20 @@ proc p3_normalized_slash_path {path} {
     return [string map {"\\" "/"} [file normalize $path]]
 }
 
+proc p3_windows_path_to_wsl {path} {
+    set norm [p3_normalized_slash_path $path]
+    if {[regexp {^[A-Za-z]:/(home/.*)$} $norm -> rest]} {
+        return "/${rest}"
+    }
+    if {[regexp {^//wsl\.localhost/[^/]+(/.*)$} $norm -> rest]} {
+        return $rest
+    }
+    if {[regexp {^//wsl\$/[^/]+(/.*)$} $norm -> rest]} {
+        return $rest
+    }
+    return $norm
+}
+
 proc p3_snapshot_path {src repo_dir snapshot_dir} {
     set src_norm [p3_normalized_slash_path $src]
     set repo_norm [p3_normalized_slash_path $repo_dir]
@@ -520,8 +534,55 @@ proc p3_delete_stale_pyhp_tmp {files} {
     }
 }
 
+proc p3_generate_missing_pyhp_tmp {files piton_root} {
+    set pyhp_script [file normalize "${piton_root}/piton/tools/bin/pyhp.py"]
+    if {![file exists $pyhp_script]} {
+        puts "ERROR: repo-local PyHP script is missing: ${pyhp_script}"
+        exit 1
+    }
+
+    foreach f $files {
+        set pyv_file "${f}.pyv"
+        if {![file exists $pyv_file]} {
+            continue
+        }
+
+        set tmp_file "[file rootname $f].tmp[file extension $f]"
+        if {[file exists $tmp_file]} {
+            continue
+        }
+
+        puts "Info: Generating missing PyHP output ${tmp_file}"
+        if {$::tcl_platform(platform) eq "windows"} {
+            set pyhp_exec [p3_windows_path_to_wsl $pyhp_script]
+            set pyv_exec [p3_windows_path_to_wsl $pyv_file]
+            set tmp_exec [p3_windows_path_to_wsl $tmp_file]
+            set cmd "set -e; python3 ${pyhp_exec} ${pyv_exec} > ${tmp_exec}"
+            if {[catch {exec bash -lc $cmd 2>@1} pyhp_log]} {
+                puts $pyhp_log
+                puts "ERROR: WSL PyHP generation failed for ${pyv_file}"
+                exit 1
+            }
+            if {$pyhp_log ne ""} {
+                puts $pyhp_log
+            }
+        } elseif {[catch {exec python3 $pyhp_script $pyv_file > $tmp_file} pyhp_log]} {
+            puts $pyhp_log
+            puts "ERROR: PyHP generation failed for ${pyv_file}"
+            exit 1
+        }
+
+        if {![file exists $tmp_file] || [file size $tmp_file] == 0} {
+            puts "ERROR: generated PyHP output is missing or empty: ${tmp_file}"
+            exit 1
+        }
+    }
+}
+
 p3_delete_stale_pyhp_tmp $all_rtl_files
 p3_delete_stale_pyhp_tmp $GLOBAL_INCLUDE_FILES
+p3_generate_missing_pyhp_tmp $all_rtl_files $piton_root
+p3_generate_missing_pyhp_tmp $GLOBAL_INCLUDE_FILES $piton_root
 
 set all_rtl_files [pyhp_preprocess $all_rtl_files]
 set ALL_INCLUDE_FILES [pyhp_preprocess $GLOBAL_INCLUDE_FILES]

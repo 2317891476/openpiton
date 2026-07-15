@@ -85,6 +85,14 @@ readback-verified one-hart OpenSBI/Linux 6.6 image on the SD card unchanged.
 Do not create the excluded OpenSBI/Linux 5.1 control image and do not repeat
 the unchanged failing Build 66/OpenSBI/Linux 6.6 baseline.
 
+The first clean-tree Build 75 attempt stopped before synthesis during project
+creation.  Bootrom and the forced tile/L1.5 PyHP outputs passed, but an
+unrelated missing `bram_sdp_wrapper.tmp.v` caused the legacy Windows Vivado
+helper to execute Unix `pyhp.py` directly and fail.  The P3 create flow now
+pre-generates every missing RTL/include PyHP result through WSL `python3`
+before calling that helper.  This failure produced no PDI/LTX and no board
+evidence; rerun the same Build 75 command from the new clean commit.
+
 ### Timer-frequency fix verified on the FPGA -- 2026-07-13
 
 All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the

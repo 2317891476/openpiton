@@ -338,7 +338,12 @@ Remote Ubuntu toolchain state as of 2026-06-11: `gcc-riscv64-unknown-elf` 10.2.0
 
 For Jammy's system-packaged `riscv64-unknown-elf-gcc`, `picolibc-riscv64-unknown-elf` supplies headers such as `stdint.h`. Build 68 passes that include path through `P3_BOOTROM_EXTRA_CFLAGS` when the OpenPiton scratch toolchain is absent, while keeping the bootrom `-nostdlib`/`-nostartfiles` link model.
 
-`scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to Vivado Tcl `env(PATH)` so the common PyHP preprocessing helper can execute `pyhp.py` by name on the offline Ubuntu host.
+`scripts/p3_create_bd.tcl` must not depend on ignored `.tmp.v` files from an
+older work tree.  It removes stale PyHP outputs and explicitly generates every
+missing fileset/include output with repo-local `piton/tools/bin/pyhp.py` before
+calling the common helper.  On Windows full Vivado this pre-generation runs
+through WSL `python3`; merely prepending the tool directory to Windows Tcl
+`env(PATH)` does not make the Unix `pyhp.py` script executable.
 
 `scripts/p3_remote_vivado_64core.sh` archives the committed top-level repository state plus committed recursive submodule HEAD contents. It intentionally does not package dirty tracked submodule changes; it now fails before packing if any recursive submodule has staged or unstaged tracked diffs. Commit and push submodule RTL fixes, then update the superproject gitlink, before launching a remote Build 68 run.
 

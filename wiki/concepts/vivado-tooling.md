@@ -85,7 +85,15 @@ That specific blocker was cleared later on 2026-06-11 by installing Jammy packag
 
 The Jammy embedded RISC-V GCC package still needs `picolibc-riscv64-unknown-elf` for C headers such as `stdint.h`. Build 68 handles this by passing `P3_BOOTROM_EXTRA_CFLAGS=-isystem /usr/lib/picolibc/riscv64-unknown-elf/include` when the local OpenPiton scratch toolchain is absent and picolibc headers are present. Do not replace this with `picolibc.specs` for the bootrom path; the bootrom intentionally keeps `-nostdlib`, `-nodefaultlibs`, and `-nostartfiles`.
 
-P3 Vivado project creation must also expose the repo's PyHP tool directory to Vivado Tcl. `scripts/p3_create_bd.tcl` prepends `${repo}/piton/tools/bin` to `env(PATH)` before sourcing the common PyHP preprocessing flow, because `piton/tools/src/proto/common/pyhp_preprocess.tcl` still calls `exec pyhp.py` by tool name.
+P3 Vivado project creation must not depend on ignored PyHP outputs left by a
+different work tree.  `scripts/p3_create_bd.tcl` first removes stale outputs,
+then scans the actual RTL and global-include lists and explicitly generates
+every missing `.tmp.v`/`.tmp.h` with the repo-local
+`piton/tools/bin/pyhp.py`.  Windows full Vivado performs this pre-generation
+through WSL `python3`, because placing the Unix script on Windows Tcl `PATH`
+does not make `exec pyhp.py` valid.  The common PyHP helper runs only after all
+required generated files exist, while native Linux Vivado uses local
+`python3` directly.
 
 The 2026-06-11 remote Build 68 run first reached the OOC synthesis license gate, then passed it after installing `/home/cs/.Xilinx/xilinx_ise_vivado.lic` and exporting `XILINXD_LICENSE_FILE`/`LM_LICENSE_FILE`. All four BD-owned ILA OOC synthesis runs completed with 0 errors and 0 critical warnings. The next blocker occurred before main `synth_1`: the remote archive was missing recursive Ariane submodules, so the self-contained XPR validation rejected live `$PPRDIR/../piton/...` include paths. Treat that as a packaging/source-snapshot failure, not a 64-core RTL/resource/timing result.
 
