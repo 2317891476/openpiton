@@ -17,6 +17,39 @@ two-hart limitation. The superseded greater-than-two-hart gate must not be
 used: the clean P3 OpenSBI patch now keeps L1 D-cache enabled for every hart
 count. Exact transaction-level RTL failure remains open.
 
+### Single-hart control reproduces the later L1.5 S1 acceptance stop -- 2026-07-15
+
+The requested one-hart hardware control used the unchanged validated Build 66
+PDI, not a newly synthesized 1x1 design.  Windows full Vivado 2024.2.2
+programmed it through the remote hw_server/XVC chain with `DONE bit: HIGH`,
+debug hub `0x3ffc0000000`, and four ILAs.  The new flat SD image then passed
+Build 66's fixed 65,536-sector copy path and printed `done!`; OpenSBI v1.8
+reported one hart, `aclint-mtimer @ 234375Hz`, next address `0x80200000`, and
+FDT argument `0x81600000`.  UART stopped after the complete OpenSBI platform
+summary, before a Linux banner.  The logs are
+`~/p3_uart_logs/ttyUSB0_20260715_170943_build66_1hart_opensbi.log` (27,226
+bytes) and
+`~/p3_uart_logs/ttyUSB0_20260715_171943_build66_1hart_opensbi_cont.log`
+(33,762 bytes).
+
+A non-resetting ILA capture showed `p3_dbg_core_bus64=0x008189b7800bf487`:
+address `0x8189b780`, request type `1` (ordinary store), size `3` (8 bytes),
+and handshake byte `0x87`.  Correctly decoded, bit 7 has
+`transducer_l15_val=1` while the actual request acknowledgement, bit 4
+`l15_transducer_ack`, is 0.  Heartbeat and resets are live; no sticky L1.5,
+DDR BRESP, or DDR RRESP error is set.  Ariane status `0xf4` has the timer
+pending but IPI, external IRQ, and debug request all low.
+
+This reproduces the same observable L1.5 S1 acceptance/backpressure class as
+the Build 73 two-hart store at `0x8185dc80` without a second hart or IPI.  SMP
+or IPI concurrency is therefore not a necessary trigger.  Do not overstate
+the result as a transaction-level root cause: the retained ILAs still cannot
+separate matched-MSHR/tag conflict, S2/S3 or same-index backpressure, exhausted
+MSHRs, or unavailable NoC1 command/data credits.  The software phases also
+differ (the one-hart run stops before the Linux banner, while the two-hart
+`mem=1G` run reached later init), so the common claim is limited to the stable
+store-valid-without-L1.5-ack state.
+
 ### Timer-frequency fix verified on the FPGA -- 2026-07-13
 
 All retained P3 OpenSBI logs, including the reliable 64-hart shell run and the
