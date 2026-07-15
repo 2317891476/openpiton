@@ -799,6 +799,11 @@ Copy `build/a7203x/a7203x.dts` and modify:
 - Memory `reg` → update size if DDR4 > 1 GB
 - All other fields unchanged if chipset_clk = 30 MHz
 
+The copy-and-edit procedure above is retained only for the legacy BBL image
+path.  Current OpenSBI/P3OS images must use
+`scripts/p3_generate_opensbi_dts.py`; do not hand-edit a generated DTB or
+carry a patched `*_initrd.dtb` into a new image.
+
 ### 7.2 Address Consistency Check
 
 | Address | devices_ariane.xml | DTS reg | Bootrom | BBL |
@@ -811,7 +816,33 @@ Copy `build/a7203x/a7203x.dts` and modify:
 
 All addresses stay the same. **No address-related changes needed.**
 
-### 7.3 Bootrom Rebuild
+### 7.3 Automated OpenSBI DTB and image contract
+
+The OpenSBI image flow treats
+`piton/design/xilinx/huaprop3/devices_ariane.xml` as the address-map source for
+DDR, SD, UART, CLINT, and PLIC.  `p3_prepare_64core_opensbi_image.sh` selects
+the initramfs first, generates the DTS/DTB, computes the exclusive
+`linux,initrd-end` from the actual byte size, validates the compiled DTB, and
+only then packs the GPT/P3OS image.  The same flow is used for 2 and 64 harts
+through `P3_64CORE_HARTS`.
+
+The important configurable inputs are:
+
+- `P3_DEVICE_MAP` for the hardware device map;
+- `P3_CPU_FREQUENCY` and `P3_TIMEBASE_DIVISOR` (defaults 30 MHz and 128);
+- optional `P3_TIMEBASE_FREQUENCY`, used only as an equality assertion;
+- `P3_INITRD_ADDR`, `P3_OPENSBI_FW_ADDR`, `P3_LINUX_IMAGE_ADDR`, and
+  `P3_OPENSBI_DTB_ADDR` for component placement;
+- `P3_64CORE_INITRD` and `P3_64CORE_BOOTARGS` for image contents.
+
+The flow fails before image creation if the DTB differs from the device map,
+the timebase does not equal clock/divider, `linux,initrd-end` does not match
+the selected file, component ranges overlap, or any component falls outside
+DDR.  The Vivado build independently forces `tile.v.pyv` regeneration and
+checks CVA6's execute/cacheable DDR aperture against the same device map, so a
+2 GiB DTB can no longer be paired silently with a stale 1 GiB `tile.tmp.v`.
+
+### 7.4 Bootrom Rebuild
 
 ```bash
 # Only needed if chipset_clk frequency changes (otherwise just update DTB)

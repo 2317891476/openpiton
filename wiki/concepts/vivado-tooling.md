@@ -308,6 +308,28 @@ self-contained snapshot against the 2 GiB P3 map: the DDR entry in both
 and Build 73 captured a stale `0x40000000` value while their DTBs advertised
 2 GiB; validated Build 66 and Build 67 contain `0x80000000`.
 
+This rule is now enforced by the common Build 52-derived runner rather than
+left as a manual review step.  `p3_regenerate_pyhp_tmp` always includes
+`tile.v.pyv`, and `scripts/p3_validate_tile_aperture.py` compares both
+`ExecuteRegionAddrBase/Length` and `CachedRegionAddrBase/Length` against the
+`mem` port in the HuaPro P3 `devices_ariane.xml`.  Validation runs once on the
+live generated RTL and again on the self-contained `source_snapshot`; a
+`-skip_create` reuse of a stale Build 72/73 snapshot therefore fails before
+synthesis instead of silently preserving the 1 GiB aperture.  A clean project
+recreation is required after such a failure.
+
+The matching software-side contract is enforced by
+`scripts/p3_generate_opensbi_dts.py` and
+`scripts/p3_validate_opensbi_dtb.py`: memory and peripheral `reg` ranges come
+from the same device map, the DT timebase is derived from the configured clock
+and divider, and initramfs bounds come from the selected file.  The bundle
+packer refuses mismatched DTB memory/initrd ranges and component overlaps or
+DDR overflows.  Run the focused non-Vivado regression with:
+
+```bash
+python3 scripts/test_p3_opensbi_platform.py -v
+```
+
 ```bash
 vivado -mode batch -source scripts/p3_build66_normal_spi_sd_boot.tcl -tclargs -jobs 1
 vivado -mode batch -source scripts/p3_ila_capture_build66_normal_spi_sd_boot.tcl

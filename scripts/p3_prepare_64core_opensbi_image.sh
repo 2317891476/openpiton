@@ -6,7 +6,7 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pkg_archive="${P3_64CORE_ARCHIVE:-$repo_dir/riscv64-linux-64core-src-20260610.tar.gz}"
 work_dir="${P3_64CORE_WORK_DIR:-$repo_dir/build/p3_64core}"
 pkg_dir="$work_dir/riscv64-linux-64core-src-20260610"
-out_dir="$repo_dir/build/huaprop3/opensbi64"
+out_dir="${P3_64CORE_OUT_DIR:-$repo_dir/build/huaprop3/opensbi64}"
 linux_base_archive="${P3_64CORE_LINUX_BASE_ARCHIVE:-$work_dir/linux-6.6.tar.xz}"
 linux_base_sha256="d926a06c63dd8ac7df3f86ee1ffc2ce2a3b81a2d168484e76b5b389aba8e56d0"
 
@@ -21,6 +21,15 @@ image_addr="${P3_LINUX_IMAGE_ADDR:-0x80200000}"
 dtb_addr="${P3_OPENSBI_DTB_ADDR:-0x88000000}"
 initrd_addr="${P3_INITRD_ADDR:-0x90000000}"
 bootargs="${P3_64CORE_BOOTARGS:-earlycon=uart8250,mmio,0xfff0c2c000 console=ttyS0,115200n8 root=/dev/ram0 rw loglevel=8 keep_bootcon initcall_debug}"
+device_map="${P3_DEVICE_MAP:-$repo_dir/piton/design/xilinx/huaprop3/devices_ariane.xml}"
+cpu_frequency="${P3_CPU_FREQUENCY:-30000000}"
+timebase_divisor="${P3_TIMEBASE_DIVISOR:-128}"
+timebase_frequency="${P3_TIMEBASE_FREQUENCY:-}"
+plic_ndev="${P3_PLIC_NDEV:-2}"
+timebase_frequency_args=()
+if [[ -n "$timebase_frequency" ]]; then
+    timebase_frequency_args=(--timebase-frequency "$timebase_frequency")
+fi
 
 require_file() {
     local path="$1"
@@ -39,7 +48,12 @@ require_cmd() {
 }
 
 require_file "$pkg_archive"
+require_file "$device_map"
+require_file "$repo_dir/scripts/p3_generate_opensbi_dts.py"
+require_file "$repo_dir/scripts/p3_validate_opensbi_dtb.py"
+require_file "$repo_dir/scripts/p3_make_opensbi_bundle_image.py"
 require_cmd dtc
+require_cmd fdtget
 require_cmd sfdisk
 require_cmd patch
 if [[ "$use_prebuilt" != "1" ]]; then
@@ -160,19 +174,7 @@ else
     echo "[2/5] Rebuild skipped by P3_64CORE_USE_PREBUILT=1"
 fi
 
-echo "[3/5] Generating P3 ${harts}-hart DTB"
-dts="$out_dir/p3_opensbi_${harts}hart.dts"
-dtb="$out_dir/p3_opensbi_${harts}hart.dtb"
-python3 "$repo_dir/scripts/p3_generate_opensbi_dts.py" \
-    --harts "$harts" \
-    --bootargs "$bootargs" \
-    --out "$dts"
-dtc -I dts -O dtb -o "$dtb" "$dts"
-dtc -I dtb -O dts "$dtb" > "$out_dir/p3_opensbi_${harts}hart.roundtrip.dts"
-grep -q "cpu@$((harts - 1))" "$out_dir/p3_opensbi_${harts}hart.roundtrip.dts"
-grep -q "riscv,ndev = <0x02>" "$out_dir/p3_opensbi_${harts}hart.roundtrip.dts"
-
-echo "[4/5] Selecting initramfs"
+echo "[3/5] Selecting initramfs"
 if [[ -n "${P3_64CORE_INITRD:-}" ]]; then
     initrd="$P3_64CORE_INITRD"
 else
@@ -212,6 +214,35 @@ EOF
 fi
 require_file "$initrd"
 
+echo "[4/5] Generating and validating P3 ${harts}-hart DTB"
+dts="$out_dir/p3_opensbi_${harts}hart.dts"
+dtb="$out_dir/p3_opensbi_${harts}hart.dtb"
+roundtrip_dts="$out_dir/p3_opensbi_${harts}hart.roundtrip.dts"
+python3 "$repo_dir/scripts/p3_generate_opensbi_dts.py" \
+    --harts "$harts" \
+    --bootargs "$bootargs" \
+    --device-map "$device_map" \
+    --cpu-frequency "$cpu_frequency" \
+    --timebase-divisor "$timebase_divisor" \
+    "${timebase_frequency_args[@]}" \
+    --plic-ndev "$plic_ndev" \
+    --initrd "$initrd" \
+    --initrd-addr "$initrd_addr" \
+    --out "$dts"
+dtc -I dts -O dtb -o "$dtb" "$dts"
+dtc -I dtb -O dts "$dtb" > "$roundtrip_dts"
+python3 "$repo_dir/scripts/p3_validate_opensbi_dtb.py" \
+    --dtb "$dtb" \
+    --device-map "$device_map" \
+    --harts "$harts" \
+    --cpu-frequency "$cpu_frequency" \
+    --timebase-divisor "$timebase_divisor" \
+    "${timebase_frequency_args[@]}" \
+    --plic-ndev "$plic_ndev" \
+    --bootargs "$bootargs" \
+    --initrd "$initrd" \
+    --initrd-addr "$initrd_addr"
+
 echo "[5/5] Creating SD bundle image"
 sd_img="$out_dir/p3_opensbi_linux_${harts}hart.img"
 python3 "$repo_dir/scripts/p3_make_opensbi_bundle_image.py" \
@@ -220,6 +251,7 @@ python3 "$repo_dir/scripts/p3_make_opensbi_bundle_image.py" \
     --dtb "$dtb" \
     --initrd "$initrd" \
     --out "$sd_img" \
+    --device-map "$device_map" \
     --fw-addr "$fw_addr" \
     --image-addr "$image_addr" \
     --dtb-addr "$dtb_addr" \

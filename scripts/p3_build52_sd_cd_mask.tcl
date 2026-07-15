@@ -443,6 +443,20 @@ proc p3_validate_tile_define_file {define_file x_tiles y_tiles num_tiles} {
     puts "Tile define validation passed for ${define_file}: ${got_x}x${got_y} (${got_num} tiles)"
 }
 
+proc p3_validate_ariane_memory_aperture {repo_dir tile_file} {
+    set repo_wsl [p3_to_wsl_path $repo_dir]
+    set validator_wsl "${repo_wsl}/scripts/p3_validate_tile_aperture.py"
+    set device_map_wsl "${repo_wsl}/piton/design/xilinx/huaprop3/devices_ariane.xml"
+    set tile_wsl [p3_to_wsl_path $tile_file]
+    set cmd "set -e; python3 ${validator_wsl} --device-map ${device_map_wsl} --tile-rtl ${tile_wsl}"
+    if {[catch {exec bash -lc $cmd 2>@1} validation_log]} {
+        puts $validation_log
+        puts "ERROR: generated CVA6 aperture validation failed for ${tile_file}"
+        exit 1
+    }
+    puts $validation_log
+}
+
 proc p3_regenerate_pyhp_tmp {repo_dir} {
     set repo_wsl [p3_to_wsl_path $repo_dir]
     set pyhp_wsl "${repo_wsl}/piton/tools/bin/pyhp.py"
@@ -454,6 +468,8 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
         "${repo_dir}/piton/design/include/define.tmp.h" \
         "${repo_dir}/piton/design/chip/rtl/chip.v.pyv" \
         "${repo_dir}/piton/design/chip/rtl/chip.tmp.v" \
+        "${repo_dir}/piton/design/chip/tile/rtl/tile.v.pyv" \
+        "${repo_dir}/piton/design/chip/tile/rtl/tile.tmp.v" \
         "${repo_dir}/piton/design/chipset/rtl/chipset_impl.v.pyv" \
         "${repo_dir}/piton/design/chipset/rtl/chipset_impl.tmp.v" \
         "${repo_dir}/piton/design/chip/tile/common/rtl/flat_id_to_xy.v.pyv" \
@@ -485,6 +501,8 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
 
     p3_validate_tile_define_file "${repo_dir}/piton/design/include/define.tmp.h" \
         $x_tiles $y_tiles $num_tiles
+    p3_validate_ariane_memory_aperture $repo_dir \
+        "${repo_dir}/piton/design/chip/tile/rtl/tile.tmp.v"
 }
 
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {
@@ -574,6 +592,8 @@ if {$p3_self_contained_sources} {
     p3_validate_self_contained_xpr $project_dir $project_name $repo_dir
     p3_validate_tile_define_file "${project_dir}/source_snapshot/piton/design/include/define.tmp.h" \
         $::env(PITON_X_TILES) $::env(PITON_Y_TILES) $::env(PITON_NUM_TILES)
+    p3_validate_ariane_memory_aperture $repo_dir \
+        "${project_dir}/source_snapshot/piton/design/chip/tile/rtl/tile.tmp.v"
 }
 
 open_project "${project_dir}/${project_name}.xpr"

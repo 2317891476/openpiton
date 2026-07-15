@@ -105,6 +105,17 @@ passes:
    context, with snapshot preflight assertions that both lengths equal
    `0x80000000`, then boot the current timer-fix SD card unchanged.
 
+Flow repair committed on 2026-07-15: the common Build 52-derived runner now
+forces `tile.v.pyv` regeneration and validates both live and self-contained
+`tile.tmp.v` execute/cacheable ranges against the P3 device map.  Reusing the
+old Build 73 snapshot now fails closed; a newly created project will contain
+the required 2 GiB apertures.  The OpenSBI image path also derives its DTB
+memory/peripheral nodes from the same device map, computes initrd bounds from
+the actual rootfs, derives `234375` Hz from `30 MHz / 128`, and validates DTB
+and bundle ranges before packing.  Software-only 2-hart and 64-hart complete
+flow tests pass, but no corrected PDI or new board result has yet been
+produced.
+
 Do not rebuild OpenSBI, reopen the timer-frequency issue, or rewrite the current
 card as part of the formal PDI repair.
 
