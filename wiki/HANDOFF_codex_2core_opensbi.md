@@ -168,11 +168,20 @@ contains `calling pty_init` followed by the asynchronous initrd-free message;
 do not name `pty_init` as the root cause from printk ordering alone.  A live
 ILA capture recorded `p3_dbg_core_bus64=0x008185dc800cf687`: L1.5 address
 `0x8185dc80` (within the low 1 GiB), request type `1` (store), size `4`, and
-handshake byte `0x87`, meaning `transducer_l15_val=1` while
-`transducer_l15_req_ack=0`.  Timer and IPI were pending (`ariane_hi=0xf6`),
-but no L1.5 or DDR response error was asserted.  Treat this as a later
-store-accept/forward-progress issue needing hart/PC or a `maxcpus=1` control,
-not as a failure of the timer repair or the `mem=1G` discriminator.
+handshake byte `0x87`.  Correct signal-direction decode: bit 7 has
+`transducer_l15_val=1` and the actual request acknowledgement, bit 4
+`l15_transducer_ack`, is 0.  Bit 6 `transducer_l15_req_ack=0` acknowledges an
+L1.5 **return** packet into Ariane's return FIFO and is expected here because
+bit 5 `l15_transducer_val=0`; it is not the request-accept signal.  Ordinary
+stores use `L15_ACK_STAGE_S1`, so this persistent valid-without-ack state
+localizes the stop to the L1.5 S1 acceptance/backpressure path.  The current
+ILA cannot distinguish matched-MSHR/tag conflict, S2/S3 or same-index
+backpressure, exhausted MSHRs, or unavailable NoC1 command/data credits.
+Timer and IPI were pending (`ariane_hi=0xf6`), but those are simultaneous
+observations rather than proven causes, and no L1.5 or DDR response error was
+asserted.  Treat this as a later store-accept/forward-progress issue needing
+the L1.5 stall vector plus hart/PC, or a `maxcpus=1` control, not as a failure
+of the timer repair or the `mem=1G` discriminator.
 
 ---
 
