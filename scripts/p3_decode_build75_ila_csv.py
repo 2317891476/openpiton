@@ -86,6 +86,22 @@ def one_column(columns, token):
     return matches[0], columns[matches[0]]
 
 
+def one_column_suffix(columns, suffixes):
+    matches = [name for name in columns if any(name.endswith(suffix) for suffix in suffixes)]
+    if len(matches) != 1:
+        raise ValueError(f"expected one probe ending in {suffixes!r}, found {matches}")
+    return matches[0], columns[matches[0]]
+
+
+def optional_column(columns, token):
+    matches = [name for name in columns if token in name]
+    if len(matches) > 1:
+        raise ValueError(f"expected at most one probe containing {token!r}, found {matches}")
+    if not matches:
+        return None, None
+    return matches[0], columns[matches[0]]
+
+
 def decode_sample(columns, sample_index):
     names = {}
     values = {}
@@ -98,12 +114,20 @@ def decode_sample(columns, sample_index):
         "valid": "[valid]",
         "fu": "[fu]",
         "op": "[op]",
-        "commit_ack": "commit_ack[0]",
-        "lsu_ready": "lsu_commit_ready_ex_commit",
-        "lsu_commit": "lsu_commit_commit_ex",
     }.items():
         names[key], series = one_column(columns, token)
         values[key] = series[sample_index]
+
+    names["commit_ack"], series = one_column_suffix(
+        columns, ("commit_ack[0]", "commit_ack[0:0]")
+    )
+    values["commit_ack"] = series[sample_index]
+    for key, token in {
+        "lsu_ready": "lsu_commit_ready_ex_commit",
+        "lsu_commit": "lsu_commit_commit_ex",
+    }.items():
+        names[key], series = optional_column(columns, token)
+        values[key] = None if series is None else series[sample_index]
 
     req = values["req"]
     stall = values["stall"]
@@ -251,16 +275,18 @@ def main():
             decoded["req_flags"]["pcx_header_ack"],
         )
     )
+    lsu_ready = "n/a" if raw["lsu_ready"] is None else str(raw["lsu_ready"])
+    lsu_commit = "n/a" if raw["lsu_commit"] is None else str(raw["lsu_commit"])
     print(
-        "  commit: pc=0x%016x valid=%d fu=0x%x op=0x%x ack=%d lsu_ready=%d lsu_commit=%d"
+        "  commit: pc=0x%016x valid=%d fu=0x%x op=0x%x ack=%d lsu_ready=%s lsu_commit=%s"
         % (
             raw["pc"],
             raw["valid"],
             raw["fu"],
             raw["op"],
             raw["commit_ack"],
-            raw["lsu_ready"],
-            raw["lsu_commit"],
+            lsu_ready,
+            lsu_commit,
         )
     )
     print(

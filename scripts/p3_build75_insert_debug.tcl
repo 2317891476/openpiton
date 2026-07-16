@@ -70,8 +70,6 @@ set fu_base "${build75_scoreboard_base}\[fu\]"
 set op_base "${build75_scoreboard_base}\[op\]"
 set valid_name "${build75_scoreboard_base}\[valid\]"
 set commit_ack_name "${build75_cva6_base}/issue_stage_i/i_scoreboard/commit_ack\[0\]"
-set lsu_ready_name "${build75_cva6_base}/lsu_commit_ready_ex_commit"
-set lsu_commit_name "${build75_cva6_base}/lsu_commit_commit_ex"
 
 # Fail before implementation if synthesis renamed, optimized, or duplicated a
 # probe. This avoids publishing an LTX whose bit ordering is only assumed.
@@ -84,8 +82,6 @@ p3_build75_bus_nets $fu_base 4
 p3_build75_bus_nets $op_base 8
 p3_build75_scalar_net $valid_name
 p3_build75_scalar_net $commit_ack_name
-p3_build75_scalar_net $lsu_ready_name
-p3_build75_scalar_net $lsu_commit_name
 
 set clock_candidates [get_nets -quiet [list chipset_clk]]
 if {[llength $clock_candidates] != 1} {
@@ -108,7 +104,7 @@ puts $fh "set_property C_ADV_TRIGGER false \[get_debug_cores u_ila_build75\]"
 puts $fh "set_property C_DATA_DEPTH 8192 \[get_debug_cores u_ila_build75\]"
 puts $fh "set_property C_EN_STRG_QUAL true \[get_debug_cores u_ila_build75\]"
 puts $fh "set_property C_INPUT_PIPE_STAGES 0 \[get_debug_cores u_ila_build75\]"
-puts $fh "set_property C_NUM_OF_PROBES 11 \[get_debug_cores u_ila_build75\]"
+puts $fh "set_property C_NUM_OF_PROBES 9 \[get_debug_cores u_ila_build75\]"
 puts $fh "connect_debug_port u_ila_build75/clk \[get_nets \[list {chipset_clk}\]\]"
 p3_build75_write_probe $fh probe0 $trigger_name 1 1
 p3_build75_write_probe $fh probe1 $count_base 9 0
@@ -119,8 +115,6 @@ p3_build75_write_probe $fh probe5 $valid_name 1 0
 p3_build75_write_probe $fh probe6 $fu_base 4 0
 p3_build75_write_probe $fh probe7 $op_base 8 0
 p3_build75_write_probe $fh probe8 $commit_ack_name 1 0
-p3_build75_write_probe $fh probe9 $lsu_ready_name 1 0
-p3_build75_write_probe $fh probe10 $lsu_commit_name 1 0
 close $fh
 
 close_design

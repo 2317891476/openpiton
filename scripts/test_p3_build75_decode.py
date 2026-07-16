@@ -49,6 +49,23 @@ class Build75DecodeTests(unittest.TestCase):
         }
         self.assertEqual(MODULE.classify(decoded), ["NoC1 command/data credit stall"])
 
+    def test_accepts_vivado_single_bit_range_without_optional_lsu_probes(self):
+        columns = {
+            "p3_build75_noack_trigger": [1],
+            "p3_build75_noack_count[8:0]": [256],
+            "p3_build75_l15_req_bus[63:0]": [0],
+            "p3_build75_l15_stall_bus[63:0]": [0],
+            "commit_instr_id_commit[0][pc][63:0]": [0],
+            "commit_instr_id_commit[0][valid]": [0],
+            "commit_instr_id_commit[0][fu][3:0]": [0],
+            "commit_instr_id_commit[0][op][7:0]": [0],
+            "commit_ack[0:0]": [0],
+        }
+        decoded = MODULE.decode_sample(columns, 0)
+        self.assertEqual(decoded["raw"]["commit_ack"], 0)
+        self.assertIsNone(decoded["raw"]["lsu_ready"])
+        self.assertIsNone(decoded["raw"]["lsu_commit"])
+
     def test_rejects_capture_without_concrete_blocker(self):
         decoded = {
             "tag": 0x75,

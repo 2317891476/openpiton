@@ -519,7 +519,7 @@ if {$P3_ENABLE_SIFIVE_UART} {
     }
 }
 
-proc p3_delete_stale_pyhp_tmp {files} {
+proc p3_remove_generated_pyhp_tmp {files} {
     foreach f $files {
         set pyv_file "${f}.pyv"
         if {![file exists $pyv_file]} {
@@ -527,8 +527,11 @@ proc p3_delete_stale_pyhp_tmp {files} {
         }
 
         set tmp_file "[file rootname $f].tmp[file extension $f]"
-        if {[file exists $tmp_file] && [file mtime $pyv_file] > [file mtime $tmp_file]} {
-            puts "Info: Removing stale PyHP output ${tmp_file}"
+        if {[file exists $tmp_file]} {
+            # PyHP output depends on board, device-map, and tile-count
+            # environment, not only on the template mtime. A newer output
+            # from another build context is still stale for this project.
+            puts "Info: Removing context-dependent PyHP output ${tmp_file}"
             file delete -force $tmp_file
         }
     }
@@ -579,8 +582,8 @@ proc p3_generate_missing_pyhp_tmp {files piton_root} {
     }
 }
 
-p3_delete_stale_pyhp_tmp $all_rtl_files
-p3_delete_stale_pyhp_tmp $GLOBAL_INCLUDE_FILES
+p3_remove_generated_pyhp_tmp $all_rtl_files
+p3_remove_generated_pyhp_tmp $GLOBAL_INCLUDE_FILES
 p3_generate_missing_pyhp_tmp $all_rtl_files $piton_root
 p3_generate_missing_pyhp_tmp $GLOBAL_INCLUDE_FILES $piton_root
 
