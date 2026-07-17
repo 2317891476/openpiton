@@ -44,10 +44,22 @@ class Build80DecodeTests(unittest.TestCase):
     def test_decodes_rdtime_instruction(self):
         decoded = MODULE.decode_csr_instruction(0xC0102573)
         self.assertTrue(decoded["is_csr"])
+        self.assertFalse(decoded["is_ecall"])
         self.assertEqual(decoded["operation"], "CSRRS")
         self.assertEqual(decoded["rd"], 10)
         self.assertEqual(decoded["rs1_or_zimm"], 0)
         self.assertEqual(decoded["csr"], 0xC01)
+
+    def test_decodes_ecall_instruction(self):
+        decoded = MODULE.decode_csr_instruction(0x00000073)
+        self.assertTrue(decoded["is_ecall"])
+        self.assertFalse(decoded["is_csr"])
+
+    def test_maps_build66_linux_physical_pc_to_link_address(self):
+        self.assertEqual(
+            MODULE.linux_linked_address(0x80207BF4), 0xFFFFFFFF80007BF4
+        )
+        self.assertEqual(MODULE.linux_linked_address(0x80000430), 0x80000430)
 
     def test_reconstructs_ltx_mapped_vector_lsb_first(self):
         value = 0xFEDCBA9876543210
@@ -91,6 +103,15 @@ class Build80DecodeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not synchronized"):
             MODULE.validate_synchronized_capture(series, [2, 2, 2, 2])
 
+    def test_accepts_stable_m_mode_snapshot(self):
+        series = [[1, 1, 1, 1] for _ in range(4)]
+        self.assertEqual(
+            MODULE.validate_snapshot_capture(series, [2, 2, 2, 2]), 2
+        )
+        series[2] = [1, 1, 0, 1]
+        with self.assertRaisesRegex(ValueError, "not stable"):
+            MODULE.validate_snapshot_capture(series, [2, 2, 2, 2])
+
     def test_finds_repeated_rising_edges(self):
         self.assertEqual(MODULE.rising_edges([0, 1, 1, 0, 1, 0]), [1, 4])
 
@@ -98,6 +119,29 @@ class Build80DecodeTests(unittest.TestCase):
         states = [{"csr_addr": 0}, {"csr_addr": 0xC01}, {"csr_addr": 0xC01}]
         self.assertEqual(MODULE.find_csr_match(states, 0xC01, 0, 2), [1, 2])
         self.assertEqual(MODULE.find_csr_match(states, 0xC00, 0, 2), [])
+
+    def test_acknowledged_pc_timeline(self):
+        pc = [0x10, 0x12, 0x14, 0x16, 0x18]
+        states = [
+            {"commit_ack": 0},
+            {"commit_ack": 1},
+            {"commit_ack": 0},
+            {"commit_ack": 1},
+            {"commit_ack": 1},
+        ]
+        self.assertEqual(
+            MODULE.acknowledged_pc_timeline(pc, states, 0, len(pc)),
+            [(1, 0x12, None), (3, 0x16, 2), (4, 0x18, 1)],
+        )
+
+    def test_classifies_s_mode_ecall(self):
+        instruction = MODULE.decode_csr_instruction(0x00000073)
+        self.assertTrue(
+            MODULE.is_s_mode_ecall(0, 9, instruction, [{"priv": 1}])
+        )
+        self.assertFalse(
+            MODULE.is_s_mode_ecall(0, 2, instruction, [{"priv": 1}])
+        )
 
 
 if __name__ == "__main__":
