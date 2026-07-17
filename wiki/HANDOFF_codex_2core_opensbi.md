@@ -6,6 +6,64 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Current boundary after Build 83 -- 2026-07-18
+
+Build 82 produced two different pieces of evidence.  Its synchronized trigger
+fired too early in bootrom and captured a healthy store-response control: four
+stores crossed request acceptance, adapter `L15_ST_ACK`, write-buffer return
+ID, and `evict`, ending with an empty write buffer.  A later fault-state
+snapshot was much narrower: the write-buffer return FIFO held TID 0 while slot
+0 was invalid and only slot 1/entry 3 remained valid and transaction-blocked.
+Because RTL indexes `tx_stat_q` with the FIFO head ID, that orphan TID selects a
+stale slot and cannot evict entry 3.  This proves a return-ID/active-slot
+mismatch state in that run, not yet whether the source is a duplicate ACK, late
+ACK, or TID corruption.
+
+Build 83 targeted the first occurrence of that exact mismatch.  It is fully
+routed, timing-clean, and board-programmed:
+
+- PDI `D:/p3b83_orphan_return_eco/p3_top_build83_orphan_return_eco.pdi`,
+  SHA-256
+  `0901f52c19b3cf0361be3b4e94cd5a87900bda4dc5d1383acc014f6231982559`;
+- LTX `D:/p3b83_orphan_return_eco/p3_top_build83_orphan_return_eco.ltx`,
+  SHA-256
+  `8e71b940b6f7ad87e3f1eecb4a7c43ea1b3c15d1982b2166de615a17871cf398`;
+- implementation: 151,470/151,470 routable nets, zero routing errors,
+  WNS/WHS `16.514/0.013 ns`, baseline 169 warning-class DRCs only;
+- programming: `DONE bit: HIGH`, debug hub `0x3ffc0000000`, four ILAs.
+
+UART0 again reached the complete OpenSBI summary and stayed at 61,072 bytes;
+log `~/p3_uart_logs/ttyUSB0_20260718_024928_build83_orphan_return.log`,
+SHA-256
+`0155bf298bd87f977bead62ce876848154f719cb86e0386c82e280236f8fe521`.
+However, the synchronized `readptr=0/TID=0/slot0-invalid` trigger did not fire
+during a complete uninterrupted 1800-second arm.  Trigger-now snapshots taken
+throughout the run show changing, normally matched store-return and evict
+activity for at least an hour after UART stopped.  Thus UART silence is not a
+core-stop proof, and the Build 82 orphan is not the reproducible active blocker
+in this Build 83 run.
+
+Next action: restore full commit PC plus commit valid/ack/FU/op and
+privilege/exception state, then take repeated progress snapshots.  The goal is
+to distinguish slow Linux execution from a stable software livelock or a
+console-only failure.  Do not continue deepening the return-ID path unless a
+new run actually reasserts an orphan condition.  Build 83 scripts and the
+Build 82 decoder trigger-index fix are in commit `5dbcdd9`.
+
+## Build 82 board result -- 2026-07-18
+
+Programming succeeded with `DONE bit: HIGH`, the expected debug hub, and four
+ILAs.  UART0 log
+`~/p3_uart_logs/ttyUSB0_20260718_012036_build82_store_return.log` is 61,072
+bytes with SHA-256
+`0155bf298bd87f977bead62ce876848154f719cb86e0386c82e280236f8fe521`.
+The synchronized CSVs triggered at sample 128 in bootrom PC
+`0x000000fff1010572` and show a healthy response path, not the Linux failure.
+Their hashes are `4cc60f5b...`, `e7bcb383...`, `144fd4fd...`, and
+`f0094373...`.  A late snapshot then exposed the orphan TID0/invalid-slot0
+state described above; its hashes are `d691abc2...`, `f0ec46c4...`,
+`44d40023...`, and `b44d708e...`.
+
 ## Build 82 store-response boundary ECO ready -- 2026-07-18
 
 Build 82 is generated and ready for the causal board capture.  It is a
