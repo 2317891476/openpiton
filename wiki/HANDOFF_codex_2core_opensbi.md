@@ -6,6 +6,48 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Current evidence correction -- 2026-07-17
+
+The latest single-hart board state is Build 79 running the readback-verified
+Build 66 OpenSBI/Linux 6.6 SD image.  A new live ILA snapshot on 2026-07-17,
+taken without resetting or reprogramming the FPGA, proves that the core is not
+statically hung: `commit_valid=1` in 517/1024 samples, `commit_ack=1` in
+444/1024, `wfi_q=0` throughout, and the L1.5 request/history bus is active with
+no L1.5 or DDR response error.
+
+This supersedes the 2026-07-16 devlog claim that Build 79 captured
+`commit_valid=0 (1024/1024)` and therefore a commit-stage stall.  Recounting
+that original CSV gives 467 commit-valid and 429 commit-ack samples.  The old
+UART capture also ended during bootrom SD copy at 74%, before `done!`, OpenSBI,
+or Linux, so it did not synchronize the later ILA with a UART-confirmed final
+stop.
+
+Both the original and current Build 79 ILA2 captures show the same circular
+privilege pattern: 907 M-mode samples and one contiguous 117-sample S-mode
+interval.  The current L1.5 history repeatedly fetches OpenSBI
+`_trap_handler_hyp` (`0x80000520`) and `sbi_emulate_csr_read()`
+(`0x80021940`) and reads CLINT `mtime` at `0xfff102bff8`.  During the capture,
+CSR pending interrupt bits and wrapper timer/IPI/external/debug inputs are all
+low.  The strongest current interpretation is an active synchronous
+S/M trap/CSR-emulation loop, not WFI, a pending interrupt, a persistent store
+request, or a commit deadlock.  The exact S-mode instruction and trap cause
+remain unproven because Build 79 does not probe PC, mcause, mepc, mtval, or the
+decoded CSR number.
+
+The Build 79 probe map is also wrong for probe0[45:46].  The ECO reconnects
+only [28:44], so [45:63] retain Build 78 diagnostic indices 17 through 35;
+[45] and [46] are not `no_st_pending_ex` and
+`dcache_commit_wbuffer_empty`.  Do not infer a drained store path from those
+bits.
+
+The next minimal experiment is a Build 66 post-route ECO triggered on the
+repeating S-to-M transition and capturing commit PC plus
+mcause/mepc/mtval and the illegal-instruction/CSR-emulation selector.  Do not
+start the previously proposed commit-kill/flush ECO until that trap boundary
+is resolved.  The detailed append-only correction and snapshot hashes are in
+`wiki/devlog/2026-07.md` under 2026-07-17.  The older Build 75 preparation text
+below is historical and has been superseded by completed Builds 75 through 79.
+
 ## Resolution update -- 2026-07-13
 
 The controlled Build 73 probe stopped after marker W; the otherwise equivalent

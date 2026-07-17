@@ -15,9 +15,9 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Current FPGA board | AX7203 (Artix-7 XC7A200T) |
 | Migration target | HuaPro P3 (Versal VP1902) |
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
-| Single-core status | P3 Build 66 legacy BBL/Linux shell, SD ext2, and XSBench launch are verified. The unchanged-PDI current OpenSBI/Linux image now passes SD/GPT/copy and reaches OpenSBI v1.8 with one hart and the corrected 234375 Hz timer; before the Linux banner it reproduces a persistent L1.5 store-valid-without-ack state at `0x8189b780`, so the current Linux 6.6 shell remains unproven. |
+| Single-core status | P3 Build 66 legacy BBL/Linux shell, SD ext2, and XSBench launch are verified. The unchanged-PDI OpenSBI/Linux 6.6 image passes SD/GPT/copy and reaches OpenSBI v1.8 with one hart and the corrected 234375 Hz timer. Live Build 79 ILA evidence now shows active instruction retirement and a repeating M/S trap plus CSR-emulation path, not the earlier inferred persistent L1.5 or commit stall; the Linux 6.6 shell and exact synchronous trap cause remain unproven. |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
-| Current scaling candidate | **2-core (2x1) bring-up in progress.** Leaving Ariane L1 D-cache enabled clears the CSR 0x701 OpenSBI gate, the timer reports the corrected 234375 Hz, and the `mem=1G` control crosses the stale-aperture page-table stop into later Linux init. The later Build 73 stop is a persistent L1.5 store-valid-without-ack state at `0x8185dc80`; an unchanged-Build-66 one-hart control now reproduces that observable class at `0x8189b780` with IPI low, excluding SMP/IPI concurrency as a necessary trigger but not yet identifying the internal L1.5 S1 blocker. Linux SMP completion and a current-stack shell remain unproven. **See [HANDOFF_codex_2core_opensbi.md](HANDOFF_codex_2core_opensbi.md) for the full handoff.** |
+| Current scaling candidate | **2-core (2x1) bring-up in progress.** Leaving Ariane L1 D-cache enabled clears the CSR 0x701 OpenSBI gate, the timer reports the corrected 234375 Hz, and the `mem=1G` control crosses the stale-aperture page-table stop into later Linux init. The corrected 2 GiB aperture PDI still lacks formal board closure. The single-hart control now points to an active repeating OpenSBI trap/CSR-emulation path; the next boundary is commit PC plus mcause/mepc/mtval and decoded CSR, not another generic L1.5 or commit-stall probe. Linux SMP completion and a current-stack shell remain unproven. **See [HANDOFF_codex_2core_opensbi.md](HANDOFF_codex_2core_opensbi.md) for the full handoff.** |
 | Prior scaling notes | Older `coh_ipi64.c` logs are stale leads (2026-07-01 three-pass sweep). The "stop_machine IPI deadlock / 58 harts miss MSIP" reading was falsified 2026-07-07 (SMP bringup already proves MSIP works for all 64). |
 | Simulation | VCS when licensed; current local Ariane path uses Verilator 5.046 with `--hierarchical + -O0` for 8x8 |
 | FPGA synthesis | `protosyn -b <board> -d system --core=ariane --uart-dmw ddr` |
@@ -66,7 +66,7 @@ Entries in `devlog/` are organized by month, newest first, append-only.
 
 | Phase | Target | Milestone |
 |-------|--------|-----------|
-| P0 | Single core | Legacy BBL Linux shell/SD/XSBench verified; unchanged Build 66 PDI + current OpenSBI v1.8 reaches the one-hart handoff, then reproduces the L1.5 store-accept stop before the Linux 6.6 banner |
+| P0 | Single core | Legacy BBL Linux shell/SD/XSBench verified; unchanged Build 66 PDI plus OpenSBI v1.8 reaches the one-hart handoff, then enters an active repeating S/M trap and CSR-emulation path before a Linux 6.6 shell |
 | P1 | 2x2 (4 cores) | Multi-core coherence validated |
 | P2 | 4x4 (16 cores) | Speedup measurement baseline |
 | P3 | 8x8 (64 cores) | P3 Pro / VP1902 board boots Linux with 64 CPUs online |
