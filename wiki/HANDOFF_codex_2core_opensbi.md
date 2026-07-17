@@ -6,6 +6,28 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Build 80 board result -- 2026-07-17
+
+Build 80 has now been programmed and synchronously captured.  Programming
+reported `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four ILAs.  UART
+covered the complete 65,536-block copy, `done!`, OpenSBI v1.8, and its full
+platform/domain summary.  The four 1024-sample ILA CSVs all have trigger index
+512 and identical common-trigger waveforms.
+
+The captured S-to-M transition is a normal S-mode ECALL, not the suspected
+TIME CSR denial: the S-mode commit PC is `0x80207bf4`; the M-mode state is
+`mepc=0x80207bf4`, `mcause=9`, and `mtval=0x00000073`.  CSR address is zero,
+the CSR-illegal condition is low, and `mcounteren=0x3f`, including
+`mcounteren.TM=1`.  Retire the `rdtime`/`mcounteren.TM=0` root-cause hypothesis.
+
+OpenSBI remains active after entry rather than freezing immediately: the next
+512 cycles contain 275 commit-valid samples, 35 commit-ack samples, and 41
+distinct PCs, all in M-mode.  The current boundary is therefore normal Linux
+SBI ECALL dispatch/handling that has not returned to S-mode within the capture
+window.  Resolve the post-trigger PC sequence against the exact Build 66
+OpenSBI ELF and identify the ECALL extension/function arguments before
+choosing another ECO or software change.
+
 ## Build 80 trap/CSR ECO ready -- 2026-07-17
 
 The next causal diagnostic described below has now been built, but not yet
@@ -29,13 +51,9 @@ Artifacts:
   CSR-instruction/address cross-checking.
 
 Implementation is fully routed with zero routing errors and formal
-WNS/WHS=16.514/0.013 ns.  The next action is board programming and capture,
-not another FPGA build or SD-card rewrite.  Start UART capture before
-programming and keep it alive beyond the complete 65,536-sector copy, program
-the exact PDI/LTX pair with Windows full Vivado, arm all four ILAs, then run
-the decoder.  Do not claim that `rdtime` with `mcounteren.TM=0` is the root
-cause until the synchronized CSV proves the instruction, CSR, cause, previous
-privilege, and repeated mepc/mtval pair.
+WNS/WHS=16.514/0.013 ns.  The board programming/capture action originally
+listed here is complete; its result is the ECALL evidence above.  No SD-card
+rewrite or repeated Build 80 programming is required for that conclusion.
 
 ## Current evidence correction -- 2026-07-17
 
