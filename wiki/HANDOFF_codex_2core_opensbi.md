@@ -6,6 +6,34 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Build 82 store-response boundary ECO ready -- 2026-07-18
+
+Build 82 is generated and ready for the causal board capture.  It is a
+probe-only ECO from Build 81 and changes no functional hardware or SD payload.
+The common trigger is transaction slot 1 valid rising; trigger position 128
+leaves roughly 896 cycles to observe the response after the second slot is
+allocated.  Arm all four ILAs in one call during bootrom SD copy, not after the
+UART stop.
+
+Artifacts:
+
+- PDI `D:/p3b82_store_return_eco/p3_top_build82_store_return_eco.pdi`,
+  SHA-256
+  `90de3776572b8033f4a63f8eb723bafcd06ce77ba6d5d919f86ee21def1e0ba7`;
+- LTX `D:/p3b82_store_return_eco/p3_top_build82_store_return_eco.ltx`,
+  SHA-256
+  `98ad8c42fbc5e96afe8dae3e62dfdad524968743d9bd565bcde106e8c3171742`;
+- `scripts/p3_ila_capture_build82_store_return_eco.tcl`;
+- `scripts/p3_decode_build82_ila_csv.py`.
+
+Implementation is fully routed with zero routing errors and formal
+WNS/WHS=16.514/0.013 ns.  The decoder distinguishes the first missing edge
+across request FIFO acceptance, adapter `L15_ST_ACK` ingress/egress, missunit
+store-return forwarding, and write-buffer return-ID/evict.  Direct
+`miss_rtrn_vld[2]` is optimized away in the implemented checkpoint, but the
+write-buffer return FIFO pointer/occupancy provides an equivalent downstream
+boundary.  Build 82 is not board-tested yet.
+
 ## Build 81 board result -- 2026-07-17
 
 Build 81 has been programmed with `DONE bit: HIGH`, debug hub
