@@ -56,6 +56,17 @@ class Build81DecodeTests(unittest.TestCase):
         }
         self.assertEqual(
             MODULE.classify(state, [0] * 8, [0xFF] + [0] * 7),
+            "fence_inflight_not_evicted",
+        )
+
+    def test_classifies_inflight_transaction_without_fence(self):
+        state = {
+            "commit_valid": 0, "commit_ack": 0, "fu": 0, "op": 0,
+            "no_st_pending": 1, "wbuffer_empty": 0, "miss_req": 0,
+            "dirty_rd_en": 0, "tx_valid": 3, "evict": 0,
+        }
+        self.assertEqual(
+            MODULE.classify(state, [0xFF] + [0] * 7, [0, 0, 0xFF] + [0] * 5),
             "inflight_not_evicted",
         )
 

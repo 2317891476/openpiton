@@ -107,13 +107,13 @@ def classify(control, dirty, txblock):
         and control["no_st_pending"] == 1
         and control["wbuffer_empty"] == 0
     )
-    if not blocked_fence:
-        return "not_blocked_fence"
-    if any(dirty) and control["miss_req"] and not control["dirty_rd_en"]:
-        return "miss_not_accepted"
     if any(txblock) and control["tx_valid"] and not control["evict"]:
-        return "inflight_not_evicted"
-    return "blocked_fence_other"
+        return "fence_inflight_not_evicted" if blocked_fence else "inflight_not_evicted"
+    if blocked_fence and any(dirty) and control["miss_req"] and not control["dirty_rd_en"]:
+        return "miss_not_accepted"
+    if blocked_fence:
+        return "blocked_fence_other"
+    return "not_blocked_fence"
 
 
 def main():
@@ -170,10 +170,11 @@ def main():
     )
     print("  entry dirty masks:   " + " ".join(f"{mask:02x}" for mask in dirty_masks))
     print("  entry txblock masks: " + " ".join(f"{mask:02x}" for mask in txblock_masks))
+    free_slots = 2 - state["tx_valid"].bit_count()
     print(
-        "  tx slots: valid=0x%x ptrs=%d,%d be=%02x,%02x dirty_ptr=%d"
+        "  tx slots: valid=0x%x free=%d ptrs=%d,%d be=%02x,%02x dirty_ptr=%d"
         % (
-            state["tx_valid"], state["tx0_ptr"], state["tx1_ptr"],
+            state["tx_valid"], free_slots, state["tx0_ptr"], state["tx1_ptr"],
             state["tx0_be"], state["tx1_be"], state["dirty_ptr"],
         )
     )
@@ -195,8 +196,12 @@ def main():
     if outcome == "miss_not_accepted":
         print("PASS: FENCE is blocked because a dirty write-buffer request is not accepted")
         return 0
-    if outcome == "inflight_not_evicted":
+    if outcome == "fence_inflight_not_evicted":
         print("PASS: FENCE is blocked by an in-flight write-buffer transaction that is not evicted")
+        return 0
+    if outcome == "inflight_not_evicted":
+        print("PASS: write-buffer transactions remain in flight and are not evicted")
+        print("NOTE: the current commit head is not a valid blocked FENCE")
         return 0
     if outcome == "blocked_fence_other":
         print("PASS: FENCE is blocked by a non-empty write buffer; captured substate needs review")
