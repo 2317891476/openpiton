@@ -6,6 +6,47 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Build 81 board result -- 2026-07-17
+
+Build 81 has been programmed with `DONE bit: HIGH`, debug hub
+`0x3ffc0000000`, and four ILAs.  UART0 completed the full 65,536-block copy and
+OpenSBI summary, then remained at 61,072 bytes; the log is
+`~/p3_uart_logs/ttyUSB0_20260717_203603_build81_wbuffer.log`, SHA-256
+`0155bf298bd87f977bead62ce876848154f719cb86e0386c82e280236f8fe521`.
+
+Two complete Build 81 snapshot sets about seven minutes apart are
+byte-for-byte identical.  Each field is also stable for 1024/1024 samples.
+The persistent write-buffer state is:
+
+- entry0 dirty bytes `ff`;
+- entry2/3 transaction-blocked bytes `ff/ff`;
+- both transaction slots valid, pointers 3 and 2, byte enables `ff/ff`;
+- zero free transaction slots and no `miss_req`, allocation, tag-check, or
+  evict activity;
+- committed-store queue empty, WT write buffer non-empty.
+
+The head PC `0xffffffff801413d0` resolves to
+`__rmqueue_pcplist+0x94`, but commit valid/ack is 0/0, so it is not evidence
+that the `mv a0,s5` instruction is currently blocking.  This run did not
+retain the Build 80 FENCE at a valid commit head.
+
+The RTL interpretation is narrower and stronger than a generic cache stall:
+two previously accepted WT stores have allocated both transaction slots, but
+their return IDs never reach the write-buffer `evict` path.  This permanently
+blocks the remaining dirty entry because `free_tx_slots=0`.  The next probe
+boundary is the store response chain:
+`L15_ST_ACK` -> L15 adapter return FIFO -> D-cache `DCACHE_STORE_ACK` and TID ->
+write-buffer return-ID FIFO/evict.  Current evidence does not yet identify
+which edge loses the response, so L1.5 generation, adapter delivery, and
+return-ID routing remain separate hypotheses.
+
+The four CSV hashes (ILA0 through ILA3, identical for both sets) are:
+
+- `162ece71b2dc36ca46386218145f62676dffb3dad4b703ebf050e340774a444e`;
+- `24c6585c15f52c016639cc82726cbae10f8de8ab95a8e31e930b10e53bf39504`;
+- `6d1a2c43053118ee88639aa3b7d56207060d80c0a576525a95109927640b1864`;
+- `d652bd86de7e20f2b4a4d0c42424f385a449166a0a463de1a4222211b7c14eaf`.
+
 ## Build 81 WT D-cache write-buffer ECO ready -- 2026-07-17
 
 Build 80's later persistent-state snapshot advances beyond the initial SBI
