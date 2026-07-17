@@ -6,6 +6,50 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Build 81 WT D-cache write-buffer ECO ready -- 2026-07-17
+
+Build 80's later persistent-state snapshot advances beyond the initial SBI
+ECALL capture.  It is stable for 1024/1024 samples at Linux commit PC
+`0xffffffff80075e40`, `timekeeping_update+0x104`, instruction `fence w,w`,
+with commit valid/ack 1/0, `no_st_pending_ex=1`,
+`dcache_commit_wbuffer_empty=0`, and WFI 0.  Thus the current FENCE waits on a
+non-empty WT D-cache write buffer.  Historical `mepc/mcause/mtval` values in
+that snapshot describe an earlier emulated `rdtime`, not a current trap loop.
+The earlier S-to-M capture itself resolves to Linux `sbi_get_mvendorid` with
+SBI BASE extension/function `a7=0x10`, `a6=4`; it returned before this later
+Linux stop.
+
+Build 81 changes only existing ILA probe loads.  It preserves ILA0's full
+commit PC, uses ILA1/2 for all eight entries' dirty and txblock byte masks, and
+uses ILA3 for the commit/FENCE gates, entry checked state, both transaction
+slots, and write-buffer allocation/check/eviction progress.  It does not
+change the functional Build 66 hardware or the SD payload.
+
+Artifacts:
+
+- PDI `D:/p3b81_wbuffer_eco/p3_top_build81_wbuffer_eco.pdi`, 11,972,784
+  bytes, SHA-256
+  `18de4d2e111665c0c02c0ac3e587e10b687a9f4d74ab64ecb526bf437da77e0a`;
+- LTX `D:/p3b81_wbuffer_eco/p3_top_build81_wbuffer_eco.ltx`, 204,077 bytes,
+  SHA-256
+  `90a6096c94e5de6a342e4b75c224f9ad0773cb1eea091cc3a15a0eed38043b83`;
+- restart DCP SHA-256
+  `600b57a631f05cb3de1abd12a7f1830c7e37124d18de34df3c212597ee6724e9`;
+- `scripts/p3_build81_wbuffer_eco.tcl` and
+  `scripts/p3_ila_snapshot_build81_wbuffer_eco.tcl`;
+- `scripts/p3_decode_build81_ila_csv.py`, which classifies an unaccepted dirty
+  request versus a transaction that remains in flight.
+
+Implementation is fully routed with zero routing errors, formal
+WNS/WHS=16.514/0.013 ns, and all timing constraints met.  The first attempts
+hit `Route 35-4579` when ILA loads touched the legacy `p3_dbg_core_bus`
+synchronizer cone and forced a BUFG topology update.  The final route removes
+that cone completely and uses duplicate local checked-state Q bits as safe
+fillers; the decoder cross-checks the duplicates.  Build 81 is generated but
+not yet board-tested.  Program this exact PDI/LTX pair, wait for the UART stop,
+run the Build 81 snapshot Tcl, and decode the four resulting CSV files before
+claiming the precise write-buffer substate.
+
 ## Build 80 board result -- 2026-07-17
 
 Build 80 has now been programmed and synchronously captured.  Programming
