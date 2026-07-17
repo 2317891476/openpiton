@@ -6,6 +6,37 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Build 80 trap/CSR ECO ready -- 2026-07-17
+
+The next causal diagnostic described below has now been built, but not yet
+programmed.  Build 80 reuses the Build 66 functional design and debug hub from
+the Build 79 pre-route checkpoint; it changes only the loads on the four
+existing, synchronous ILAs.  It captures the full commit PC, recoverable full
+`mepc`, `mcause`, illegal-instruction `mtval`, implementation-level CSR
+address, commit FU/op/valid/ack, privilege, `mcounteren`, and WFI/interrupt
+context.  All four ILAs duplicate `priv_lvl_q[1]` as an S-to-M rising-edge
+trigger.
+
+Artifacts:
+
+- `D:/p3b80_trap_csr_eco/p3_top_build80_trap_csr_eco.pdi`, 11,972,000 bytes,
+  SHA-256 `60de526cdaa5876b8cbb71c2506c0a431317efa89f0a009b931571cb65576123`;
+- matching `.ltx`, 203,673 bytes, SHA-256
+  `1741b94f7727bb2329b88cf719979c014386bca6ff1e72bdd8f5cfdea75f6001`;
+- `scripts/p3_ila_capture_build80_trap_csr_eco.tcl` for one-call synchronized
+  arming and CSV export;
+- `scripts/p3_decode_build80_ila_csv.py` for LTX-position-based decoding and
+  CSR-instruction/address cross-checking.
+
+Implementation is fully routed with zero routing errors and formal
+WNS/WHS=16.514/0.013 ns.  The next action is board programming and capture,
+not another FPGA build or SD-card rewrite.  Start UART capture before
+programming and keep it alive beyond the complete 65,536-sector copy, program
+the exact PDI/LTX pair with Windows full Vivado, arm all four ILAs, then run
+the decoder.  Do not claim that `rdtime` with `mcounteren.TM=0` is the root
+cause until the synchronized CSV proves the instruction, CSR, cause, previous
+privilege, and repeated mepc/mtval pair.
+
 ## Current evidence correction -- 2026-07-17
 
 The latest single-hart board state is Build 79 running the readback-verified
@@ -40,13 +71,13 @@ only [28:44], so [45:63] retain Build 78 diagnostic indices 17 through 35;
 `dcache_commit_wbuffer_empty`.  Do not infer a drained store path from those
 bits.
 
-The next minimal experiment is a Build 66 post-route ECO triggered on the
-repeating S-to-M transition and capturing commit PC plus
-mcause/mepc/mtval and the illegal-instruction/CSR-emulation selector.  Do not
-start the previously proposed commit-kill/flush ECO until that trap boundary
-is resolved.  The detailed append-only correction and snapshot hashes are in
-`wiki/devlog/2026-07.md` under 2026-07-17.  The older Build 75 preparation text
-below is historical and has been superseded by completed Builds 75 through 79.
+That minimal experiment is now the generated Build 80 artifact described
+above.  Do not start the previously proposed commit-kill/flush ECO until its
+synchronized board capture resolves the trap boundary.  The detailed
+append-only correction, build attempts, artifact hashes, and route/timing
+evidence are in `wiki/devlog/2026-07.md` under 2026-07-17.  The older Build 75
+preparation text below is historical and has been superseded by completed
+Builds 75 through 80.
 
 ## Resolution update -- 2026-07-13
 

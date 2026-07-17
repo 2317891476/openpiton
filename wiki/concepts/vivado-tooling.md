@@ -39,6 +39,53 @@ vivado -mode tcl   -source scripts/p3_debug.tcl              # debug
 
 Note: Versal outputs `.pdi` (not `.bit`). ILA probes use `.ltx` files. Supplying the LTX to `p3_program_pdi.tcl` makes the programming step also set `PROBES.FILE`, print the DONE bit, run `refresh_hw_device`, and list the available ILA cores before hardware UART validation.
 
+#### P3 Existing-ILA ECO and synchronized capture
+
+Build 80 documents the implementation-only diagnostic path for a validated P3
+design.  Start from a saved pre-route ECO DCP and reconnect loads on the
+existing BD-owned ILAs; do not create another ILA or debug hub when the
+validated cores already have enough width.  Query retained register cells and
+follow their Q pins instead of guessing optimized net names.  Require every
+probe port width, target net, debug core, and ILA clock to match exactly before
+writing the new pre-route restart DCP.
+
+```bash
+# Inventory implemented names without changing the checkpoint.
+vivado -mode batch -source scripts/p3_inspect_build80_trap_nets.tcl
+
+# Full reconnect from Build 79, or exact resume after the pre-route DCP exists.
+vivado -mode batch -source scripts/p3_build80_trap_csr_eco.tcl
+vivado -mode batch -source scripts/p3_build80_trap_csr_eco.tcl -tclargs \
+  D:/p3b80_trap_csr_eco/p3_top_build80_trap_csr_eco_pre_route.dcp \
+  D:/p3b80_trap_csr_eco
+
+# After programming the matching PDI/LTX pair.
+vivado -mode batch -source scripts/p3_ila_capture_build80_trap_csr_eco.tcl
+python3 scripts/p3_decode_build80_ila_csv.py \
+  /mnt/d/p3b80_trap_csr_eco/captures
+```
+
+All ILAs used for one event must share the same implemented clock and duplicate
+the trigger signal.  Arm them in one `run_hw_ila` call; sequential
+`-trigger_now` snapshots are not synchronized evidence.  Set the trigger
+position explicitly and make the decoder reject unequal trigger indices or
+trigger waveforms.
+
+Vivado's `connect_net -basename` does not rename an existing implementation
+net merely because it is connected to a new ILA load.  Consequently an LTX can
+legitimately contain Build 76/79 names for Build 80 probe bits.  Validate known
+retained and newly created LTX endpoints, then decode CSVs from the LTX core
+name plus `portIndex`/`leftIndex` metadata.  Do not infer bit positions from a
+build-number prefix in the net name.
+
+On the local Windows 2024.2.2 client, the first Build 80 run routed successfully
+but the process exited with code 116 while serializing an optional post-route
+DCP.  The pre-route DCP remained valid and deterministic reroutes completed
+with zero routing errors.  For this ECO path, keep the pre-route checkpoint as
+the restart artifact and proceed directly from successful routing to route and
+timing reports, `write_debug_probes`, and `write_device_image`; a second routed
+DCP is not required to generate or reproduce the PDI.
+
 #### P3 Offline Ubuntu Build Host
 
 The remote P3 Pro / VP1902 64-core build flow uses the offline Ubuntu host at `cs@202.197.4.150`, reached through the Windows jump host `23178@100.70.176.125`. The Windows host is only a TCP jump; avoid command shapes where Windows parses the inner Ubuntu build command.
