@@ -64,6 +64,11 @@ def vector_maps(layouts):
     return result
 
 
+def capture_trigger_samples(captures):
+    """Return the CSV trigger index, not the sample count, for each capture."""
+    return [capture[2] for capture in captures]
+
+
 def decode_request(value):
     return {
         "trigger": value & 1,
@@ -226,7 +231,7 @@ def main():
         maps = vector_maps(build80.load_ltx_layout(ltx))
         captures = [build80.csvutil.read_capture(path) for path in paths]
         columns = [capture[0] for capture in captures]
-        trigger_samples = [capture[1] for capture in captures]
+        trigger_samples = capture_trigger_samples(captures)
         axis0_trigger = build80.reconstruct_from_net_map(
             columns[0], {0: next(iter(maps["trigger"].values()))}, 1
         )

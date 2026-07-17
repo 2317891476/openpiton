@@ -40,6 +40,10 @@ def return_state(**updates):
 
 
 class Build82DecodeTests(unittest.TestCase):
+    def test_uses_csv_trigger_index_instead_of_sample_count(self):
+        captures = [({}, 1024, 128), ({}, 1024, 128)]
+        self.assertEqual(MODULE.capture_trigger_samples(captures), [128, 128])
+
     def test_decodes_request_layout(self):
         value = (
             1 | (3 << 1) | (2 << 3) | (1 << 5) | (1 << 7) |
