@@ -32,6 +32,16 @@ CSR-specific `csr_rdata_csr_commit` leaf input used by the commit stage, while
 clearing the matching TIME illegal-result signal.  Keep all non-CSR/global
 writeback nets unchanged.  The SD card still does not need rewriting.
 
+Build 88 tested that direct CSR-leaf plan and failed closed before placement:
+the synthesized baseline exposes only 28 distinct dynamic CSR read-data leaf
+pins, and logical bit 28 has no pin because the missing-TIME design allowed
+Vivado to constant/alias-fold the rest of the 64-bit bus.  No Build 88 artifact
+exists.  Do not guess the compressed mapping.  The next ECO must instead use
+the complete 64-bit issue-stage `wdata_i` hierarchy port: reconnect exactly
+one boundary input pin per bit, qualify substitution with CSR address,
+commit-valid, and CSR-FU, and leave all internal segmented-net sinks alone.
+This is narrower than Build 87's rejected all-sink rewrite.
+
 ## Current boundary after Build 86 -- 2026-07-18
 
 Build 86 retires the Build 84/85 interpretation that Linux is permanently

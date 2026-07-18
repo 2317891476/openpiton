@@ -1143,6 +1143,16 @@ CSR-only `csr_rdata_csr_commit` input consumed by commit-stage CSR handling,
 not on the global writeback result bus.  Clean timing and routing cannot make
 an over-broad functional interception semantically safe.
 
+There is an additional post-synthesis limitation: because the baseline omits
+TIME, Vivado reduces the logical 64-bit CSR read bus to only 28 distinct
+dynamic leaf pins.  Build 88 therefore could not add all 64 new TIME bits at
+that ideal boundary and failed on the first absent pin.  A causal ECO may use
+the next complete hierarchy boundary, the issue-stage 64-bit register-file
+write-data port, but must reconnect only those 64 boundary pins.  It must not
+flatten across segments and replace every internal sink as Build 87 did.  The
+production solution remains a clean RTL rebuild with the guarded TIME case,
+which preserves the intended CSR boundary before synthesis compression.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
