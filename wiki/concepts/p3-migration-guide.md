@@ -1199,6 +1199,23 @@ refreshed 89 outputs and then passed XPR/fileset, tile-count, and aperture
 validation.  Generated files without a PyHP template, such as
 `cross_module.tmp.h`, are preserved rather than guessed.
 
+Board validation then confirmed the architectural repair.  Build 90 reached a
+complete OpenSBI v1.8 summary with `aclint-mtimer @ 234375Hz`, and its causal
+ILA captured Linux PC `0xffffffff807d8a9e` retiring CSR `0xc01` in S-mode with
+commit valid/ack `1/1`, illegal `0`, `mcounteren=0x3f`, and an advancing
+`cycle_q`.  The decoder verdict is `RDTIME_RETIRED_IN_LINUX_WINDOW`.  This is
+the gate that distinguishes a correct CSR-owned TIME implementation from an
+implementation-only signoff or a broad writeback ECO.
+
+The same run also illustrates why later forward-progress symptoms must be
+classified independently.  UART stopped after the OpenSBI summary, while
+three commit snapshots continued to show Linux timekeeping, timer interrupts,
+OpenSBI traps, and repeated execution of the Linux `udelay()` loop.  Once TIME
+legality and retirement are causally proven, the next diagnostic must observe
+the actual TIME result and the loop's start/threshold/delta operands; it must
+not infer that the original TIME bug returned merely because the Linux banner
+is absent.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.

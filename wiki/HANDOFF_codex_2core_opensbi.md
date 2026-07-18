@@ -6,7 +6,46 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current boundary after Build 90 implementation -- 2026-07-18
+## Current boundary after Build 90 board validation -- 2026-07-18
+
+Build 90 is programmed and has passed its causal TIME gate.  Vivado reported
+`DONE bit: HIGH`, debug hub `0x3ffc0000000`, and five ILAs including
+`u_ila_build90`.  The persistent UART log is
+`~/p3_uart_logs/ttyUSB0_20260718_160413_build90_time_csr_rtl.log`, 61,079
+bytes, SHA-256
+`805504783c94681aa24fc056ac65723977f8e222a06768e6081a9928ad00cdff`.
+Bootrom copied all 65,536 blocks, OpenSBI v1.8 printed its complete summary,
+and `aclint-mtimer` is now reported at the correct `234375Hz`.  This clears
+the Build 89 `sbi_hart_init()` stop.
+
+The causal capture
+`huaprop3_build90_time_csr_rtl/rdtime_capture/ila_capture_build90_rdtime_20260718_162844.csv`
+has SHA-256
+`5029b428d35bc6ab068b5268f2f3ac1ef543331c2f662534a7d9dd87ceb0c517`.
+At Linux PC `0xffffffff807d8a9e`, the decoder sees 51 committed `rdtime`
+instructions with valid/ack `1/1`, CSR `0xc01`, illegal `0`, S-mode privilege,
+`mcounteren=0x3f`, and increasing `cycle_q`, and reports
+`VERDICT: RDTIME_RETIRED_IN_LINUX_WINDOW`.  The missing/illegal TIME CSR bug is
+therefore fixed at its RTL ownership boundary; do not revisit the Build 87/89
+general-writeback ECOs.
+
+Linux UART has not appeared.  Three later snapshots prove continuing Linux
+timekeeping/hrtimer, timer-interrupt, OpenSBI-trap, and `udelay()` execution,
+so this is not the prior TIME legality/retirement failure and not a global
+pipeline freeze.  The active target is the exact `udelay()` loop at
+`0xffffffff807d8a96..0xffffffff807d8aa4`, which reads TIME into `a5`, subtracts
+start value `a3`, and compares the delta against threshold `a4`.  Current ILA
+probes do not expose the CSR return value or live `a3/a4/a5`, so they cannot
+yet distinguish a bad scale/value, a bad threshold, or a writeback/register
+data issue.
+
+Next action is automatic Build 91: reopen the clean Build 90 routed design,
+add diagnostic-only ILA observation for the `rdtime` result and the live
+`a3/a4/a5` operands together with commit PC and `cycle_q`, incrementally
+implement it, program it, and capture the loop.  Keep functional RTL and the
+SD image unchanged.  Do not claim a Linux shell until UART actually shows it.
+
+## Previous boundary after Build 90 implementation -- 2026-07-18
 
 Build 90 is ready for board validation.  Unlike rejected Builds 87 and 89, it
 does not modify a synthesized general-writeback boundary.  It is a clean 1x1
