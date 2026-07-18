@@ -1115,6 +1115,13 @@ CDC/coherent snapshot, or provide a separately specified common counter.  Do
 not connect an asynchronous 64-bit binary `mtime_q` bus directly to every CSR
 file and call it fixed.
 
+When applying the single-hart control as a post-placement VP1902 ECO, note
+that Vivado Advanced Flow does not accept the legacy
+`place_design -post_place_opt` option.  Treat that diagnostic as an
+implementation-flow gate rather than a functional TIME-CSR result: no image is
+valid until every inserted cell is placed, ECO routing completes, and the
+usual route, timing, DRC, LTX, and PDI checks pass.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
