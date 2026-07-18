@@ -558,6 +558,32 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
         "${repo_dir}/piton/design/chip/tile/rtl/tile.tmp.v"
 }
 
+proc p3_sync_generated_pyhp_snapshot {repo_dir project_dir} {
+    set generated_rel_paths [list \
+        "piton/design/include/define.tmp.h" \
+        "piton/design/chip/rtl/chip.tmp.v" \
+        "piton/design/chip/tile/rtl/tile.tmp.v" \
+        "piton/design/chipset/rtl/chipset_impl.tmp.v" \
+        "piton/design/chip/tile/common/rtl/flat_id_to_xy.tmp.v" \
+        "piton/design/chip/tile/common/rtl/xy_to_flat_id.tmp.v" \
+    ]
+
+    foreach rel_path $generated_rel_paths {
+        set src [file normalize "${repo_dir}/${rel_path}"]
+        set dst [file normalize "${project_dir}/source_snapshot/${rel_path}"]
+        if {![file exists $src] || [file size $src] == 0} {
+            puts "ERROR: cannot refresh self-contained PyHP snapshot from missing output: ${src}"
+            exit 1
+        }
+        if {![file exists [file dirname $dst]]} {
+            puts "ERROR: self-contained snapshot directory is missing for generated output: [file dirname $dst]"
+            exit 1
+        }
+        file copy -force $src $dst
+        puts "Refreshed self-contained PyHP output: ${dst}"
+    }
+}
+
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {
     set pdi_src [p3_find_latest_file $run_dir "*.pdi"]
     set ltx_src [p3_find_latest_file $run_dir "*.ltx"]
@@ -642,6 +668,10 @@ if {[catch {exec bash $bootrom_rebuild_exec_path 2>@1} bootrom_rebuild_log]} {
 puts $bootrom_rebuild_log
 
 p3_regenerate_pyhp_tmp $repo_dir
+
+if {!$run_create && $p3_self_contained_sources} {
+    p3_sync_generated_pyhp_snapshot $repo_dir $project_dir
+}
 
 if {$run_create} {
     set P3_PROJECT_NAME $project_name

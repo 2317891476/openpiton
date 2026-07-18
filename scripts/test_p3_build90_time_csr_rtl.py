@@ -80,6 +80,24 @@ class Build90TimeCsrRtlTest(unittest.TestCase):
             self.common,
         )
 
+    def test_resumed_build_refreshes_tile_dependent_snapshot_outputs(self) -> None:
+        self.assertIn("proc p3_sync_generated_pyhp_snapshot", self.common)
+        for token in (
+            "define.tmp.h",
+            "chip.tmp.v",
+            "tile.tmp.v",
+            "chipset_impl.tmp.v",
+            "flat_id_to_xy.tmp.v",
+            "xy_to_flat_id.tmp.v",
+        ):
+            self.assertIn(token, self.common)
+        self.assertIn(
+            "if {!$run_create && $p3_self_contained_sources}", self.common
+        )
+        self.assertIn(
+            "p3_sync_generated_pyhp_snapshot $repo_dir $project_dir", self.common
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
