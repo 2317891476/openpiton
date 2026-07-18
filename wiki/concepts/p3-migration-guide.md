@@ -1153,6 +1153,17 @@ flatten across segments and replace every internal sink as Build 87 did.  The
 production solution remains a clean RTL rebuild with the guarded TIME case,
 which preserves the intended CSR boundary before synthesis compression.
 
+Build 89 demonstrates that narrower hierarchy-boundary method in the actual
+implemented checkpoint.  Its 64 data muxes disconnect and reconnect only the
+`issue_stage_i/wdata_commit_id[0]_27[*]` input pins, and its illegal-result
+gate touches only the corresponding issue-stage exception input.  The
+selector still requires address `0xc01`, commit valid, and commit FU `CSR`, so
+a retained CSR address cannot affect a later non-CSR write.  The result is
+fully routed with WNS/WHS `6.620/0.013 ns` and only the 169 baseline DRC
+warnings.  These are eligibility checks for board A/B validation, not proof
+that TIME is correct; hardware must still show the Linux `rdtime` instruction
+retiring without the OpenSBI illegal-instruction emulation path.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.

@@ -6,7 +6,37 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current boundary after Build 87 board rejection -- 2026-07-18
+## Current boundary after Build 89 implementation -- 2026-07-18
+
+Build 89 is the board candidate that follows the Build 87 board rejection and
+the Build 88 synthesized-width gate.  It starts from the clean Build 86
+checkpoint, retains the Build 87 selector (`CSR 0xc01`, commit valid, commit
+FU `CSR`), but reconnects exactly the 64
+`issue_stage_i/wdata_commit_id[0]_27[*]` hierarchy input pins and the one
+issue-stage exception input.  It does not reconnect internal scoreboard pins
+or any segmented-net sink.
+
+Implementation is signed off: all 70 ECO cells placed, 151,539/151,539
+routable nets completed, WNS/WHS `6.620/0.013 ns`, and the same 169
+warning-class baseline DRC checks with no error or critical warning.  Artifacts
+are:
+
+- PDI
+  `D:/p3b89_time_csr_boundary_eco/p3_top_build89_time_csr_boundary_eco.pdi`,
+  11,977,696 bytes, SHA-256 `e4c05d08...f07a1359`;
+- LTX SHA-256 `85a1f33a...346d`;
+- pre-route DCP SHA-256 `814bd06b...fb9ae`.
+
+Do not rewrite the SD card.  Start an exclusive persistent UART capture before
+programming, require `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four
+ILAs, then arm the retained full-PC ILA at Linux `rdtime` PC
+`0xffffffff807d8a9e` with at least a 1200-second outer timeout.  Decode with
+`scripts/p3_decode_build87_rdtime_csv.py`; the required causal result is
+`VERDICT: RDTIME_RETIRED_IN_LINUX_WINDOW`.  If it does not fire, take three
+complete-PC snapshots and classify the new stable state rather than repeating
+Build 89 unchanged.
+
+## Previous boundary after Build 87 board rejection -- 2026-07-18
 
 Build 87 now implements successfully with
 `place_design -eco -no_timing_driven`.  All 70 ECO cells are placed, all
