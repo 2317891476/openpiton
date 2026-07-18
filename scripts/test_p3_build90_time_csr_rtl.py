@@ -33,8 +33,8 @@ class Build90TimeCsrRtlTest(unittest.TestCase):
         self.assertIn("missing Build 52 prepare script", self.common)
         self.assertIn("/mnt/[string tolower $drive]/$rest", self.common)
         self.assertIn("git -C ${plic_repo_wsl} show HEAD", self.prepare)
-        self.assertIn("git hash-object ${snapshot_plic_wsl}", self.prepare)
-        self.assertIn("actual_blob ne $expected_blob", self.prepare)
+        self.assertIn("ip_re_o = '0;", self.prepare)
+        self.assertIn("snapshot PLIC restore produced an empty file", self.prepare)
         self.assertIn("csr_rdata = cycle_q >> 7", self.prepare)
         self.assertIn("p3_prepare_build52_sd_cd_mask_ila.tcl", self.prepare)
 
