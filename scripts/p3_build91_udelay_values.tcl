@@ -5,6 +5,25 @@
 set default_dcp \
     {D:/p3b90_time_csr_rtl/huaprop3_build90_time_csr_rtl.runs/impl_1/p3_top_routed.dcp}
 set default_output_dir {D:/p3b91_udelay_values}
+set output_stem {p3_top_build91_udelay_values}
+set gpr_regs {13 14 15}
+set gpr_names {a3_start a4_threshold a5_time_delta}
+set tag_prefix {p3_build91}
+if {[info exists env(P3_UDELAY_OUTPUT_STEM)]} {
+    set output_stem $env(P3_UDELAY_OUTPUT_STEM)
+}
+if {[info exists env(P3_UDELAY_GPR_REGS)]} {
+    set gpr_regs $env(P3_UDELAY_GPR_REGS)
+}
+if {[info exists env(P3_UDELAY_GPR_NAMES)]} {
+    set gpr_names $env(P3_UDELAY_GPR_NAMES)
+}
+if {[info exists env(P3_UDELAY_TAG_PREFIX)]} {
+    set tag_prefix $env(P3_UDELAY_TAG_PREFIX)
+}
+if {[llength $gpr_regs] != 3 || [llength $gpr_names] != 3} {
+    error "udelay diagnostic requires exactly three GPR numbers and names"
+}
 
 if {[llength $argv] > 2} {
     error "expected optional Build 90 routed DCP and output directory"
@@ -22,7 +41,7 @@ if {![file exists $input_dcp] || [file size $input_dcp] == 0} {
 }
 
 file mkdir $output_dir
-set output_base "${output_dir}/p3_top_build91_udelay_values"
+set output_base "${output_dir}/${output_stem}"
 set probe_map "${output_base}_probe_map.txt"
 set pre_route_dcp "${output_base}_pre_route.dcp"
 set routed_dcp "${output_base}_routed.dcp"
@@ -131,7 +150,7 @@ if {!$resume_from_build91} {
     set pc_low [lrange $commit_pc 0 23]
 
     set gpr_payloads [list]
-    foreach reg {13 14 15} {
+    foreach reg $gpr_regs {
         set value [list]
         for {set bit 0} {$bit < 40} {incr bit} {
             lappend value \
@@ -149,16 +168,19 @@ if {!$resume_from_build91} {
         p3_b91_reconnect_probe \
             "u_bd/openpiton_top_i/axis_ila_${ila_index}/probe0" \
             [lindex $gpr_payloads [expr {$ila_index - 1}]] \
-            "p3_build91_ila${ila_index}"
+            "${tag_prefix}_ila${ila_index}"
     }
 
     set fh [open $probe_map w]
     puts $fh "Build 91 probe map (logical bit 0 first)"
     puts $fh "source checkpoint=$input_dcp"
     puts $fh "u_ila_build90: unchanged clean Build 90 commit/CSR/cycle diagnostic"
-    puts $fh "axis_ila_1 probe0\[23:0\]=commit PC\[23:0\], \[63:24\]=a3/x13\[39:0\]"
-    puts $fh "axis_ila_2 probe0\[23:0\]=commit PC\[23:0\], \[63:24\]=a4/x14\[39:0\]"
-    puts $fh "axis_ila_3 probe0\[23:0\]=commit PC\[23:0\], \[63:24\]=a5/x15\[39:0\]"
+    for {set index 0} {$index < 3} {incr index} {
+        set ila_index [expr {$index + 1}]
+        set reg [lindex $gpr_regs $index]
+        set name [lindex $gpr_names $index]
+        puts $fh "axis_ila_${ila_index} probe0\[23:0\]=commit PC\[23:0\], \[63:24\]=${name}/x${reg}\[39:0\]"
+    }
     puts $fh "trigger PC low24=0x7d8aa4; full PC control=0xffffffff807d8aa4"
     puts $fh "functional RTL/cells/drivers changed=none"
     close $fh

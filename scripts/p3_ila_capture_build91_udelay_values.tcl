@@ -7,6 +7,10 @@ set xvc_host "202.197.4.99"
 set xvc_port "2540"
 set default_ltx {D:/p3b91_udelay_values/p3_top_build91_udelay_values.ltx}
 set default_output_dir {D:/p3b91_udelay_values/captures}
+set capture_id {build91}
+if {[info exists env(P3_UDELAY_CAPTURE_ID)]} {
+    set capture_id $env(P3_UDELAY_CAPTURE_ID)
+}
 set trigger_pc_hex "ffffffff807d8aa4"
 set trigger_pc_low24 0x7d8aa4
 set commit_pc_name \
@@ -115,7 +119,7 @@ foreach ila $armed {
     set data [upload_hw_ila_data $ila]
     set safe_cell [p3_b91_safe_name $cell_name]
     set csv_file \
-        "${output_dir}/ila_capture_build91_${timestamp}_${safe_cell}.csv"
+        "${output_dir}/ila_capture_${capture_id}_${timestamp}_${safe_cell}.csv"
     write_hw_ila_data -force -csv_file $csv_file $data
     if {![file exists $csv_file] || [file size $csv_file] == 0} {
         error "Build 91 CSV is missing or empty: $csv_file"
