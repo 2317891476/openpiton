@@ -55,6 +55,9 @@ if {[info exists env(P3_BUILD52_WORK_DIR)] && $env(P3_BUILD52_WORK_DIR) ne ""} {
 set output_dir "${output_project_dir}/debug_build"
 set create_tcl [file normalize "${script_dir}/p3_create_bd_build52_sd_cd_mask.tcl"]
 set prepare_tcl [file normalize "${script_dir}/p3_prepare_build52_sd_cd_mask_ila.tcl"]
+if {[info exists env(P3_BUILD52_PREPARE_TCL)] && $env(P3_BUILD52_PREPARE_TCL) ne ""} {
+    set prepare_tcl [file normalize $env(P3_BUILD52_PREPARE_TCL)]
+}
 set post_synth_tcl ""
 if {[info exists env(P3_BUILD52_POST_SYNTH_TCL)] && $env(P3_BUILD52_POST_SYNTH_TCL) ne ""} {
     set post_synth_tcl [file normalize $env(P3_BUILD52_POST_SYNTH_TCL)]
@@ -601,6 +604,10 @@ if {![file exists $bootrom_rebuild_sh]} {
 }
 if {$post_synth_tcl ne "" && ![file exists $post_synth_tcl]} {
     puts "ERROR: missing post-synthesis hook: ${post_synth_tcl}"
+    exit 1
+}
+if {![file exists $prepare_tcl]} {
+    puts "ERROR: missing Build 52 prepare script: ${prepare_tcl}"
     exit 1
 }
 puts "Regenerating Build 52 bootrom before Vivado project creation..."
