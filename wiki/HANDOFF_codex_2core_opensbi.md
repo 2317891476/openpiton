@@ -6,6 +6,52 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Current boundary after Build 90 implementation -- 2026-07-18
+
+Build 90 is ready for board validation.  Unlike rejected Builds 87 and 89, it
+does not modify a synthesized general-writeback boundary.  It is a clean 1x1
+RTL rebuild with `P3_TIME_CSR_DIV128`, implementing CSR TIME as
+`cycle_q >> 7` inside `csr_regfile.sv` before synthesis.  The project is
+self-contained and its snapshot PLIC was restored from the nested `rv_plic`
+HEAD, so the unrelated dirty live PLIC file was not incorporated.
+
+The resume path was made fail-closed and reproducible.  It allows references
+under the current D: project while rejecting other stale `D:/p3b*` roots, and
+it regenerated all 89 PyHP-derived snapshot outputs for the requested 1x1
+context.  This was necessary because the old snapshot had 8x8 tile defines and
+an 8x8 `io_xbar_top.tmp.v`; refreshing only the six obvious topology outputs
+was insufficient.  XPR, fileset, tile-count, and 2 GiB CVA6 aperture checks all
+passed before synthesis.
+
+Implementation signoff:
+
+- 156,076/156,076 routable nets, zero routing errors;
+- WNS/TNS `17.126/0.000 ns`, WHS/THS `0.020/0.000 ns`, all timing met;
+- final DRC 190 warning-class checks, zero errors;
+- the only implementation-log critical-warning categories are the baseline
+  duplicate input-clock definition and unsupported XDC `if`/`unset` commands;
+- four retained ILAs plus implementation-only `u_ila_build90`, whose ten probe
+  groups cover commit PC/valid/ack, FU/op, CSR address/illegal, privilege,
+  `mcounteren`, and `cycle_q` at 4096 samples.
+
+Artifacts:
+
+- PDI
+  `huaprop3_build90_time_csr_rtl/debug_build/p3_top_build90_time_csr_rtl.pdi`,
+  12,149,280 bytes, SHA-256
+  `891eeaa67335d182afa017252da7173609b41380e896750619a0dfec0501fc29`;
+- LTX
+  `huaprop3_build90_time_csr_rtl/debug_build/p3_top_build90_time_csr_rtl.ltx`,
+  125,627 bytes, SHA-256
+  `2c70b9c82fb2ae742e6ad8b5a08d239ff8b31f5af288580b46ab3e7d60fefde5`.
+
+Do not rewrite the SD card.  Start an exclusive persistent UART capture before
+programming Build 90, require `DONE bit: HIGH`, debug hub
+`0x3ffc0000000`, and five ILAs including `u_ila_build90`.  Observe the complete
+boot.  If it does not reach Linux, use the Build 90 ILA to distinguish a CSR
+TIME access/permission/retirement problem from a new unrelated stop, then
+create the next targeted build automatically.  Do not program Build 89 again.
+
 ## Current boundary after Build 89 board rejection -- 2026-07-18
 
 Build 89 is implementation-clean but failed its board causal gate.  Programming

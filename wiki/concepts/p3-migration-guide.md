@@ -1176,6 +1176,29 @@ repair path is a clean RTL rebuild that adds TIME inside `csr_regfile` before
 synthesis; do not continue moving a functional mux among synthesized
 `wdata_commit_id` hierarchy segments.
 
+Build 90 implements that required clean boundary.  The 1x1 self-contained
+project enables `P3_TIME_CSR_DIV128`, so CSR TIME selects `cycle_q >> 7`
+inside `csr_regfile.sv`; no functional post-route ECO touches the general GPR
+writeback network.  Its implementation-only `u_ila_build90` observes commit
+PC/valid/ack, FU/op, CSR address/illegal, privilege, `mcounteren`, and
+`cycle_q`, allowing board evidence to distinguish a TIME access from a general
+pipeline stop.  Implementation closed with 156,076 fully routed nets, zero
+routing errors, WNS/WHS `17.126/0.020 ns`, and no final DRC errors.  The PDI
+SHA-256 is `891eeaa6...01fc29`; these are board-eligibility results, not yet a
+functional claim that Linux `rdtime` retires.
+
+The Build 90 resume exposed a broader self-contained-source rule.  A project
+that changes tile count must regenerate every PyHP-derived file already used
+by its snapshot, not only `define.tmp.h`, `chip.tmp.v`, `tile.tmp.v`, and the
+obvious coordinate helpers.  The stale 8x8 snapshot also contained an 8x8
+`io_xbar_top.tmp.v`, whose port expansion failed a 1x1 synthesis with
+undeclared `yummyIn_/yummyOut_` signals.  The corrected resume flow walks the
+snapshot, maps each `.tmp.v/.tmp.h` back to its live `.v.pyv/.h.pyv` template,
+and regenerates it atomically with the requested tile environment.  Build 90
+refreshed 89 outputs and then passed XPR/fileset, tile-count, and aperture
+validation.  Generated files without a PyHP template, such as
+`cross_module.tmp.h`, are preserved rather than guessed.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
