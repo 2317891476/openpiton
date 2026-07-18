@@ -559,29 +559,73 @@ proc p3_regenerate_pyhp_tmp {repo_dir} {
 }
 
 proc p3_sync_generated_pyhp_snapshot {repo_dir project_dir} {
-    set generated_rel_paths [list \
-        "piton/design/include/define.tmp.h" \
-        "piton/design/chip/rtl/chip.tmp.v" \
-        "piton/design/chip/tile/rtl/tile.tmp.v" \
-        "piton/design/chipset/rtl/chipset_impl.tmp.v" \
-        "piton/design/chip/tile/common/rtl/flat_id_to_xy.tmp.v" \
-        "piton/design/chip/tile/common/rtl/xy_to_flat_id.tmp.v" \
-    ]
+    set snapshot_root [file normalize "${project_dir}/source_snapshot"]
+    set snapshot_root_slash [p3_slash_path $snapshot_root]
+    set repo_wsl [p3_to_wsl_path $repo_dir]
+    set pyhp_wsl "${repo_wsl}/piton/tools/bin/pyhp.py"
+    set x_tiles $::env(PITON_X_TILES)
+    set y_tiles $::env(PITON_Y_TILES)
+    set num_tiles $::env(PITON_NUM_TILES)
+    set pending_dirs [list $snapshot_root]
+    set refreshed_count 0
 
-    foreach rel_path $generated_rel_paths {
-        set src [file normalize "${repo_dir}/${rel_path}"]
-        set dst [file normalize "${project_dir}/source_snapshot/${rel_path}"]
-        if {![file exists $src] || [file size $src] == 0} {
-            puts "ERROR: cannot refresh self-contained PyHP snapshot from missing output: ${src}"
-            exit 1
-        }
-        if {![file exists [file dirname $dst]]} {
-            puts "ERROR: self-contained snapshot directory is missing for generated output: [file dirname $dst]"
-            exit 1
-        }
-        file copy -force $src $dst
-        puts "Refreshed self-contained PyHP output: ${dst}"
+    if {![file isdirectory $snapshot_root]} {
+        puts "ERROR: self-contained source snapshot is missing: ${snapshot_root}"
+        exit 1
     }
+
+    while {[llength $pending_dirs] > 0} {
+        set current_dir [lindex $pending_dirs 0]
+        set pending_dirs [lrange $pending_dirs 1 end]
+        foreach snapshot_file [glob -nocomplain -directory $current_dir *] {
+            if {[file isdirectory $snapshot_file]} {
+                if {[file tail $snapshot_file] ni [list .git .Xil .cache]} {
+                    lappend pending_dirs [file normalize $snapshot_file]
+                }
+                continue
+            }
+
+            set snapshot_file [file normalize $snapshot_file]
+            set snapshot_slash [p3_slash_path $snapshot_file]
+            if {[string first "${snapshot_root_slash}/" $snapshot_slash] != 0} {
+                puts "ERROR: generated snapshot output escaped the snapshot root: ${snapshot_file}"
+                exit 1
+            }
+            set rel_path [string range $snapshot_slash \
+                [expr {[string length $snapshot_root_slash] + 1}] end]
+            if {[regexp {^(.*)\.tmp\.v$} $rel_path -> stem]} {
+                set template_rel "${stem}.v.pyv"
+            } elseif {[regexp {^(.*)\.tmp\.h$} $rel_path -> stem]} {
+                set template_rel "${stem}.h.pyv"
+            } else {
+                continue
+            }
+
+            set template [file normalize "${repo_dir}/${template_rel}"]
+            if {![file exists $template]} {
+                puts "Info: Keeping generated snapshot output without a PyHP template: ${rel_path}"
+                continue
+            }
+
+            set template_wsl [p3_to_wsl_path $template]
+            set snapshot_wsl [p3_to_wsl_path $snapshot_file]
+            set staged_wsl "${snapshot_wsl}.p3new"
+            set cmd "set -e; export PITON_ROOT=${repo_wsl}; export DV_ROOT=${repo_wsl}/piton; export PROTOSYN_RUNTIME_DESIGN_PATH=${repo_wsl}/piton/design/xilinx; export PROTOSYN_RUNTIME_BOARD=huaprop3; export PITON_X_TILES=${x_tiles}; export PITON_Y_TILES=${y_tiles}; export PITON_NUM_TILES=${num_tiles}; export PITON_ARIANE=1; export PITON_RV64_PLATFORM=1; python3 ${pyhp_wsl} ${template_wsl} > ${staged_wsl}; test -s ${staged_wsl}; mv ${staged_wsl} ${snapshot_wsl}"
+            if {[catch {exec bash -lc $cmd 2>@1} pyhp_log]} {
+                puts $pyhp_log
+                puts "ERROR: failed to refresh self-contained PyHP output: ${rel_path}"
+                exit 1
+            }
+            incr refreshed_count
+            puts "Refreshed self-contained PyHP output: ${rel_path}"
+        }
+    }
+
+    if {$refreshed_count == 0} {
+        puts "ERROR: no self-contained PyHP outputs were refreshed under ${snapshot_root}"
+        exit 1
+    }
+    puts "Refreshed ${refreshed_count} self-contained PyHP outputs for ${x_tiles}x${y_tiles} (${num_tiles} tiles)."
 }
 
 proc p3_copy_run_output {run_dir output_dir pdi_basename} {

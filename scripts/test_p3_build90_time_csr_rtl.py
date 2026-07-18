@@ -82,15 +82,12 @@ class Build90TimeCsrRtlTest(unittest.TestCase):
 
     def test_resumed_build_refreshes_tile_dependent_snapshot_outputs(self) -> None:
         self.assertIn("proc p3_sync_generated_pyhp_snapshot", self.common)
-        for token in (
-            "define.tmp.h",
-            "chip.tmp.v",
-            "tile.tmp.v",
-            "chipset_impl.tmp.v",
-            "flat_id_to_xy.tmp.v",
-            "xy_to_flat_id.tmp.v",
-        ):
-            self.assertIn(token, self.common)
+        self.assertIn(r"regexp {^(.*)\.tmp\.v$}", self.common)
+        self.assertIn(r"regexp {^(.*)\.tmp\.h$}", self.common)
+        self.assertIn('set template_rel "${stem}.v.pyv"', self.common)
+        self.assertIn('set template_rel "${stem}.h.pyv"', self.common)
+        self.assertIn('set staged_wsl "${snapshot_wsl}.p3new"', self.common)
+        self.assertIn("Refreshed ${refreshed_count} self-contained PyHP outputs", self.common)
         self.assertIn(
             "if {!$run_create && $p3_self_contained_sources}", self.common
         )
