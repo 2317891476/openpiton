@@ -243,8 +243,9 @@ if {!$resume_from_build87} {
 
     puts "Placing 70 Build 87 functional ECO cells"
     # VP1902 checkpoints use Vivado Advanced Flow.  Its dedicated incremental
-    # placement mode is -eco; the legacy -post_place_opt option is rejected.
-    place_design -eco
+    # placement mode is -eco with non-timing-driven placement; the legacy
+    # -post_place_opt option and an unqualified -eco invocation are rejected.
+    place_design -eco -no_timing_driven
     foreach cell $eco_cells {
         if {[get_property LOC $cell] eq ""} {
             error "Build 87 ECO cell remains unplaced: $cell"
