@@ -1117,7 +1117,9 @@ file and call it fixed.
 
 When applying the single-hart control as a post-placement VP1902 ECO, note
 that Vivado Advanced Flow does not accept the legacy
-`place_design -post_place_opt` option.  Treat that diagnostic as an
+`place_design -post_place_opt` option.  Its supported ECO invocation is
+`place_design -eco -no_timing_driven`; `-eco` alone is rejected with
+`Common 17-69`.  Treat either diagnostic as an
 implementation-flow gate rather than a functional TIME-CSR result: no image is
 valid until every inserted cell is placed, ECO routing completes, and the
 usual route, timing, DRC, LTX, and PDI checks pass.

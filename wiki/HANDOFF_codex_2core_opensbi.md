@@ -12,10 +12,13 @@ The third Build 87 ECO attempt successfully created and rewired the complete
 70-cell implementation, including the `csr_addr==0xc01`, commit-valid, and
 CSR-FU qualification.  It stopped before placement because Vivado Advanced
 Flow rejects the legacy `place_design -post_place_opt` option with
-`Vivado_Tcl 4-2312`.  This means the earlier segmented-net repair is validated,
-but no Build 87 DCP/LTX/PDI exists yet.  Replace only the unsupported placement
-step with an Advanced-Flow-supported ECO placement path, require locations for
-all 70 cells, and retain the existing `route_design -eco` plus signoff gates.
+`Vivado_Tcl 4-2312`.  The fourth attempt used `place_design -eco`, and Vivado
+then specified the remaining Advanced Flow requirement with `Common 17-69`:
+ECO placement is supported only together with `-no_timing_driven`.  The
+correct next invocation is therefore
+`place_design -eco -no_timing_driven`.  The earlier segmented-net repair is
+validated, but no Build 87 DCP/LTX/PDI exists yet.  Require locations for all
+70 cells and retain the existing `route_design -eco` plus signoff gates.
 
 ## Current boundary after Build 86 -- 2026-07-18
 
