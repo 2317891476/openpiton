@@ -16,9 +16,9 @@ class Build90RdtimeCaptureTest(unittest.TestCase):
 
     def test_uses_clean_rtl_ila_and_exact_linux_pc(self) -> None:
         self.assertIn("CELL_NAME == u_ila_build90", self.capture)
-        self.assertIn("0xffffffff807d8a9e", self.capture)
+        self.assertIn('trigger_pc_hex "ffffffff807d8a9e"', self.capture)
         self.assertIn("commit_instr_id_commit[0][pc]", self.capture)
-        self.assertIn("eq64'h%016x", self.capture)
+        self.assertIn('"eq64\'h${trigger_pc_hex}"', self.capture)
 
     def test_capture_depth_and_output_are_fail_closed(self) -> None:
         self.assertIn("CONTROL.DATA_DEPTH 4096", self.capture)

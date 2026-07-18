@@ -9,7 +9,7 @@ set default_ltx \
     {Z:/home/illya/openpiton/huaprop3_build90_time_csr_rtl/debug_build/p3_top_build90_time_csr_rtl.ltx}
 set default_output_dir \
     {Z:/home/illya/openpiton/huaprop3_build90_time_csr_rtl/rdtime_capture}
-set trigger_pc 0xffffffff807d8a9e
+set trigger_pc_hex "ffffffff807d8a9e"
 set commit_pc_name \
     {u_openpiton/system_inst/chip/tile0/g_ariane_core.core/ariane/i_cva6/issue_stage_i/i_scoreboard/commit_instr_id_commit[0][pc]}
 
@@ -58,10 +58,10 @@ set pc_probe [p3_require_one hw_probe \
     [get_hw_probes -quiet -of_objects $ila [list $commit_pc_name]] \
     $commit_pc_name]
 set_property TRIGGER_COMPARE_VALUE \
-    [format "eq64'h%016x" $trigger_pc] $pc_probe
+    "eq64'h${trigger_pc_hex}" $pc_probe
 set_property CONTROL.DATA_DEPTH 4096 $ila
 set_property CONTROL.TRIGGER_POSITION 512 $ila
-puts [format "Build 90 trigger: commit_pc==0x%016x" $trigger_pc]
+puts "Build 90 trigger: commit_pc==0x${trigger_pc_hex}"
 
 run_hw_ila $ila
 wait_on_hw_ila $ila
