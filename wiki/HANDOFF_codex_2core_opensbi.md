@@ -6,6 +6,47 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Current boundary after Build 86 -- 2026-07-18
+
+Build 86 retires the Build 84/85 interpretation that Linux is permanently
+blocked at the `timekeeping_update` FENCE.  Its committed-store queue capture
+shows the `0x81485280` store accepted with request/grant `1/1` and removed from
+the queue on the next cycle.  Three later complete-PC snapshots contain
+333/393/393 distinct PCs, proving continued execution.
+
+The full sequence is now resolved:
+
+`Linux udelay rdtime` -> `_trap_handler` -> `sbi_trap_handler` ->
+`sbi_illegal_insn_handler` -> `sbi_emulate_csr_read` -> `mtimer_time_rd64` ->
+`mret`.
+
+The decisive Linux PC is `0xffffffff807d8a9e`; representative OpenSBI PCs are
+`0x8000ceb8`, `0x80016992`, `0x80021744`, `0x80021c6c`, and the trap return at
+`0x800004f4/0x800004fc`.  One software-emulated `rdtime` consumes roughly 800
+commit-PC samples, which explains why UART appears stopped even though the
+core is live.
+
+The RTL cause is `piton/design/chip/tile/ariane/core/csr_regfile.sv`: it has
+read cases for CYCLE/INSTRET but none for TIME/TIMEH.  Build 80 measured
+`mcounteren=0x3f`, so `TM=1`; the trap is not an access-permission failure.
+Instead, legal S-mode `rdtime` reaches the missing-CSR default and becomes an
+illegal instruction that OpenSBI emulates by reading CLINT `mtime`.
+
+Build 86 artifacts are PDI SHA-256 `de9d6ed2...f386e`, LTX SHA-256
+`85a1f33a...346d`, and pre-route DCP SHA-256 `64c45881...b680`.  Programming
+reported `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four ILAs.  The
+current UART log is
+`~/p3_uart_logs/ttyUSB0_20260718_085314_build86_store_queue.log`.
+
+Next action is Build 87, a single-hart causal functional ECO that returns
+`cycle_q >> 7` for CSR `0xc01`, matching P3's 30 MHz / 128 = 234375 Hz
+timebase, and clears the illegal result for that address.  The equivalent
+tracked RTL is guarded by `P3_TIME_CSR_DIV128`, with a printf-free `rdtime_p3.c`
+regression.  This does not yet claim the final 64-hart shared-time
+architecture: a true CLINT `mtime` path from chipset to every tile needs an
+explicit 64-bit CDC/coherent-snapshot design.  Do not rewrite the SD card for
+Build 87; only the PDI changes.
+
 ## Current boundary after Build 83 -- 2026-07-18
 
 Build 82 produced two different pieces of evidence.  Its synchronized trigger

@@ -1080,6 +1080,41 @@ OpenSBI v1.8 UART banner reported
 the separate Linux-early stop after reserved-memory discovery, so that symptom
 must not be used to reopen the now-verified timer-frequency bug.
 
+### 14.2 Architectural TIME CSR must not fall back to an illegal-instruction loop
+
+The CLINT `mtime` device and the architectural `time` CSR are related but not
+identical interfaces.  Linux normally uses `rdtime`, which reads CSR `0xc01`
+without an MMIO transaction.  OpenSBI can emulate that instruction after an
+illegal-instruction trap by reading CLINT `mtime`, but that path is a
+compatibility fallback, not an acceptable steady-state implementation for
+Linux delay loops.
+
+The integrated Ariane `csr_regfile.sv` originally implemented CYCLE and
+INSTRET but omitted TIME/TIMEH.  On P3, Build 80 proved `mcounteren.TM=1`, yet
+Build 86 captured every Linux `rdtime` entering
+`sbi_illegal_insn_handler` -> `sbi_emulate_csr_read` -> `mtimer_time_rd64` and
+returning through `mret`.  The core remained live, but a single read consumed
+about 800 commit-PC samples.  This can make an otherwise-correct Linux boot
+look frozen for minutes and can invalidate conclusions drawn from a quiet
+UART or one transient FENCE/store snapshot.
+
+For the 30 MHz P3 single-hart control, `cycle_q >> 7` has the same 234375 Hz
+tick rate as CLINT `mtime` and is a useful functional A/B implementation.  It
+must be explicitly platform-guarded (`P3_TIME_CSR_DIV128`) so targets with a
+different CPU/RTC relationship do not silently inherit the wrong timebase.
+Validation requires all three layers: S-mode `rdtime` retires without an
+illegal trap when `mcounteren.TM=1`; repeated reads advance at the declared
+rate; and the existing CLINT timer-interrupt/`mtimecmp` path is unchanged.
+
+This divided-cycle implementation is not automatically the final multicore
+architecture.  Independent per-hart cycle counters can differ across reset,
+debug halt, or clock gating, while architectural TIME is expected to represent
+one platform timebase.  A general 2/64-hart fix should export the real CLINT
+time through a deliberate chipset-to-tile interface, including a safe 64-bit
+CDC/coherent snapshot, or provide a separately specified common counter.  Do
+not connect an asynchronous 64-bit binary `mtime_q` bus directly to every CSR
+file and call it fixed.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
