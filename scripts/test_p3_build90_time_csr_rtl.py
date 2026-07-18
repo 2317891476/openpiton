@@ -31,8 +31,10 @@ class Build90TimeCsrRtlTest(unittest.TestCase):
     def test_prepare_override_is_fail_closed_and_sanitizes_snapshot(self) -> None:
         self.assertIn("P3_BUILD52_PREPARE_TCL", self.common)
         self.assertIn("missing Build 52 prepare script", self.common)
+        self.assertIn("/mnt/[string tolower $drive]/$rest", self.common)
         self.assertIn("git -C ${plic_repo_wsl} show HEAD", self.prepare)
         self.assertIn("git hash-object ${snapshot_plic_wsl}", self.prepare)
+        self.assertIn("actual_blob ne $expected_blob", self.prepare)
         self.assertIn("csr_rdata = cycle_q >> 7", self.prepare)
         self.assertIn("p3_prepare_build52_sd_cd_mask_ila.tcl", self.prepare)
 

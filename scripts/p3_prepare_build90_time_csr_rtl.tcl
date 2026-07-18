@@ -34,10 +34,17 @@ foreach {path label} [list \
 set plic_repo_wsl [p3_to_wsl_path $plic_repo]
 set snapshot_plic_wsl [p3_to_wsl_path $snapshot_plic]
 set clean_cmd \
-    "set -e; git -C ${plic_repo_wsl} show HEAD:rtl/plic_regmap.sv > ${snapshot_plic_wsl}; test \"\$(git -C ${plic_repo_wsl} rev-parse HEAD:rtl/plic_regmap.sv)\" = \"\$(git hash-object ${snapshot_plic_wsl})\""
+    "set -e; git -C ${plic_repo_wsl} show HEAD:rtl/plic_regmap.sv > ${snapshot_plic_wsl}"
 if {[catch {exec bash -lc $clean_cmd 2>@1} clean_log]} {
     puts $clean_log
     error "failed to restore clean rv_plic RTL inside the Build 90 snapshot"
+}
+set expected_blob [string trim [exec bash -lc \
+    "git -C ${plic_repo_wsl} rev-parse HEAD:rtl/plic_regmap.sv"]]
+set actual_blob [string trim [exec bash -lc \
+    "git hash-object ${snapshot_plic_wsl}"]]
+if {$actual_blob ne $expected_blob} {
+    error "Build 90 snapshot PLIC blob mismatch: expected $expected_blob got $actual_blob"
 }
 puts "Build 90 snapshot PLIC restored from nested submodule HEAD: $snapshot_plic"
 

@@ -410,6 +410,9 @@ proc p3_to_wsl_path {path} {
     if {[regexp {^[A-Za-z]:/(home/.*)$} $norm -> rest]} {
         return "/$rest"
     }
+    if {[regexp {^([A-Za-z]):/(.*)$} $norm -> drive rest]} {
+        return "/mnt/[string tolower $drive]/$rest"
+    }
     if {[regexp {^//wsl\.localhost/[^/]+(/.*)$} $norm -> rest]} {
         return $rest
     }
