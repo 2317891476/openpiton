@@ -6,7 +6,46 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current boundary after Build 90 board validation -- 2026-07-18
+## Current boundary after Build 91 board capture -- 2026-07-18
+
+Build 91 rejects the interpretation that Linux is stuck because TIME or
+`udelay()` arithmetic is broken.  It is a diagnostic-only incremental image
+from the clean Build 90 routed design; no functional RTL, cell, driver, or SD
+payload changed.  All 155,967 routable nets are fully routed, WNS/WHS is
+`17.126/0.020 ns`, and final DRC contains 190 warning checks and zero errors.
+The PDI SHA-256 is `990e3c60...04190f`, and the LTX SHA-256 is
+`0038dab0...f2667ed`.
+
+Programming reported `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and five
+ILAs.  The persistent UART log is
+`~/p3_uart_logs/ttyUSB0_20260718_175002_build91_udelay_values.log`; it reaches
+the same complete OpenSBI summary and currently remains 61,079 bytes.
+
+At Linux branch PC `0xffffffff807d8aa4`, the synchronized ILA values are:
+
+- `a3/start = 128969747`;
+- `a4/threshold = 234` TIME ticks;
+- `a5/raw TIME = 128969748` at the preceding subtract instruction;
+- `a5/delta = 1`, exactly matching `raw TIME - start`.
+
+Later branch samples advance from delta 1 to 2 to 3.  At the validated
+234375 Hz timebase, threshold 234 is an ordinary approximately 1 ms delay.
+Build 91 therefore proves the TIME result, subtract/writeback path, threshold,
+and loop progress are coherent.  Do not change the RTL TIME divider and do not
+treat `udelay()` itself as the blocker.
+
+Three later control-ILA snapshots contain 5, 803, and 297 distinct PCs.  They
+show Linux IRQ/hrtimer/timekeeping and OpenSBI timer-trap execution, not a
+stable no-commit state.  The unresolved question is the caller/context that
+keeps entering the correct 1 ms delay while Linux UART remains silent.
+
+Next action is automatic Build 92, still diagnostic-only: capture `ra/x1`,
+`a0/x10`, and `sp/x2` together with the udelay PC.  Resolve the captured RA
+against the matching Linux vmlinux whose Image SHA-256 is
+`47c9daa8...a6441b`.  This directly identifies the call site and requested
+delay before choosing any functional fix.  Keep the SD card unchanged.
+
+## Previous boundary after Build 90 board validation -- 2026-07-18
 
 Build 90 is programmed and has passed its causal TIME gate.  Vivado reported
 `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and five ILAs including

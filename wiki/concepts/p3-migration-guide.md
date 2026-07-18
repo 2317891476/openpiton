@@ -1216,6 +1216,15 @@ the actual TIME result and the loop's start/threshold/delta operands; it must
 not infer that the original TIME bug returned merely because the Linux banner
 is absent.
 
+Build 91 closed that follow-up data question.  At the Linux udelay branch it
+captured start `128969747`, threshold `234`, raw TIME `128969748`, and delta
+`1`; the subtraction matches exactly, and subsequent branch samples advance
+through deltas 2 and 3.  At 234375 Hz, 234 ticks is an ordinary 1 ms delay.
+Repeated snapshots also show hundreds of distinct Linux and OpenSBI timer/IRQ
+PCs.  A frequently sampled delay loop is not by itself a hang: after proving
+its operands and progress, the useful next layer is its return address and
+argument, which identify the caller that is requesting the delay.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
