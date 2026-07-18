@@ -6,7 +6,40 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current boundary after Build 91 board capture -- 2026-07-18
+## Current boundary after Build 92 stable-load capture -- 2026-07-18
+
+Build 92 found the deterministic blocker that Build 91 did not.  It is
+diagnostic-only, functionally identical to Build 90, and leaves the SD payload
+unchanged.  Its PDI SHA-256 is `86527406...22abc77`, LTX SHA-256 is
+`1ded0c1d...299cb31c`; implementation has 155,967 fully routed nets, WNS/WHS
+`17.126/0.020 ns`, and 190 warning-class DRC checks with zero errors.
+Programming reported `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and five
+ILAs.  UART again reaches the complete OpenSBI summary and then remains at
+61,079 bytes in
+`~/p3_uart_logs/ttyUSB0_20260718_184011_build92_udelay_caller.log`.
+
+The exact udelay trigger did not fire for 900 seconds.  Three subsequent
+4096-sample control snapshots, taken about 20 seconds apart, are instead
+identical: every sample is Linux PC `0xffffffff8018a7a6`, commit valid/ack
+`0/0`, FU `LOAD`, op `LW`.  The matching vmlinux resolves this to
+`d_set_d_op()` at `lw a4,0(a0)`.
+
+The retained Build 92 registers then captured:
+
+- RA `0xffffffff8018ad70`, returning to `__d_alloc()`; the call is the
+  `jal d_set_d_op` at `0xffffffff8018ad6c`;
+- `a0 = 0xffffffd801c12b40`, the newly allocated dentry address, mapping to
+  physical DDR near `0x81c12b40`;
+- SP `0xffffffc800093c90`.
+
+This is now a load-forward-progress problem, not a TIME, udelay, UART, or VFS
+logic diagnosis.  The next automatic build must observe the exact hardware
+layers in order: load-unit request/grant, D-cache port 0 request/grant/return,
+WT D-cache miss/MSHR request/ack, adapter request FIFO and L1.5 request-ack,
+then return-valid routing back to port 0.  Select the first missing handshake
+before changing RTL.
+
+## Previous boundary after Build 91 board capture -- 2026-07-18
 
 Build 91 rejects the interpretation that Linux is stuck because TIME or
 `udelay()` arithmetic is broken.  It is a diagnostic-only incremental image
