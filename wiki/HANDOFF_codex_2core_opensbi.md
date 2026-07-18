@@ -6,7 +6,7 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current Build 87 board-validation gate -- 2026-07-18
+## Current boundary after Build 87 board rejection -- 2026-07-18
 
 Build 87 now implements successfully with
 `place_design -eco -no_timing_driven`.  All 70 ECO cells are placed, all
@@ -15,11 +15,22 @@ has only the 169 Build 86 baseline warnings.  The board-candidate PDI is
 `D:/p3b87_time_csr_eco/p3_top_build87_time_csr_eco.pdi`, 11,976,704 bytes,
 SHA-256 `10e11d8b...b3cd`; the LTX SHA-256 remains
 `85a1f33a...346d`, and the pre-route DCP SHA-256 is
-`36958709...3a4c`.  Start a fresh UART capture before programming.  The board
-gate is not just DONE/debug-hub enumeration: capture Linux's known
-`rdtime` PC and require retirement in the Linux window without any OpenSBI PC
-from the illegal-instruction/CSR-emulation path.  The SD card does not need
-rewriting.
+`36958709...3a4c`.  Those implementation gates passed, but the board causal
+gate failed.  A reliable run reached the complete OpenSBI summary and then
+stopped; the `rdtime` trigger never fired.  Three byte-identical snapshots each
+held 1,024 copies of Linux PC `0xffffffff8063e2e4`
+(`of_device_uevent+0x13c`, `ld ra,56(sp)`), while commit valid/ack, store queues,
+WT requests, and transaction slots were all zero.  The frozen UART log is
+`ttyUSB0_20260718_115034_build87_time_csr_retry.log`, 71,747 bytes, SHA-256
+`f817712c...216c8`.
+
+Do not program Build 87 again.  Its functional mux was inserted on global
+`wdata_commit_id`, which feeds all instruction-result/scoreboard consumers and
+is not an acceptable CSR-local ECO boundary.  The next build must start from
+the clean Build 86 checkpoint and insert the `/128` TIME value only at the
+CSR-specific `csr_rdata_csr_commit` leaf input used by the commit stage, while
+clearing the matching TIME illegal-result signal.  Keep all non-CSR/global
+writeback nets unchanged.  The SD card still does not need rewriting.
 
 ## Current boundary after Build 86 -- 2026-07-18
 

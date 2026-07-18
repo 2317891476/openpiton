@@ -1132,6 +1132,17 @@ they do not by themselves prove architectural TIME behavior.  Hardware must
 still show that S-mode `rdtime` remains in the Linux retirement window and no
 longer traverses OpenSBI's illegal-instruction emulator.
 
+The subsequent board run rejected Build 87 despite those clean implementation
+numbers.  Linux reached a new stable no-commit boundary at
+`of_device_uevent+0x13c`, before the expected `rdtime` trigger, with all probed
+store/WT state empty.  The failed experiment inserted the TIME mux on global
+`wdata_commit_id`; implemented-net inspection shows that this network fans into
+the general scoreboard/result machinery for every instruction.  Therefore a
+functional ECO must respect the RTL ownership boundary: substitute TIME on the
+CSR-only `csr_rdata_csr_commit` input consumed by commit-stage CSR handling,
+not on the global writeback result bus.  Clean timing and routing cannot make
+an over-broad functional interception semantically safe.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
