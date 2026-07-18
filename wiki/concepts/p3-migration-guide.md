@@ -1124,6 +1124,14 @@ implementation-flow gate rather than a functional TIME-CSR result: no image is
 valid until every inserted cell is placed, ECO routing completes, and the
 usual route, timing, DRC, LTX, and PDI checks pass.
 
+Build 87 closes that implementation gate for the single-hart control: all 70
+inserted cells were placed, 151,539/151,539 routable nets completed, formal
+WNS/WHS was `7.078/0.013 ns`, and DRC retained only the 169 warning-class
+baseline checks.  These numbers make the PDI eligible for board validation;
+they do not by themselves prove architectural TIME behavior.  Hardware must
+still show that S-mode `rdtime` remains in the Linux retirement window and no
+longer traverses OpenSBI's illegal-instruction emulator.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.

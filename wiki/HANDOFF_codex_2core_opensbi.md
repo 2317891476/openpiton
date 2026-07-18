@@ -6,19 +6,20 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current Build 87 implementation gate -- 2026-07-18
+## Current Build 87 board-validation gate -- 2026-07-18
 
-The third Build 87 ECO attempt successfully created and rewired the complete
-70-cell implementation, including the `csr_addr==0xc01`, commit-valid, and
-CSR-FU qualification.  It stopped before placement because Vivado Advanced
-Flow rejects the legacy `place_design -post_place_opt` option with
-`Vivado_Tcl 4-2312`.  The fourth attempt used `place_design -eco`, and Vivado
-then specified the remaining Advanced Flow requirement with `Common 17-69`:
-ECO placement is supported only together with `-no_timing_driven`.  The
-correct next invocation is therefore
-`place_design -eco -no_timing_driven`.  The earlier segmented-net repair is
-validated, but no Build 87 DCP/LTX/PDI exists yet.  Require locations for all
-70 cells and retain the existing `route_design -eco` plus signoff gates.
+Build 87 now implements successfully with
+`place_design -eco -no_timing_driven`.  All 70 ECO cells are placed, all
+151,539 routable nets are routed, formal WNS/WHS is `7.078/0.013 ns`, and DRC
+has only the 169 Build 86 baseline warnings.  The board-candidate PDI is
+`D:/p3b87_time_csr_eco/p3_top_build87_time_csr_eco.pdi`, 11,976,704 bytes,
+SHA-256 `10e11d8b...b3cd`; the LTX SHA-256 remains
+`85a1f33a...346d`, and the pre-route DCP SHA-256 is
+`36958709...3a4c`.  Start a fresh UART capture before programming.  The board
+gate is not just DONE/debug-hub enumeration: capture Linux's known
+`rdtime` PC and require retirement in the Linux window without any OpenSBI PC
+from the illegal-instruction/CSR-emulation path.  The SD card does not need
+rewriting.
 
 ## Current boundary after Build 86 -- 2026-07-18
 
