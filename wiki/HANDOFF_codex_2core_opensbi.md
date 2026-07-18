@@ -6,7 +6,33 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
-## Current boundary after Build 89 implementation -- 2026-07-18
+## Current boundary after Build 89 board rejection -- 2026-07-18
+
+Build 89 is implementation-clean but failed its board causal gate.  Programming
+reported `DONE bit: HIGH`, debug hub `0x3ffc0000000`, and four ILAs.  Bootrom
+copied all 65,536 blocks and verified the DDR/SD first words, then UART stopped
+before the OpenSBI banner.  The persistent log is
+`ttyUSB0_20260718_131133_build89_time_csr_boundary.log`, 57,777 bytes,
+SHA-256 `d2a83181...efacc7`; it did not grow for 290 seconds after completion of
+the copy.
+
+The Linux `rdtime` trigger did not fire during a continuous 688-second arm.
+Three byte-identical PC snapshots each contain 1,024 copies of
+`0x80003da8`.  The matching one-hart OpenSBI ELF resolves this to
+`sbi_hart_init()` at `ori a3,a3,1`, after the `rdcycle` probe and before
+`rdtime`.  A four-ILA snapshot has `no_st_pending=1`, `wbuffer_empty=1`, empty
+commit/store/WT/transaction state, and commit valid/ack `0/0` in all samples.
+This is a stable early no-commit state, not an SD, DDR, or store-drain failure.
+
+Do not program Build 89 again.  Although it touched only hierarchy input pins,
+`wdata_commit_id` remains the general commit-stage GPR writeback bus, so it is
+not a safe TIME repair boundary.  Build 90 must rebuild RTL with
+`P3_TIME_CSR_DIV128` enabled so CSR TIME/TIMEH are selected inside
+`csr_regfile.sv` before synthesis compression.  Keep the SD payload unchanged,
+exclude the unrelated dirty nested `rv_plic` source from the self-contained
+snapshot, and retain a PC/commit/CSR diagnostic ILA for the board gate.
+
+## Previous boundary after Build 89 implementation -- 2026-07-18
 
 Build 89 is the board candidate that follows the Build 87 board rejection and
 the Build 88 synthesized-width gate.  It starts from the clean Build 86

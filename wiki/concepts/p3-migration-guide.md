@@ -1164,6 +1164,18 @@ warnings.  These are eligibility checks for board A/B validation, not proof
 that TIME is correct; hardware must still show the Linux `rdtime` instruction
 retiring without the OpenSBI illegal-instruction emulation path.
 
+The board result rejects that Build 89 method as well.  The machine stopped in
+OpenSBI `sbi_hart_init()` at `0x80003da8`, before its `rdtime` probe, with no
+commit, store, WT, or transaction activity.  The important ownership lesson is
+that a single hierarchy pin is not necessarily a narrow semantic boundary:
+`issue_stage_i/wdata_commit_id` is still the general GPR writeback input for
+every instruction.  Post-route muxing it remains broader than the CSR feature
+being repaired even when all unselected LUT truth-table entries are intended
+to be transparent.  After both Build 87 and Build 89, the only supported TIME
+repair path is a clean RTL rebuild that adds TIME inside `csr_regfile` before
+synthesis; do not continue moving a functional mux among synthesized
+`wdata_commit_id` hierarchy segments.
+
 ## 15. P3 Multi-Tile NoC Topology (2x1 and 8x8)
 
 The P3 2-tile and 64-tile designs use the same parameterized OpenPiton mesh RTL. The topology is selected before PyHP generation; it is not a separate 2-core or 64-core implementation.
