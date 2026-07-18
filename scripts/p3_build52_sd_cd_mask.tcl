@@ -309,6 +309,24 @@ proc p3_self_contained_forbidden_patterns {repo_dir} {
     ]
 }
 
+proc p3_has_external_forbidden_path {value pattern project_dir} {
+    set value_lc [string tolower [string map {"\\" "/"} $value]]
+    set pattern_lc [string tolower [string map {"\\" "/"} $pattern]]
+    set project_prefix "[string tolower [p3_slash_path $project_dir]]/"
+    set offset 0
+
+    while {1} {
+        set match_index [string first $pattern_lc $value_lc $offset]
+        if {$match_index < 0} {
+            return 0
+        }
+        if {[string first $project_prefix $value_lc $match_index] != $match_index} {
+            return 1
+        }
+        set offset [expr {$match_index + [string length $pattern_lc]}]
+    }
+}
+
 proc p3_validate_self_contained_xpr {project_dir project_name repo_dir} {
     set xpr_file "${project_dir}/${project_name}.xpr"
     if {![file exists $xpr_file]} {
@@ -321,7 +339,7 @@ proc p3_validate_self_contained_xpr {project_dir project_name repo_dir} {
     close $fh
 
     foreach pattern [p3_self_contained_forbidden_patterns $repo_dir] {
-        if {[string first $pattern $data] >= 0} {
+        if {[p3_has_external_forbidden_path $data $pattern $project_dir]} {
             puts "ERROR: self-contained project XPR contains forbidden live-source path pattern: ${pattern}"
             puts "       XPR: ${xpr_file}"
             exit 1
@@ -368,7 +386,7 @@ proc p3_validate_self_contained_fileset {project_dir repo_dir} {
             exit 1
         }
         foreach pattern [p3_self_contained_forbidden_patterns $repo_dir] {
-            if {[string first $pattern $file_path] >= 0} {
+            if {[p3_has_external_forbidden_path $file_path $pattern $project_dir]} {
                 puts "ERROR: self-contained fileset contains forbidden path pattern ${pattern}: ${file_path}"
                 exit 1
             }
@@ -387,7 +405,7 @@ proc p3_validate_self_contained_fileset {project_dir repo_dir} {
             exit 1
         }
         foreach pattern [p3_self_contained_forbidden_patterns $repo_dir] {
-            if {[string first $pattern $inc_path] >= 0} {
+            if {[p3_has_external_forbidden_path $inc_path $pattern $project_dir]} {
                 puts "ERROR: self-contained include_dirs contains forbidden path pattern ${pattern}: ${inc_path}"
                 exit 1
             }

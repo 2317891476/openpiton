@@ -61,6 +61,25 @@ class Build90TimeCsrRtlTest(unittest.TestCase):
         self.assertIn("u_ila_build90", self.build)
         self.assertIn("p3_rebuild_build66_normal_spi_sd_boot.sh", self.build)
 
+    def test_self_contained_validation_allows_only_current_p3b_workspace(self) -> None:
+        self.assertIn("proc p3_has_external_forbidden_path", self.common)
+        self.assertIn(
+            'set project_prefix "[string tolower [p3_slash_path $project_dir]]/"',
+            self.common,
+        )
+        self.assertIn(
+            "p3_has_external_forbidden_path $data $pattern $project_dir",
+            self.common,
+        )
+        self.assertIn(
+            "p3_has_external_forbidden_path $file_path $pattern $project_dir",
+            self.common,
+        )
+        self.assertIn(
+            "p3_has_external_forbidden_path $inc_path $pattern $project_dir",
+            self.common,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
