@@ -63,6 +63,20 @@ proc ptrue {obj prop} {
     set value [get_property $prop $obj]
     return [expr {$value eq "1" || [string equal -nocase $value "true"]}]
 }
+proc ptrynet {name fallback} {
+    set nets [get_nets -quiet [list $name]]
+    if {[llength $nets] == 1} { return [lindex $nets 0] }
+    return $fallback
+}
+proc cp_try_net {cell_name ref_pin fallback} {
+    set cell [get_cells -quiet [list $cell_name]]
+    if {[llength $cell] != 1} { return $fallback }
+    set pin [get_pins -quiet -of_objects $cell -filter "REF_PIN_NAME == ${ref_pin}"]
+    if {[llength $pin] != 1} { return $fallback }
+    set nets [get_nets -quiet -of_objects $pin]
+    if {[llength $nets] == 1} { return [lindex $nets 0] }
+    return $fallback
+}
 proc reconnect {port_name nets tag} {
     set width [llength $nets]
     set port [req1 debug_port [get_debug_ports -quiet [list $port_name]] $port_name]
@@ -150,12 +164,12 @@ if {!$resume} {
         lappend sd2_i [req1 net [get_nets -quiet -of_objects $pin] "${sd2_lut}/I${i} net"]
     }
 
-    # ---- Deeper LUT-tree intermediates ----
-    set i244_out [pnet "${missunit}/i___244_i_2_n_0"]
-    set i6_out  [pnet "${missunit}/FSM_sequential_state_q\[2\]_i_6__0_n_0"]
-    set reg0_12 [pnet "${missunit}/FSM_sequential_state_q_reg\[0\]_12"]
-    set reg0_13 [pnet "${missunit}/FSM_sequential_state_q_reg\[0\]_13"]
-    set reg0_14 [pnet "${missunit}/FSM_sequential_state_q_reg\[0\]_14"]
+    # ---- Deeper LUT-tree intermediates (resolved from cell pins, not net names) ----
+    set i244_out [cp_try_net "${missunit}/i___244_i_2" O [lindex $sd2_i 0]]
+    set i6_out  [cp_try_net "${missunit}/FSM_sequential_state_q\[2\]_i_6__0" O [lindex $sd2_i 0]]
+    set reg0_12 [lindex $sd2_i 0]
+    set reg0_13 [ptrynet "${missunit}/FSM_sequential_state_q_reg\[0\]_13" [lindex $sd2_i 0]]
+    set reg0_14 [ptrynet "${missunit}/FSM_sequential_state_q_reg\[0\]_14" [lindex $sd2_i 0]]
 
     # ---- L1.5 pipeline boundary (same as Build 98 ILA2, confirmed) ----
     set val_s2 [pnet "${pipeline}/val_s2"]
