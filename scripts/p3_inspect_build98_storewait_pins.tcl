@@ -59,13 +59,22 @@ proc emit_pin_fanout {fh label cell_name ref_pin} {
     set net [req1 net [get_nets -quiet -of_objects $pin] \
         "${cell_name}/${ref_pin} net"]
     puts $fh "\nPIN_FANOUT $label pin=[get_property NAME $pin] net=[get_property NAME $net]"
-    # Direct net ownership identifies actual primitive sinks; all_fanout can
-    # return hierarchy cells whose child pins are on different net segments.
-    set sink_pins [get_pins -quiet -of_objects $net -filter {DIRECTION == IN}]
-    foreach sink_pin [lsort -dictionary $sink_pins] {
-        set sink_cell [req1 cell [get_cells -quiet -of_objects $sink_pin] \
-            "[get_property NAME $sink_pin] cell"]
-        puts $fh "  sink_pin=[get_property NAME $sink_pin] ref=[get_property REF_PIN_NAME $sink_pin] cell=[get_property NAME $sink_cell] cell_ref=[get_property REF_NAME $sink_cell] init=[get_property INIT $sink_cell]"
+    # Restrict the traversal to immediate implementation cells. Full endpoint
+    # traversals also include ILA capture logic and unrelated downstream state.
+    set sink_cells [all_fanout -from $net -flat -only_cells -levels 1]
+    foreach sink_cell [lsort -dictionary $sink_cells] {
+        set sink_name [get_property NAME $sink_cell]
+        set sink_ref [get_property REF_NAME $sink_cell]
+        if {[string match "u_bd/openpiton_top_i/axis_ila_*" $sink_name]} {
+            continue
+        }
+        if {![string match "LUT*" $sink_ref]} {
+            continue
+        }
+        puts $fh "  sink_cell=$sink_name ref=$sink_ref init=[get_property INIT $sink_cell]"
+        foreach sink_pin [lsort -dictionary [get_pins -quiet -of_objects $sink_cell]] {
+            puts $fh "    pin=[get_property NAME $sink_pin] ref=[get_property REF_PIN_NAME $sink_pin] dir=[get_property DIRECTION $sink_pin] nets=[get_nets -quiet -of_objects $sink_pin]"
+        }
     }
 }
 
