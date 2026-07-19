@@ -154,7 +154,20 @@ if {!$resume} {
         "${l2}/mshr_wrap/valid_S2_f_reg\[1\]" \
         "${l2}/mshr_wrap/valid_S2_f_reg\[2\]" \
         "${l2}/mshr_wrap/valid_S2_f_reg\[3\]"] {
-        lappend l2_mshr_vals [pqnet $cell_pattern]
+        set cells [get_cells -quiet [list $cell_pattern]]
+        if {[llength $cells] == 1} {
+            set qpin [req1 pin [get_pins -quiet -of_objects [lindex $cells 0] \
+                -filter {DIRECTION == OUT && REF_PIN_NAME == Q}] "${cell_pattern}/Q"]
+            lappend l2_mshr_vals [req1 net [get_nets -quiet -of_objects $qpin] "${cell_pattern}/Q net"]
+        }
+    }
+    if {[llength $l2_mshr_vals] < 4} {
+        set all_mshr [lsort -unique [get_nets -quiet -hier \
+            -filter "NAME =~ ${l2}/mshr_wrap/valid_S2_f*"]]
+        set l2_mshr_vals [lrange $all_mshr 0 3]
+    }
+    if {[llength $l2_mshr_vals] != 4} {
+        error "expected four retained L2 MSHR valid nets, found [llength $l2_mshr_vals]"
     }
     set ila3_base [concat $pc16 \
         [list $noc1_req_val $creditman_req $noc1_enc_ack $noc1_rtr_val] \
