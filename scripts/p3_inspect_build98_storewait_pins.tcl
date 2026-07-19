@@ -58,18 +58,14 @@ proc emit_pin_fanout {fh label cell_name ref_pin} {
         -filter "REF_PIN_NAME == ${ref_pin}"] "${cell_name}/${ref_pin}"]
     set net [req1 net [get_nets -quiet -of_objects $pin] \
         "${cell_name}/${ref_pin} net"]
-    set net_name [get_property NAME $net]
     puts $fh "\nPIN_FANOUT $label pin=[get_property NAME $pin] net=[get_property NAME $net]"
-    set sinks [all_fanout -from $net -flat -only_cells -levels 1]
-    foreach sink [lsort -dictionary $sinks] {
-        puts $fh "  sink_name=[get_property NAME $sink] ref=[get_property REF_NAME $sink] init=[get_property INIT $sink]"
-        foreach sink_pin [lsort -dictionary [get_pins -quiet -of_objects $sink]] {
-            foreach sink_net [get_nets -quiet -of_objects $sink_pin] {
-                if {[get_property NAME $sink_net] eq $net_name} {
-                    puts $fh "    pin=[get_property NAME $sink_pin] ref=[get_property REF_PIN_NAME $sink_pin] dir=[get_property DIRECTION $sink_pin]"
-                }
-            }
-        }
+    # Direct net ownership identifies actual primitive sinks; all_fanout can
+    # return hierarchy cells whose child pins are on different net segments.
+    set sink_pins [get_pins -quiet -of_objects $net -filter {DIRECTION == IN}]
+    foreach sink_pin [lsort -dictionary $sink_pins] {
+        set sink_cell [req1 cell [get_cells -quiet -of_objects $sink_pin] \
+            "[get_property NAME $sink_pin] cell"]
+        puts $fh "  sink_pin=[get_property NAME $sink_pin] ref=[get_property REF_PIN_NAME $sink_pin] cell=[get_property NAME $sink_cell] cell_ref=[get_property REF_NAME $sink_cell] init=[get_property INIT $sink_cell]"
     }
 }
 
