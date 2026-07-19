@@ -81,6 +81,10 @@ emit_cell_pins $fh dcache_fifo_read_pointer "${dcfifo}/read_pointer_q_reg\[0\]"
 emit_cell_pins $fh dcache_fifo_write_pointer "${dcfifo}/write_pointer_q_reg\[0\]"
 emit_pin_driver $fh missunit_state_ce "${missunit}/FSM_sequential_state_q_reg\[0\]" CE
 emit_pin_driver $fh dcache_fifo_count_ce "${dcfifo}/status_cnt_q_reg\[0\]" CE
+for {set bit 0} {$bit < 6} {incr bit} {
+    emit_pin_driver $fh "missunit_state_ce_lut_i${bit}" \
+        "${missunit}/FSM_sequential_state_q\[2\]_i_1__0" "I${bit}"
+}
 
 close $fh
 close_design
