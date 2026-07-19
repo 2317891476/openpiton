@@ -28,6 +28,30 @@ proc emit_cell_pins {fh label cell_name} {
     }
 }
 
+proc emit_pin_driver {fh label cell_name ref_pin} {
+    set cell [req1 cell [get_cells -quiet [list $cell_name]] $cell_name]
+    set pin [req1 pin [get_pins -quiet -of_objects $cell \
+        -filter "REF_PIN_NAME == ${ref_pin}"] "${cell_name}/${ref_pin}"]
+    set net [req1 net [get_nets -quiet -of_objects $pin] \
+        "${cell_name}/${ref_pin} net"]
+    puts $fh "\nPIN_DRIVER $label pin=[get_property NAME $pin] net=[get_property NAME $net]"
+    set drivers [get_pins -quiet -of_objects $net -filter {DIRECTION == OUT}]
+    if {[llength $drivers] == 0} {
+        puts $fh {  drivers=<none>}
+    }
+    foreach driver [lsort -dictionary $drivers] {
+        set driver_cell [get_cells -quiet -of_objects $driver]
+        puts $fh "  driver_pin=[get_property NAME $driver] cell=$driver_cell"
+        foreach source_cell $driver_cell {
+            puts $fh "  driver_cell_name=[get_property NAME $source_cell] ref=[get_property REF_NAME $source_cell] init=[get_property INIT $source_cell]"
+            foreach source_pin [lsort -dictionary [get_pins -quiet -of_objects $source_cell]] {
+                set source_nets [get_nets -quiet -of_objects $source_pin]
+                puts $fh "    pin=[get_property NAME $source_pin] ref=[get_property REF_PIN_NAME $source_pin] dir=[get_property DIRECTION $source_pin] nets=$source_nets"
+            }
+        }
+    }
+}
+
 puts "Opening routed checkpoint: $input_dcp"
 open_checkpoint $input_dcp
 set fh [open $report_file w]
@@ -55,6 +79,8 @@ for {set bit 0} {$bit < 2} {incr bit} {
 }
 emit_cell_pins $fh dcache_fifo_read_pointer "${dcfifo}/read_pointer_q_reg\[0\]"
 emit_cell_pins $fh dcache_fifo_write_pointer "${dcfifo}/write_pointer_q_reg\[0\]"
+emit_pin_driver $fh missunit_state_ce "${missunit}/FSM_sequential_state_q_reg\[0\]" CE
+emit_pin_driver $fh dcache_fifo_count_ce "${dcfifo}/status_cnt_q_reg\[0\]" CE
 
 close $fh
 close_design
