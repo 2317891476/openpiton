@@ -52,6 +52,24 @@ proc emit_pin_driver {fh label cell_name ref_pin} {
     }
 }
 
+proc emit_pin_fanout {fh label cell_name ref_pin} {
+    set cell [req1 cell [get_cells -quiet [list $cell_name]] $cell_name]
+    set pin [req1 pin [get_pins -quiet -of_objects $cell \
+        -filter "REF_PIN_NAME == ${ref_pin}"] "${cell_name}/${ref_pin}"]
+    set net [req1 net [get_nets -quiet -of_objects $pin] \
+        "${cell_name}/${ref_pin} net"]
+    puts $fh "\nPIN_FANOUT $label pin=[get_property NAME $pin] net=[get_property NAME $net]"
+    set sinks [all_fanout -from $net -flat -only_cells -levels 1]
+    foreach sink [lsort -dictionary $sinks] {
+        puts $fh "  sink_name=[get_property NAME $sink] ref=[get_property REF_NAME $sink] init=[get_property INIT $sink]"
+        foreach sink_pin [lsort -dictionary [get_pins -quiet -of_objects $sink]] {
+            if {[lsearch -exact [get_nets -quiet -of_objects $sink_pin] $net] >= 0} {
+                puts $fh "    pin=[get_property NAME $sink_pin] ref=[get_property REF_PIN_NAME $sink_pin] dir=[get_property DIRECTION $sink_pin]"
+            }
+        }
+    }
+}
+
 puts "Opening routed checkpoint: $input_dcp"
 open_checkpoint $input_dcp
 set fh [open $report_file w]
@@ -84,6 +102,10 @@ emit_pin_driver $fh dcache_fifo_count_ce "${dcfifo}/status_cnt_q_reg\[0\]" CE
 for {set bit 0} {$bit < 6} {incr bit} {
     emit_pin_driver $fh "missunit_state_ce_lut_i${bit}" \
         "${missunit}/FSM_sequential_state_q\[2\]_i_1__0" "I${bit}"
+}
+for {set bit 0} {$bit < 2} {incr bit} {
+    emit_pin_fanout $fh "dcache_fifo_count_q_${bit}" \
+        "${dcfifo}/status_cnt_q_reg\[${bit}\]" Q
 }
 
 close $fh
