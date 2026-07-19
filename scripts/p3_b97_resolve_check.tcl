@@ -33,7 +33,9 @@ proc emit_pins {fh label pattern} {
     puts $fh "\nPINS $label count=[llength $pins] pattern=${pattern}"
     foreach pin $pins {
         set nets [get_nets -quiet -of_objects $pin]
-        puts $fh "  PIN [get_property NAME $pin] DIR=[get_property DIRECTION $pin] NET=[join [get_property NAME $nets] ,]"
+        set net_names {-}
+        if {[llength $nets] != 0} { set net_names [join [get_property NAME $nets] ,] }
+        puts $fh "  PIN [get_property NAME $pin] DIR=[get_property DIRECTION $pin] NET=$net_names"
     }
 }
 

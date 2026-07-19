@@ -114,63 +114,49 @@ if {!$resume} {
     set commit "${cva6}/issue_stage_i/i_scoreboard/commit_instr_id_commit\[0\]"
     set pc16 [pbus "${commit}\[pc\]" 16]
 
-    # ILA1: prove whether the missunit is denied solely because the adapter
-    # FIFO is full, and whether L1.5 acknowledgment can pop that FIFO.
-    set miss_req [pinnet "${missunit}/mem_data_req_o"]
-    set miss_ack [pinnet "${missunit}/mem_data_ack_i"]
-    set miss_rtrn [pinnet "${missunit}/mem_rtrn_vld_i"]
-    set miss_rtype [pinbus "${missunit}/mem_data_o\[rtype\]" 3]
+    # ILA1: retain the already proven AMO/missunit state and add the actual
+    # post-synthesis adapter FIFO state cells. Source-level module-port names
+    # are intentionally not used: the routed DCP has optimized them away.
+    set src_req [pnet "${cva6}/amo_req\[req\]"]
+    set src_ack [pnet "${cva6}/amo_resp\[ack\]"]
+    set no_store_pending [pnet "${cva6}/no_st_pending_ex"]
+    set dc_req [pnet "${dcache}/amo_req\[req\]"]
+    set dc_req_q [pnet "${dcache}/amo_req_q"]
+    set dc_resp_ack [pnet "${dcache}/amo_resp\[ack\]"]
+    set mu_req [pnet "${missunit}/amo_req\[req\]"]
+    set mu_req_q [pnet "${missunit}/amo_req_q"]
+    set mu_resp_ack [pnet "${missunit}/amo_resp\[ack\]"]
     set miss_state [list \
         [pqnet "${missunit}/FSM_sequential_state_q_reg\[0\]"] \
         [pqnet "${missunit}/FSM_sequential_state_q_reg\[1\]"] \
         [pqnet "${missunit}/FSM_sequential_state_q_reg\[2\]"]]
-    set adapter_req [pinnet "${adapter}/dcache_data_req_i"]
-    set adapter_ack [pinnet "${adapter}/dcache_data_ack_o"]
-    set dcf_full [pinnet "${adapter}/i_dcache_data_fifo/full_o"]
-    set dcf_empty [pinnet "${adapter}/i_dcache_data_fifo/empty_o"]
-    set dcf_push [pinnet "${adapter}/i_dcache_data_fifo/push_i"]
-    set dcf_pop [pinnet "${adapter}/i_dcache_data_fifo/pop_i"]
-    set l15_val [pinnet "${adapter}/l15_req_o\[l15_val\]"]
-    set l15_ack [pinnet "${adapter}/l15_rtrn_i\[l15_ack\]"]
-    set l15_return [pinnet "${adapter}/l15_rtrn_i\[l15_val\]"]
-    set l15_atomic [pinnet "${adapter}/l15_rtrn_i\[l15_atomic\]"]
-    set rf_full [pinnet "${adapter}/i_rtrn_fifo/full_o"]
-    set rf_empty [pinnet "${adapter}/i_rtrn_fifo/empty_o"]
-    set rf_push [pinnet "${adapter}/i_rtrn_fifo/push_i"]
-    set rf_pop [pinnet "${adapter}/i_rtrn_fifo/pop_i"]
+    set dcfifo "${adapter}/i_dcache_data_fifo/i_fifo_v3"
+    set dcf_count [list \
+        [pqnet "${dcfifo}/status_cnt_q_reg\[0\]"] \
+        [pqnet "${dcfifo}/status_cnt_q_reg\[1\]"]]
+    set dcf_pointers [list \
+        [pqnet "${dcfifo}/read_pointer_q_reg\[0\]"] \
+        [pqnet "${dcfifo}/write_pointer_q_reg\[0\]"]]
+    set dcf_rtypes [list \
+        [pqnet "${dcfifo}/mem_q_reg\[0\]\[rtype\]\[0\]"] \
+        [pqnet "${dcfifo}/mem_q_reg\[0\]\[rtype\]\[1\]"] \
+        [pqnet "${dcfifo}/mem_q_reg\[1\]\[rtype\]\[0\]"] \
+        [pqnet "${dcfifo}/mem_q_reg\[1\]\[rtype\]\[1\]"]]
     set ila1_base [concat $pc16 [list \
-        $miss_req $miss_ack $miss_rtrn] $miss_rtype $miss_state [list \
-        $adapter_req $adapter_ack $dcf_full $dcf_empty $dcf_push $dcf_pop \
-        $l15_val $l15_ack $l15_return $l15_atomic \
-        $rf_full $rf_empty $rf_push $rf_pop]]
-    set ila1 [concat $ila1_base [lrepeat [expr {64 - [llength $ila1_base]}] $miss_req]]
+        $src_req $src_ack $no_store_pending \
+        $dc_req $dc_req_q $dc_resp_ack \
+        $mu_req $mu_req_q $mu_resp_ack] $miss_state $dcf_count $dcf_pointers $dcf_rtypes]
+    set ila1 [concat $ila1_base [lrepeat [expr {64 - [llength $ila1_base]}] $src_req]]
     if {[llength $ila1] != 64} { error "ILA1 width [llength $ila1]" }
     reconnect "u_bd/openpiton_top_i/axis_ila_1/probe0" $ila1 "${tag_prefix}_adapter"
 
-    # ILA2: follow that FIFO output across the Ariane transducer into the L1.5
-    # pipeline and record the acceptance that should release the FIFO.
-    set trans_val [pnet "${tile}/transducer_l15_val"]
-    set trans_ack [pnet "${tile}/l15_transducer_ack"]
-    set trans_header_ack [pnet "${tile}/l15_transducer_header_ack"]
-    set trans_return [pnet "${tile}/l15_transducer_val"]
-    set trans_req_ack [pnet "${tile}/transducer_l15_req_ack"]
-    set pcx_val [pinnet "${pipeline}/pcxdecoder_l15_val"]
-    set pcx_rqtype [pinbus "${pipeline}/pcxdecoder_l15_rqtype" 5]
-    set pcx_addr [pinbus "${pipeline}/pcxdecoder_l15_address" 24]
-    set pcx_ack [pinnet "${pipeline}/l15_pcxdecoder_ack"]
-    set pcx_header_ack [pinnet "${pipeline}/l15_pcxdecoder_header_ack"]
-    set pipe_noc1_val [pinnet "${pipeline}/l15_noc1buffer_req_val"]
-    set pipe_noc1_type [pinbus "${pipeline}/l15_noc1buffer_req_type" 5]
-    set ila2_base [concat $pc16 [list \
-        $trans_val $trans_ack $trans_header_ack $trans_return $trans_req_ack \
-        $pcx_val] $pcx_rqtype $pcx_addr [list $pcx_ack $pcx_header_ack \
-        $pipe_noc1_val] $pipe_noc1_type]
-    set ila2 [concat $ila2_base [lrepeat [expr {64 - [llength $ila2_base]}] $trans_val]]
-    if {[llength $ila2] != 64} { error "ILA2 width [llength $ila2]" }
-    reconnect "u_bd/openpiton_top_i/axis_ila_2/probe0" $ila2 "${tag_prefix}_ingress"
-
-    # ILA3 retains the lower L1.5/NoC observation needed to distinguish a
-    # rejected PCX input from one accepted but stalled before NoC1 injection.
+    # ILA2: simultaneous FIFO occupancy and retained L1.5 pipeline stages.
+    # A full FIFO with val_s2/val_s3 and NoC1 all low identifies the next
+    # boundary without relying on source-level transducer port aliases.
+    set val_s2 [pnet "${pipeline}/val_s2"]
+    set val_s3 [pnet "${pipeline}/val_s3"]
+    set pipe_noc1_val [pnet "${pipeline}/l15_noc1buffer_req_val"]
+    set noc1_staled [pnet "${pipeline}/noc1encoder_req_staled_s3"]
     set noc1_req_val [pnet "${l15}/l15_noc1buffer_req_val"]
     set creditman_req [pnet "${l15}/creditman_noc1_req"]
     set noc1_enc_ack [pnet "${l15}/noc1encoder_noc1buffer_req_ack"]
@@ -180,12 +166,23 @@ if {!$resume} {
         lappend noc1_cmd_val [pnet "${l15}/noc1buffer/command_buffer_val_reg\[${bit}\]__0"]
     }
     set noc2_data_val [pnet "${l15}/noc2_data_val"]
-    set noc2_pipe_val [pnet "${l15}/pipeline/noc2_data_val"]
+    set noc2_pipe_val [pnet "${pipeline}/noc2_data_val"]
     set noc2_simple_val [pnet "${l15}/simplenocbuffer/noc2_data_val"]
-    set ila3_base [concat $pc16 [list \
-        $pcx_val $pcx_ack $pcx_header_ack $pipe_noc1_val $noc1_req_val \
+    set ila2_base [concat $pc16 $dcf_count $dcf_pointers $dcf_rtypes [list \
+        $val_s2 $val_s3 $pipe_noc1_val $noc1_staled $noc1_req_val \
         $creditman_req $noc1_enc_ack $noc1_rtr_val] $noc1_cmd_val [list \
         $noc2_data_val $noc2_pipe_val $noc2_simple_val]]
+    set ila2 [concat $ila2_base [lrepeat [expr {64 - [llength $ila2_base]}] $val_s2]]
+    if {[llength $ila2] != 64} { error "ILA2 width [llength $ila2]" }
+    reconnect "u_bd/openpiton_top_i/axis_ila_2/probe0" $ila2 "${tag_prefix}_ingress"
+
+    # ILA3 provides an independently clocked copy of the AMO and FIFO state
+    # alongside the first two L1.5 pipeline stages.
+    set ila3_base [concat $pc16 [list \
+        $src_req $src_ack $no_store_pending \
+        $mu_req $mu_req_q $mu_resp_ack] $miss_state $dcf_count $dcf_pointers \
+        $dcf_rtypes [list $val_s2 $val_s3 $pipe_noc1_val $noc1_staled \
+        $noc1_req_val $creditman_req $noc1_enc_ack $noc1_rtr_val]]
     set ila3 [concat $ila3_base [lrepeat [expr {64 - [llength $ila3_base]}] $noc1_req_val]]
     if {[llength $ila3] != 64} { error "ILA3 width [llength $ila3]" }
     reconnect "u_bd/openpiton_top_i/axis_ila_3/probe0" $ila3 "${tag_prefix}_noc"
@@ -193,9 +190,9 @@ if {!$resume} {
     set fh [open $probe_map w]
     puts $fh {Build 97 probe map (bit 0 first, 64 bits per ILA)}
     puts $fh "source=$input_dcp"
-    puts $fh {ILA1 [15:0]=commit_PC_low [16:18]=miss_req/ack/return_valid [19:21]=miss_rtype [22:24]=missunit_state [25:26]=adapter_dcache_req/ack [27:30]=dcache_FIFO_full/empty/push/pop [31:34]=adapter_L15_val/ack/return_val/atomic [35:38]=return_FIFO_full/empty/push/pop}
-    puts $fh {ILA2 [15:0]=commit_PC_low [16:20]=tile_transducer_val/ack/header_ack/return_val/req_ack [21]=pipeline_pcx_val [22:26]=PCX_rqtype [27:50]=PCX_address_low24 [51:53]=pipeline_pcx_ack/header_ack/NoC1_val [54:58]=pipeline_NoC1_type}
-    puts $fh {ILA3 [15:0]=commit_PC_low [16:23]=pipeline_PCX_val/ack/header_ack/NoC1_val and lower_NoC1_val/credit/encoder_ack/router_val [24:31]=command_buffer_valid[0:7] [32:34]=NoC2 ingress/pipeline/simple valid}
+    puts $fh {ILA1 [15:0]=commit_PC_low [16:24]=source/D-cache/missunit AMO req/ack state [25:27]=missunit_state [28:29]=D-cache FIFO status_count [30:31]=FIFO read/write pointers [32:35]=FIFO slots 0/1 rtype bits}
+    puts $fh {ILA2 [15:0]=commit_PC_low [16:23]=FIFO count/pointers/rtype [24:31]=L1.5 val_s2/val_s3/NoC1/stall/credit/ack/router [32:39]=NoC1 command FIFO valid [40:42]=NoC2 ingress/pipeline/simple valid}
+    puts $fh {ILA3 [15:0]=commit_PC_low [16:24]=source/missunit AMO req/ack state [25:27]=missunit_state [28:31]=FIFO occupancy/pointers [32:35]=FIFO rtype [36:43]=L1.5 val_s2/val_s3/NoC1 and downstream handshakes}
     puts $fh {missunit state: IDLE=0 DRAIN=1 AMO=2 FLUSH=3 STORE_WAIT=4 LOAD_WAIT=5 AMO_WAIT=6}
     close $fh
     write_checkpoint -force $pre_route_dcp
