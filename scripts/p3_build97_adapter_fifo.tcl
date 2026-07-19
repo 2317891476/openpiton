@@ -1,10 +1,11 @@
 # Build 97 -- diagnostic-only incremental adapter FIFO / L1.5 ingress probe.
 #
-# Reuses the Build 96 routed DCP.  This script changes only existing ILA
-# probe connections and ECO routing; it does not synthesize, place, change
-# functional RTL, or touch the SD payload.
+# Reuses the post-fix Build 90 functional routed DCP. Build 96 only rewired
+# ILA probes, so it contributes no functional state that Build 97 needs. This
+# script changes only existing ILA probe connections and ECO routing; it does
+# not synthesize, place, change functional RTL, or touch the SD payload.
 
-set default_dcp {D:/p3b96_bootrom_amo/p3_top_build96_bootrom_amo_routed.dcp}
+set default_dcp {D:/p3b90_time_csr_rtl/huaprop3_build90_time_csr_rtl.runs/impl_1/p3_top_routed.dcp}
 set default_output_dir {D:/p3b97_adapter_fifo}
 set output_stem {p3_top_build97_adapter_fifo}
 set tag_prefix {p3_build97}
@@ -14,7 +15,7 @@ set output_dir $default_output_dir
 if {[llength $argv] >= 1} { set input_dcp [file normalize [lindex $argv 0]] }
 if {[llength $argv] == 2} { set output_dir [file normalize [lindex $argv 1]] }
 if {![file exists $input_dcp] || [file size $input_dcp] == 0} {
-    error "Build 96 routed DCP is missing or empty: $input_dcp"
+    error "post-fix Build 90 routed DCP is missing or empty: $input_dcp"
 }
 file mkdir $output_dir
 set output_base "${output_dir}/${output_stem}"
@@ -90,7 +91,7 @@ proc reconnect {port_name nets tag} {
 set_param general.maxThreads 16
 set_msg_config -id {Vivado 12-3773} -suppress
 set_msg_config -id {Constraints 18-549} -suppress
-puts "Opening Build 96 routed checkpoint: $input_dcp"
+puts "Opening post-fix Build 90 routed checkpoint: $input_dcp"
 open_checkpoint $input_dcp
 
 if {!$resume} {
