@@ -107,6 +107,48 @@ emit_cell_pins $fh dcache_fifo_read_pointer "${dcfifo}/read_pointer_q_reg\[0\]"
 emit_cell_pins $fh dcache_fifo_write_pointer "${dcfifo}/write_pointer_q_reg\[0\]"
 emit_pin_driver $fh missunit_state_ce "${missunit}/FSM_sequential_state_q_reg\[0\]" CE
 emit_pin_driver $fh dcache_fifo_count_ce "${dcfifo}/status_cnt_q_reg\[0\]" CE
+
+# Resolve the adapter handshake boundary: these are the actual signals that
+# determine whether STORE_WAIT can exit, unlike AMO resp ack which is a
+# separate completion path.
+proc emit_port_net {fh label cell_name ref_pin} {
+    # Hierarchical boundary pins are not returned by get_pins -of_objects on
+    # a hierarchical cell; use direct pin name lookup instead.
+    set pin_path "${cell_name}/${ref_pin}"
+    set pin [get_pins -quiet $pin_path]
+    if {[llength $pin] == 0} {
+        set nets [get_nets -quiet $pin_path]
+        if {[llength $nets] > 0} {
+            puts $fh "\nPORT_NET $label net_search=$pin_path"
+            foreach net $nets {
+                puts $fh "  net=[get_property NAME $net]"
+                set drivers [get_pins -quiet -of_objects $net -filter {DIRECTION == OUT}]
+                foreach drv $drivers {
+                    puts $fh "  driver=[get_property NAME $drv] cell=[get_cells -quiet -of_objects $drv]"
+                }
+            }
+            return
+        }
+        puts $fh "\nPORT_NET $label WARN=no_pin_or_net pin=$pin_path"
+        return
+    }
+    set nets [get_nets -quiet -of_objects $pin]
+    puts $fh "\nPORT_NET $label pin=[get_property NAME $pin] ref=[get_property REF_PIN_NAME $pin] nets=$nets"
+    foreach net $nets {
+        set drivers [get_pins -quiet -of_objects $net -filter {DIRECTION == OUT}]
+        foreach drv $drivers {
+            puts $fh "  driver=[get_property NAME $drv] cell=[get_cells -quiet -of_objects $drv]"
+        }
+    }
+}
+
+emit_port_net $fh missunit_mem_data_req_o $missunit mem_data_req_o
+emit_port_net $fh missunit_mem_data_ack_i $missunit mem_data_ack_i
+emit_port_net $fh adapter_dcache_data_req_i $adapter dcache_data_req_i
+emit_port_net $fh adapter_dcache_data_ack_o $adapter dcache_data_ack_o
+emit_port_net $fh dcache_mem_data_req_o $dcache mem_data_req_o
+emit_port_net $fh dcache_mem_data_ack_i $dcache mem_data_ack_i
+
 for {set bit 0} {$bit < 6} {incr bit} {
     emit_pin_driver $fh "missunit_state_ce_lut_i${bit}" \
         "${missunit}/FSM_sequential_state_q\[2\]_i_1__0" "I${bit}"
