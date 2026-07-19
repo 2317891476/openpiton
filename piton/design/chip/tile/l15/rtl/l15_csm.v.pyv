@@ -507,7 +507,7 @@ begin
         else
         begin
             csm_l15_res_data_s3 = 0;
-            csm_l15_res_data_s3[`PACKET_HOME_ID_CHIP_MASK] = 1'b0; // non-csm mode only has 1 chip alone
+            csm_l15_res_data_s3[`PACKET_HOME_ID_CHIP_MASK] = 14'h2000; // match chipset xbar myChipID for off-chip routing
             csm_l15_res_data_s3[`PACKET_HOME_ID_Y_MASK] = on_chip_dev_access_s3 ? on_chip_dev_access_y_s3 : lhid_s3_y;
             csm_l15_res_data_s3[`PACKET_HOME_ID_X_MASK] = on_chip_dev_access_s3 ? on_chip_dev_access_x_s3 : lhid_s3_x;
         end
@@ -687,7 +687,7 @@ assign csm_noc1encoder_req_size = 0;
 always @ *
 begin
     csm_l15_res_data_s3 = 0;
-    csm_l15_res_data_s3[`PACKET_HOME_ID_CHIP_MASK] = 1'b0; // non-csm mode only has 1 chip alone
+    csm_l15_res_data_s3[`PACKET_HOME_ID_CHIP_MASK] = 14'h2000; // match chipset xbar myChipID for off-chip routing
     csm_l15_res_data_s3[`PACKET_HOME_ID_Y_MASK] = on_chip_dev_access_s3 ? on_chip_dev_access_y_s3 : lhid_s3_y;
     csm_l15_res_data_s3[`PACKET_HOME_ID_X_MASK] = on_chip_dev_access_s3 ? on_chip_dev_access_x_s3 : lhid_s3_x;
 end
