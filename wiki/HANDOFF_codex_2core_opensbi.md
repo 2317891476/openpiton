@@ -6,6 +6,32 @@
 
 This doc is self-contained. Read it fully before acting. All key facts, paths, hashes, and commands are here.
 
+## Superseding single-core Build 101 note -- 2026-07-20
+
+This handoff remains the historical 2-core record. Do not use its earlier
+`udelay()` language as the current single-core root-cause conclusion. Build
+101 has passed the old `d_set_d_op()` load-forward-progress boundary and has
+executed Linux in S-mode. Its later PC concentration at `0xffffffff807d8a96`
+resolves to the Linux `udelay()` loop, specifically the `rdtime`/subtract/branch
+range `0xffffffff807d8a88..0xffffffff807d8aa4`.
+
+That observation does not prove that one `udelay()` invocation is stuck, that
+TIME does not advance, that the caller is `calibrate_delay()`, or that
+timer/IPI is the root cause. The next diagnostic must capture direct caller
+context, TIME return/writeback values, live operands, and trap/interrupt state
+in one synchronized pre-triggered capture. Build 101's released
+`D:/p3eco/build101` directory contains PDI/LTX but no routed DCP, so it cannot
+be honestly used as an ECO input. Rebuild a protected Build-101-equivalent
+checkpoint first, preserve it, then make the diagnostic ECO from that exact
+checkpoint.
+
+The LPJ image test is not a valid software A/B: the remote write/readback
+record is incomplete and the candidate changed initramfs contents in addition
+to bootargs. Do not infer any conclusion from it. Keep the validated
+`CSR_TIME = cycle_q >> 7` and the Build 101 adapter `keep` workaround; the
+latter is a board-level causal observation, not yet a complete explanation of
+the implementation-sensitive mechanism.
+
 ## Current boundary after Build 92 stable-load capture -- 2026-07-18
 
 Build 92 found the deterministic blocker that Build 91 did not.  It is
