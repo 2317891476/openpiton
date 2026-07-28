@@ -15,7 +15,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 | Current FPGA board | AX7203 (Artix-7 XC7A200T) |
 | Migration target | HuaPro P3 (Versal VP1902) |
 | Core type | Ariane/CVA6 (RISC-V 64-bit) |
-| Single-core status | P3 Build 66 legacy BBL/Linux shell, SD ext2, and XSBench launch are verified. The unchanged-PDI OpenSBI/Linux 6.6 image passes SD/GPT/copy and reaches OpenSBI v1.8 with one hart and the corrected 234375 Hz timer. Live Build 79 ILA evidence now shows active instruction retirement and a repeating M/S trap plus CSR-emulation path, not the earlier inferred persistent L1.5 or commit stall; the Linux 6.6 shell and exact synchronous trap cause remain unproven. |
+| Single-core status | **P3 Build 66 unchanged PDI + OpenSBI v1.8 + Linux 5.1.0-rc7 now reaches an interactive BusyBox shell, mounts the SD ext2 second partition, and completes XSBench with 1,000 particles x 1 lookup.** The separate OpenSBI/Linux 6.6 image passes SD/GPT/copy and reaches OpenSBI v1.8 with one hart and the corrected 234375 Hz timer, but its Linux shell and exact synchronous trap cause remain unproven. |
 | **A/B result (2026-07-27)** | **Same OpenSBI v1.8 + same DTB + same Build 66 PDI: Linux 5.1.0-rc7 boots fully to `Run /init as init process` (banner, memory, timer, SMP, devtmpfs, networking, USB, RPC/NFS, piton_sd, kernel init complete), while Linux 6.6 cannot even print a banner.** This isolates the blocker to Linux 6.6 specifically (early S-mode boot code, kernel config, or its OpenSBI interaction), not the firmware or hardware contract. |
 | Current P3 baseline | Build 66 self-contained rerun target: `p3b66/source_snapshot/`; published PDI `huaprop3_build66_baseline/debug_build/p3_top_build66_normal_spi_sd_boot.pdi` |
 | Current scaling candidate | **2-core (2x1) bring-up in progress.** Leaving Ariane L1 D-cache enabled clears the CSR 0x701 OpenSBI gate, the timer reports the corrected 234375 Hz, and the `mem=1G` control crosses the stale-aperture page-table stop into later Linux init. The corrected 2 GiB aperture PDI still lacks formal board closure. The single-hart control now points to an active repeating OpenSBI trap/CSR-emulation path; the next boundary is commit PC plus mcause/mepc/mtval and decoded CSR, not another generic L1.5 or commit-stall probe. Linux SMP completion and a current-stack shell remain unproven. **See [HANDOFF_codex_2core_opensbi.md](HANDOFF_codex_2core_opensbi.md) for the full handoff.** |
@@ -69,7 +69,7 @@ Entries in `devlog/` are organized by month, newest first, append-only.
 
 | Phase | Target | Milestone |
 |-------|--------|-----------|
-| P0 | Single core | Legacy BBL Linux shell/SD/XSBench verified; unchanged Build 66 PDI plus OpenSBI v1.8 reaches the one-hart handoff, then enters an active repeating S/M trap and CSR-emulation path before a Linux 6.6 shell |
+| P0 | Single core | OpenSBI v1.8 + Linux 5.1 interactive shell, SD ext2 mount, and XSBench 1,000 x 1 completion verified on unchanged Build 66 PDI; Linux 6.6 remains a separate early-boot blocker |
 | P1 | 2x2 (4 cores) | Multi-core coherence validated |
 | P2 | 4x4 (16 cores) | Speedup measurement baseline |
 | P3 | 8x8 (64 cores) | P3 Pro / VP1902 board boots Linux with 64 CPUs online |
