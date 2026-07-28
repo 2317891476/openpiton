@@ -177,7 +177,7 @@ Copy a local image to the remote host, verify the hash, then write the whole dis
 ```bash
 img=build/huaprop3/sd_images/huaprop3_linux_shell.img
 sha256sum "$img"
-scp "$img" illya@100.93.77.36:/tmp/huaprop3_linux_shell.img
+scp -C "$img" illya@100.93.77.36:/tmp/huaprop3_linux_shell.img
 
 ssh illya@100.93.77.36 '
   sha256sum /tmp/huaprop3_linux_shell.img
@@ -193,6 +193,13 @@ ssh illya@100.93.77.36 '
   "
 '
 ```
+
+Always use compressed transport for SD-card images (`scp -C`, or an
+equivalent compressed stream when `scp` is not used).  These images are
+typically large and mostly zero-filled, so uncompressed transfer wastes the
+remote link.  Compression is only a transport optimization: after transfer,
+the complete remote file SHA-256 must still match the local image SHA-256
+before any disk write.
 
 The readback hash must match the local image hash for the written size. For a 128 MiB image, `count=32` with `bs=4M` reads back the full image. Never write to `/dev/sda` or `/dev/nvme*` on the remote host.
 
