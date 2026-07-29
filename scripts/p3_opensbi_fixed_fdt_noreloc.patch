@@ -1,0 +1,20 @@
+diff --git a/firmware/fw_base.S b/firmware/fw_base.S
+index 6983f86..fa1821e 100644
+--- a/firmware/fw_base.S
++++ b/firmware/fw_base.S
+@@ -271,7 +271,14 @@ _scratch_init:
+ 	add	t1, a0, zero
+ 	MOV_3R	a0, s0, a1, s1, a2, s2
+ 	beqz	t1, _fdt_reloc_done
+-	beq	t1, a1, _fdt_reloc_done
++	/*
++	 * P3_FIXED_FDT_NORELOC: Build 66 has already copied the complete DTB
++	 * from the SD payload to FW_JUMP_FDT_ADDR.  The bootrom-provided a1
++	 * points at a minimal bootrom DTB, so copying it to the fixed address
++	 * would destroy /chosen bootargs, initrd metadata and P3 peripherals.
++	 * Keep standard OpenSBI HSM semantics; only skip this FDT copy.
++	 */
++	beq	zero, zero, _fdt_reloc_done
+ 	/* t0 = source FDT start address */
+ 	add	t0, a1, zero
+ 	/* t2 = source FDT size (convert from big-endian) */

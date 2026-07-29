@@ -80,6 +80,14 @@ def main() -> int:
     parser.add_argument("--size-mib", type=int_arg, default=256)
     parser.add_argument("--partition-start-lba", type=int_arg, default=2048)
     parser.add_argument("--copy-size-mib", type=int_arg, default=32)
+    parser.add_argument(
+        "--disk-uuid",
+        default="b0660000-0000-4000-8000-000000000001",
+    )
+    parser.add_argument(
+        "--partition-uuid",
+        default="b0660000-0000-4000-8000-000000000002",
+    )
     parser.add_argument("--device-map", type=Path, default=DEFAULT_DEVICE_MAP)
     parser.add_argument("--load-base", type=int_arg, default=0x80000000)
     parser.add_argument("--fw-addr", type=int_arg, default=0x80000000)
@@ -145,10 +153,11 @@ def main() -> int:
 
     layout = (
         "label: gpt\n"
+        f"label-id: {args.disk_uuid}\n"
         "unit: sectors\n"
         f"first-lba: {args.partition_start_lba}\n"
         "\n"
-        f"start={args.partition_start_lba}, type=linux\n"
+        f"start={args.partition_start_lba}, type=linux, uuid={args.partition_uuid}\n"
     )
     run_input(["sfdisk", str(args.out)], layout)
 
@@ -177,6 +186,8 @@ def main() -> int:
         dst.write(f"image={args.out}\n")
         dst.write(f"size_bytes={size_bytes}\n")
         dst.write(f"partition_start_lba={args.partition_start_lba}\n")
+        dst.write(f"disk_uuid={args.disk_uuid}\n")
+        dst.write(f"partition_uuid={args.partition_uuid}\n")
         dst.write(f"copy_blocks={copy_size // 512}\n")
         dst.write(f"load_base=0x{args.load_base:x}\n")
         dst.write(f"copy_size=0x{copy_size:x}\n")
