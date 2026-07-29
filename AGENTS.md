@@ -172,34 +172,40 @@ ssh illya@100.93.77.36 \
 
 Only write a disk that has a real nonzero size, `TYPE=disk`, `TRAN=usb`, `RM=1`, and the expected model/size. In the current setup the SD card has appeared as `/dev/sdc` with model `Multi-Reader -1` and size `31914983424`, while `/dev/sdb`, `/dev/sdd`, and `/dev/sde` may be empty 0B reader slots.
 
-Copy a local image to the remote host, verify the hash, then write the whole disk device and read back the written span:
+Always create and transfer a compressed image artifact. Prefer deterministic
+`gzip -9n` output so both the compressed transport file and the uncompressed
+disk bytes have stable hashes. Do not transfer a raw `.img`, even with
+transport-level `scp -C`; keep the compressed artifact explicit and verify it
+before streaming it to the card.
 
 ```bash
 img=build/huaprop3/sd_images/huaprop3_linux_shell.img
-sha256sum "$img"
-scp -C "$img" illya@100.93.77.36:/tmp/huaprop3_linux_shell.img
+gzip -9n -c "$img" > "$img.gz"
+raw_sha=$(sha256sum "$img" | awk '{print $1}')
+gz_sha=$(sha256sum "$img.gz" | awk '{print $1}')
+scp "$img.gz" illya@100.93.77.36:/tmp/huaprop3_linux_shell.img.gz
 
 ssh illya@100.93.77.36 '
-  sha256sum /tmp/huaprop3_linux_shell.img
+  sha256sum /tmp/huaprop3_linux_shell.img.gz
+  gzip -t /tmp/huaprop3_linux_shell.img.gz
+  gzip -dc /tmp/huaprop3_linux_shell.img.gz | sha256sum
   lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS /dev/sdc
   sudo sh -c "
     umount /dev/sdc1 2>/dev/null || true
-    dd if=/tmp/huaprop3_linux_shell.img of=/dev/sdc bs=4M conv=fsync status=progress
+    gzip -dc /tmp/huaprop3_linux_shell.img.gz |
+      dd of=/dev/sdc bs=4M iflag=fullblock conv=fsync status=progress
     sync
     blockdev --rereadpt /dev/sdc 2>/dev/null || true
-    sha256sum /tmp/huaprop3_linux_shell.img
     dd if=/dev/sdc bs=4M count=32 status=none | sha256sum
     lsblk -b -o NAME,SIZE,TYPE,MODEL,TRAN,RM,MOUNTPOINTS /dev/sdc
   "
 '
 ```
 
-Always use compressed transport for SD-card images (`scp -C`, or an
-equivalent compressed stream when `scp` is not used).  These images are
-typically large and mostly zero-filled, so uncompressed transfer wastes the
-remote link.  Compression is only a transport optimization: after transfer,
-the complete remote file SHA-256 must still match the local image SHA-256
-before any disk write.
+The remote compressed SHA-256 must equal `gz_sha`, and the remote
+`gzip -dc ... | sha256sum` result must equal `raw_sha`, before any disk write.
+Compression is only a transport optimization; the final readback hash is over
+the raw written bytes.
 
 The readback hash must match the local image hash for the written size. For a 128 MiB image, `count=32` with `bs=4M` reads back the full image. Never write to `/dev/sda` or `/dev/nvme*` on the remote host.
 
@@ -317,6 +323,103 @@ readback. The final SD artifact is
 This path changes only the SD payload; it does not rebuild or alter the
 validated PDI. A board pass requires OpenSBI v1.8, mtimer at 234375 Hz, Linux
 6.6, only CPU0, and an interactive shell in one UART capture.
+
+For the Linux 6.12 single-hart system baseline that is intended to scale to
+MPI/OpenMP on 2/64 harts, use:
+
+```bash
+JOBS=32 scripts/p3_prepare_build66_1hart_linux612_mpi_image.sh
+```
+
+This wrapper pins upstream Linux 6.12.98, the standard-HSM OpenSBI v1.8
+fixed-FDT firmware, the base BusyBox/XSBench initramfs, and the unchanged
+validated Build 66 PDI/LTX by SHA-256. The kernel is built with
+`CONFIG_NR_CPUS=64` but the validated Build 66 DTB exposes only CPU0. The
+system profile includes FPU, futex, SysV/POSIX IPC, shared memory, membarrier,
+rseq, Unix/TCP loopback sockets, block/GPT/ext4, and the Linux 6.12 port of
+`piton_sd`. It also requires `CONFIG_BINFMT_SCRIPT=y`, because `/init` is a
+BusyBox shell script, and explicitly brings `lo` up before the TCP loopback
+gate. It intentionally keeps `CONFIG_BLK_DEV_LOOP=n`; the first generic
+6.12 candidate stalled in the unused `loop_init` path.
+
+The original `piton_sd` register protocol comes from
+`build/a7203x/ariane-sdk/configs/0099-Piton-SD-Driver.patch` (SHA-256
+`24578b764d09ae36af6312caa8ddb7bf2fdd2264b9f6fed9d01b4010e8ceb3aa`).
+The 6.12 source is `scripts/p3_linux612_piton_sd.c`; it uses the current
+`submit_bio`/`blk_alloc_disk` API and serializes the synchronous SD MMIO
+aperture so several harts cannot issue overlapping transactions. The build
+integrates this source into the extracted kernel tree with
+`scripts/p3_integrate_linux612_piton_sd.py`.
+
+Before entering the shell, the generated initramfs automatically runs
+`/usr/bin/p3_mpi_system_smoke`. A board system-contract pass requires
+`P3_MPI_SYS ALL_PASS`, covering CPU affinity, monotonic time, pthread/futex,
+shared anonymous memory across `fork`, POSIX mqueue, Unix sockets, and TCP
+loopback. This validates kernel facilities only; installing and running an
+actual MPI implementation remains a separate userspace gate.
+
+The fixed candidate is emitted as
+`build/huaprop3/opensbi1_build66_linux612_mpi/p3_opensbi_linux_1hart_build66_linux-6.12.98_mpi_flat.img.gz`.
+Transfer only that compressed artifact, verify both its compressed hash and
+its decompressed raw-image hash remotely, and stream-decompress it into the
+validated removable disk. The current fixed compressed SHA-256 is
+`a83ba0954dac2fa41064de0dc9b98a40110c7281181f0ab89f8e509185c15c24`;
+the decompressed 256 MiB image SHA-256 is
+`182398e623533d06a0613aa5aeefdcf81a965b085f78d312c0217a6c14c6c6c4`.
+The board gate is one UART capture containing Linux
+6.12.98, exactly one online CPU, `P3_MPI_SYS ALL_PASS`, `/dev/piton_sd1`,
+an interactive shell, and successful completion of
+`/root/XSBench -t 1 -s small -p 1000 -l 1`. Do not claim the system baseline
+until all of those markers occur in one completed capture.
+
+Current board status as of 2026-07-29: the corrected image automatically
+reaches OpenSBI v1.8, Linux 6.12.98, one CPU, `/dev/piton_sd1`,
+`P3_MPI_SYS ALL_PASS`, and an interactive shell. The final UART log is
+`~/p3_uart_logs/ttyUSB0_20260729_155642_build66_linux612_mpi_final.log`.
+The same Linux 5.1-validated XSBench binary did not emit output or return after
+15 minutes on Linux 6.12, and `Ctrl-C` did not restore the prompt. Existing
+Build 66 ILAs showed a live heartbeat, no L1.5/DDR error and no active
+core/L1.5 or DDR handshake, with timer and external interrupt inputs pending.
+Those ILAs do not expose commit PC or interrupt-enable/privilege state, so do
+not attribute the XSBench stop to a specific instruction or RTL block. Treat
+the automatic MPI system-contract pass and the later XSBench forward-progress
+failure as separate gates.
+
+To localize that XSBench gate without another PDI, build the direct-write
+stage-marker image with:
+
+```bash
+scripts/p3_prepare_build66_1hart_linux612_xsbench_marker_image.sh
+```
+
+The flow archives exact XSBench commit
+`ba08e5221af6106252b866e50ea123c69d31a4e2`, first reproduces the previously
+board-tested unmodified binary SHA-256
+`1e896862da3294129c02bcbd8dfbd89fe70e093ef4c03f430882b6fede110930`,
+then inserts fail-closed markers into the runtime, OpenMP setup, nuclide-grid
+allocation/fill/sort, unionized-grid/index construction, material setup, and
+history loop. The marker implementation calls `write(2)` directly and does
+not use stdio or heap allocation, so the last UART marker remains meaningful
+when ordinary `printf` output is buffered. The marked executable SHA-256 is
+`cc8daa214860651e2da283185ae843ba64baaf56892859b058fbc049450fbcb6`.
+
+This diagnostic reuses the board-validated Linux Image
+`fbbf1cc1c1ec35d7e90584ed9c078045678a62282ec7c07f60c4f9d35857eb8e`,
+OpenSBI, PDI, and LTX unchanged; only the initramfs and its DTB end address
+change. `/init` runs the MPI system smoke and then automatically executes
+`/root/XSBench_marked -t 1 -s small -p 1000 -l 1`. The reproducible raw image
+SHA-256 is
+`bd22f5ab696d7eccb75e728f6d023d15ff2b43a1bf63a9f6dd644d00b7c96ad2`;
+the deterministic compressed transport SHA-256 is
+`59d18fc641903987e7630a5c427f199a465b36ca3c9089e4e360c9fc45e00ecf`.
+QEMU user-mode validation reached all 1000 particles and `M99`; its exit
+status is 1 because this reduced diagnostic workload does not match XSBench's
+built-in reference checksum, not because execution failed. Do not infer the
+board stop until a completed UART capture identifies the last `P3_XS` marker.
+
+`scripts/p3_prepare_build66_1hart_linux612_image.sh` with its default
+`minimal` profile remains a diagnostic-only no-block/no-network build. Do not
+use that minimal profile as the OpenMC/MPI system baseline.
 
 Use these invocation modes:
 
