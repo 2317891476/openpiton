@@ -414,8 +414,24 @@ the deterministic compressed transport SHA-256 is
 `59d18fc641903987e7630a5c427f199a465b36ca3c9089e4e360c9fc45e00ecf`.
 QEMU user-mode validation reached all 1000 particles and `M99`; its exit
 status is 1 because this reduced diagnostic workload does not match XSBench's
-built-in reference checksum, not because execution failed. Do not infer the
-board stop until a completed UART capture identifies the last `P3_XS` marker.
+built-in reference checksum, not because execution failed.
+
+The first board run of this image did not reach any `P3_XS` marker. It
+programmed successfully (`DONE bit: HIGH`, debug hub `0x3ffc0000000`, four
+ILAs), booted OpenSBI/Linux, recognized `/dev/piton_sd1`, and reached
+`Run /init as init process`, but UART stopped after the kernel's `TERM=linux`
+environment line. The 94,941-byte primary log is
+`~/p3_uart_logs/ttyUSB0_20260729_171920_build66_linux612_xsbench_marker.log`;
+the immediate 900-second continuation log is 0 bytes. A sequential four-ILA
+snapshot is under
+`huaprop3_build66_baseline/debug_build/linux612_xsbench_marker_init_stall_snapshot/`.
+Its UART vector `0x179f807e34c0000b` is byte-identical to the earlier
+post-command no-output snapshot, while the core and DDR last-address vectors
+differ and have no retained L1.5/DDR error. Treat the UART/console and nearby
+CPU forward-progress boundary as a recurrent high-priority lead, not a proven
+UART RTL root cause: the four ILAs are not synchronous and do not expose
+commit PC. Do not rebuild another UART-only XSBench marker image; the next
+software-stage localization must persist progress independently of UART.
 
 `scripts/p3_prepare_build66_1hart_linux612_image.sh` with its default
 `minimal` profile remains a diagnostic-only no-block/no-network build. Do not
