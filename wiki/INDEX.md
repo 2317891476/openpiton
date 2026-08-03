@@ -50,6 +50,7 @@ Run **Quicksilver** on a 1000-core OpenPiton instance and measure parallel speed
 - [周报 - 64核Linux shell打通 + stop_machine IPI死锁定位 (2026-06-23~07-06)](weekly_report_2026-06-23_to_2026-07-06.md) — 64核nproc=64 shell；stop_machine IPI死锁(6/64响应)；纠正L1 coherence/timer/gcc误诊
 - [周报 - 2核Build 73打通至Linux早期 + CSR/定时器修复 (2026-07-07~07-13)](weekly_report_2026-07-07_to_2026-07-13.md) — 2核链路通过OpenSBI进入Linux早期；关闭CSR 0x701和mtimer注册问题；Linux页表阶段待A/B
 - [周报 - 单核OpenSBI/Linux TIME CSR修复与ILA证据链纠偏 (2026-07-14~07-20)](weekly_report_2026-07-14_to_2026-07-20.md) — 单核复现后期问题；TIME CSR RTL闭环；adapter实现敏感性已证实但具体根因待定位
+- [周报 - OpenSBI/Linux 5.1闭环 + Linux 6.12单核系统基线 + PID 1 exec诊断 (2026-07-21~08-03)](weekly_report_2026-07-21_to_2026-08-03.md) — 5.1全链闭环(shell+XSBench)；6.12 MPI ALL_PASS；FDT重定位根因闭环；PID 1 exec入口阻塞待定位
 - [Weekly Report - 64-core Scaling and Toolchain Debugging](weekly_report_64core_diagnostics.md)
 - [Weekly Report - Single-core Boot and 2x1 Multicore Bring-up](weekly_report_multicore_bringup.md)
 - [Weekly Report - SD Card Issue on P3](weekly_report_sd_issue.md)
